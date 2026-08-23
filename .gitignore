@@ -13,6 +13,22 @@
 # testing
 /coverage
 
+# Local application state. The server owns its own database; committing any of
+# these can expose accounts, sessions, ratings, or legacy credentials.
+/data/
+/backup/
+/legacy/
+
+# This install's own deploy target — host, paths, port. The code is shared; a
+# particular server is not.
+/deploy/target.env
+
+# Engineering continuity log. Working notes about this specific deployment.
+/HANDOFF.md
+
+# Local assistant/editor state
+/.claude/
+
 # next.js
 /.next/
 /out/

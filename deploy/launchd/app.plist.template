@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>__LABEL__</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/sh</string>
+    <string>-c</string>
+    <string>export PATH=$HOME/.local/bin:/opt/homebrew/bin:$PATH; cd __DEST__ &amp;&amp; exec npm run start</string>
+  </array>
+  <key>WorkingDirectory</key><string>__DEST__</string>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PORT</key><string>__PORT__</string>
+    <key>NODE_ENV</key><string>production</string>
+  </dict>
+  <key>RunAtLoad</key><true/>
+  <key>KeepAlive</key><true/>
+  <key>StandardOutPath</key><string>__DEST__/data/app.log</string>
+  <key>StandardErrorPath</key><string>__DEST__/data/app.err.log</string>
+</dict>
+</plist>

@@ -1,0 +1,41 @@
+{
+  "version": "7",
+  "dialect": "sqlite",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "6",
+      "when": 1787300908625,
+      "tag": "0000_kind_mojo",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1787338713185,
+      "tag": "0001_groovy_sphinx",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1787342097078,
+      "tag": "0002_married_killmonger",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1787388000000,
+      "tag": "0003_backfill_user_services",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1787430000000,
+      "tag": "0004_service_catalogue",
+      "breakpoints": true
+    }
+  ]
+}
