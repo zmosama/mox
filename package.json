@@ -15,8 +15,7 @@
     "test": "vitest run",
     "check": "npm run lint && npm run typecheck && npm test",
     "db:migrate": "drizzle-kit migrate",
-    "sync:services": "node --env-file=.env.local node_modules/.bin/tsx scripts/sync-services.mts",
-    "feeds:build": "node --env-file=.env.local node_modules/.bin/tsx scripts/build-feeds.mts"
+    "refresh": "node --env-file=.env.local node_modules/.bin/tsx scripts/refresh.mts"
   },
   "dependencies": {
     "better-sqlite3": "^13.0.3",

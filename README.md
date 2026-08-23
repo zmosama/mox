@@ -68,7 +68,7 @@ The core taste tests are self-contained. When the private local legacy dataset e
 
 ## Deploying
 
-`deploy/deploy.sh` pushes this repository to a Mac you can reach over SSH and runs it there under two LaunchAgents: one serving the app, one rebuilding the feeds nightly.
+`deploy/deploy.sh` pushes this repository to a Mac you can reach over SSH and runs it there under two LaunchAgents: one serving the app, one refreshing its data nightly.
 
 Configure the target once. The file is ignored by Git, so your server details stay yours:
 
@@ -92,8 +92,36 @@ The script:
 
 The server needs its own `.env.local` with a TMDB key — the deploy deliberately never copies yours.
 
-## Keeping /new current
+## Keeping the site current
 
-`npm run feeds:build` rebuilds the `new`, `upcoming` and `trending` feeds from TMDB: what has landed on the tracked streaming services in the last 60 days, and what is due in the next 90. The deploy schedules it nightly; running it by hand is safe at any time.
+Everything the site shows comes from TMDB, and `npm run refresh` is what fetches
+it. The deploy schedules it nightly; running it by hand is safe at any time.
 
-A feed that comes back empty is left exactly as it was rather than blanking the page, and the script exits non-zero so a failed run is visible in `data/feeds.err.log`.
+| step | what it rebuilds |
+| --- | --- |
+| `services` | the streaming-service catalogue people pick from |
+| `feeds` | `/new` — what reached a tracked service in the last 60 days, what is due in the next 90, what is trending |
+| `calendar` | upcoming episodes for every series the site knows, 60 days ahead |
+| `universes` | franchise membership, from each universe's TMDB keyword, company, or collection |
+
+Every one of these was a fixed list before: a one-off import wrote them once and
+nothing updated them, so the release timeline stopped on the day of the import,
+the calendar would have emptied five weeks later, and the MCU ended at whatever
+had been released that week.
+
+Three rules the job keeps:
+
+- **A step that fails does not stop the others.** A calendar TMDB could not
+  answer for is no reason to leave the release timeline stale as well. The run
+  reports each step and exits non-zero if any failed, so a bad night is visible
+  in `data/refresh.err.log`.
+- **An empty answer is never believed.** No feed, franchise, or catalogue is
+  replaced with nothing. A bad night shows yesterday's site, never a blank one.
+- **It does not rename what is already named.** TMDB answers in en-US, so an
+  early version relabelled "البرنس" to "The Prince" and "The Office (US)" to
+  "The Office" overnight. Scores, posters and dates are refreshed; names are
+  left as they are, and only new titles take TMDB's.
+
+It writes nothing to `features`. That table is the taste model's input, and
+changing it changes what the board recommends — its own decision, not a side
+effect of keeping a timeline current.

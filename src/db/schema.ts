@@ -199,11 +199,19 @@ export const surfaced = sqliteTable(
 );
 
 /** Franchise universes (MCU, DCEU…) and their membership. */
+/**
+ * A universe is defined by what it is made of, not by a hand-kept list: a TMDB
+ * keyword ("marvel cinematic universe"), a production company, or a collection.
+ * Membership is rebuilt from whichever of these is set, so a film announced
+ * next month joins on its own.
+ */
 export const universes = sqliteTable("universes", {
   slug: text("slug").primaryKey(),
   name: text("name").notNull(),
   keyword: integer("keyword"),
   company: integer("company"),
+  /** A TMDB collection, for a series that is a fixed set of films (Bond). */
+  collection: integer("collection"),
 });
 
 export const universeTitles = sqliteTable(

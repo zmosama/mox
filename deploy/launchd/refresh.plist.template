@@ -3,13 +3,14 @@
 <plist version="1.0">
 <dict>
   <key>Label</key><string>__LABEL__</string>
-  <!-- Rebuilds the /new feeds from TMDB. Deliberately NOT KeepAlive: this is a
-       job that finishes, and launchd would restart it in a loop forever. -->
+  <!-- Brings the feeds, calendar, service catalogue and universes up to date.
+       Deliberately NOT KeepAlive: this is a job that finishes, and launchd
+       would restart it in a loop forever. -->
   <key>ProgramArguments</key>
   <array>
     <string>/bin/sh</string>
     <string>-c</string>
-    <string>export PATH=$HOME/.local/bin:/opt/homebrew/bin:$PATH; cd __DEST__ &amp;&amp; exec npm run feeds:build</string>
+    <string>export PATH=$HOME/.local/bin:/opt/homebrew/bin:$PATH; cd __DEST__ &amp;&amp; exec npm run refresh</string>
   </array>
   <key>WorkingDirectory</key><string>__DEST__</string>
   <key>EnvironmentVariables</key>
@@ -23,10 +24,10 @@
     <key>Hour</key><integer>__FEEDS_HOUR__</integer>
     <key>Minute</key><integer>__FEEDS_MINUTE__</integer>
   </dict>
-  <!-- Also on load, so a deploy leaves the feeds current instead of waiting
+  <!-- Also on load, so a deploy leaves the site current instead of waiting
        until the next morning to catch up. -->
   <key>RunAtLoad</key><true/>
-  <key>StandardOutPath</key><string>__DEST__/data/feeds.log</string>
-  <key>StandardErrorPath</key><string>__DEST__/data/feeds.err.log</string>
+  <key>StandardOutPath</key><string>__DEST__/data/refresh.log</string>
+  <key>StandardErrorPath</key><string>__DEST__/data/refresh.err.log</string>
 </dict>
 </plist>

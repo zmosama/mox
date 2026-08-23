@@ -103,10 +103,10 @@ done
 echo "==> restarting"
 render app.plist.template "$LABEL.app"
 
-echo "==> scheduling the nightly feed build"
-# Reloading it here is also what refreshes /new on a deploy: the agent is
-# RunAtLoad, so the feeds are rebuilt now rather than at the next scheduled run.
-render feeds.plist.template "$LABEL.feeds"
+echo "==> scheduling the nightly refresh"
+# Reloading it here is also what brings the site current on a deploy: the
+# agent is RunAtLoad, so it runs now rather than at the next scheduled time.
+render refresh.plist.template "$LABEL.refresh"
 
 sleep 4
 ssh "$HOST" "curl -s -o /dev/null -w 'local / -> %{http_code}\n' http://127.0.0.1:$PORT/"

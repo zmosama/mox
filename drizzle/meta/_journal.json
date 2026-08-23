@@ -36,6 +36,13 @@
       "when": 1787430000000,
       "tag": "0004_service_catalogue",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1787455001421,
+      "tag": "0005_magenta_ego",
+      "breakpoints": true
     }
   ]
 }
