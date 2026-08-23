@@ -68,7 +68,7 @@ The core taste tests are self-contained. When the private local legacy dataset e
 
 ## Deploying
 
-`deploy/deploy.sh` pushes this repository to a Mac you can reach over SSH and runs it there under a LaunchAgent.
+`deploy/deploy.sh` pushes this repository to a Mac you can reach over SSH and runs it there under two LaunchAgents: one serving the app, one rebuilding the feeds nightly.
 
 Configure the target once. The file is ignored by Git, so your server details stay yours:
 
@@ -88,6 +88,12 @@ The script:
 2. refuses to continue if that backup failed;
 3. syncs code while excluding all databases, backups, legacy data, build output, and `.env.local`;
 4. installs dependencies, applies migrations, ensures an owner exists, and builds on the server;
-5. renders `deploy/launchd/app.plist.template` into a LaunchAgent, reloads it, and checks the local HTTP status.
+5. renders `deploy/launchd/*.template` into LaunchAgents, reloads both, and checks the local HTTP status.
 
 The server needs its own `.env.local` with a TMDB key — the deploy deliberately never copies yours.
+
+## Keeping /new current
+
+`npm run feeds:build` rebuilds the `new`, `upcoming` and `trending` feeds from TMDB: what has landed on the tracked streaming services in the last 60 days, and what is due in the next 90. The deploy schedules it nightly; running it by hand is safe at any time.
+
+A feed that comes back empty is left exactly as it was rather than blanking the page, and the script exits non-zero so a failed run is visible in `data/feeds.err.log`.

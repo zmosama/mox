@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { and, eq } from "drizzle-orm";
 import { db, schema } from "@/db";
 import { currentUser } from "@/lib/auth";
+import { includedOn, type WatchProviders } from "@/lib/providers";
 import { serviceLookup } from "@/lib/queries";
 import { posterPath, region, tmdb } from "@/lib/tmdb";
 import { MEDIA_KINDS, type MediaKind } from "@/db/schema";
@@ -22,13 +23,8 @@ type TmdbTitle = {
   backdrop_path?: string | null;
   credits?: { cast?: { name: string }[]; crew?: { name: string; job?: string }[] };
   videos?: { results?: { site: string; key: string; type: string; official?: boolean }[] };
-  "watch/providers"?: {
-    results?: Record<string, Record<string, { provider_id: number; provider_name: string }[]>>;
-  };
+  "watch/providers"?: { results?: WatchProviders };
 };
-
-/** Rent and purchase are not a subscription; only what's included counts. */
-const INCLUDED = ["flatrate", "free", "ads"] as const;
 
 export async function GET(
   _req: Request,
@@ -76,26 +72,9 @@ export async function GET(
   const chosen = selectedIds
     ? configured.filter((service) => selectedIds.has(service.providerId))
     : configured;
-  const chosenIds = new Set(chosen.map((s) => s.providerId));
-  const regions = d["watch/providers"]?.results ?? {};
-
-  const names = new Set<string>();
-  for (const bucket of INCLUDED) {
-    for (const p of regions[region()]?.[bucket] ?? []) {
-      if (chosenIds.has(p.provider_id)) names.add(p.provider_name);
-    }
-  }
-  // A service not sold locally (Disney+ here) has no entry under our region at
-  // all, so it is read from the regions it does exist in.
-  for (const svc of chosen) {
-    if (names.has(svc.name) || !svc.regions?.length) continue;
-    const found = svc.regions.some((r) =>
-      INCLUDED.some((bucket) =>
-        (regions[r]?.[bucket] ?? []).some((p) => p.provider_id === svc.providerId),
-      ),
-    );
-    if (found) names.add(svc.name);
-  }
+  // Same rules the nightly feed builder applies, so a badge here and a badge on
+  // /new can never disagree about what a title streams on.
+  const names = includedOn(d["watch/providers"]?.results, chosen, region());
 
   const lookup = serviceLookup();
   const links = db
@@ -153,7 +132,7 @@ export async function GET(
         ),
       ].slice(0, 3),
       trailer: trailer ? `https://www.youtube.com/watch?v=${trailer.key}` : null,
-      platforms: [...names].map((name) => {
+      platforms: names.map((name) => {
         const row = lookup.get(name);
         return {
           name,

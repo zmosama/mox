@@ -22,6 +22,8 @@ HOST=${MOX_HOST:-}
 DEST=${MOX_DEST:-}
 PORT=${MOX_PORT:-8782}
 LABEL=${MOX_LABEL:-}
+FEEDS_HOUR=${MOX_FEEDS_HOUR:-4}
+FEEDS_MINUTE=${MOX_FEEDS_MINUTE:-30}
 # Agents from an earlier naming scheme. Renaming a LaunchAgent otherwise
 # leaves the old one loaded and two copies of the app fighting over the port.
 RETIRED=${MOX_RETIRED_LABELS:-}
@@ -86,6 +88,7 @@ ssh "$HOST" "export PATH=\$HOME/.local/bin:/opt/homebrew/bin:\$PATH; cd $DEST &&
 render() {
   ssh "$HOST" "sed -e 's|__DEST__|$DEST|g' -e 's|__LABEL__|$2|g' \
     -e 's|__PORT__|$PORT|g' \
+    -e 's|__FEEDS_HOUR__|$FEEDS_HOUR|g' -e 's|__FEEDS_MINUTE__|$FEEDS_MINUTE|g' \
     $DEST/deploy/launchd/$1 > ~/Library/LaunchAgents/$2.plist && \
     launchctl unload ~/Library/LaunchAgents/$2.plist 2>/dev/null; \
     launchctl load ~/Library/LaunchAgents/$2.plist"
@@ -99,6 +102,11 @@ done
 
 echo "==> restarting"
 render app.plist.template "$LABEL.app"
+
+echo "==> scheduling the nightly feed build"
+# Reloading it here is also what refreshes /new on a deploy: the agent is
+# RunAtLoad, so the feeds are rebuilt now rather than at the next scheduled run.
+render feeds.plist.template "$LABEL.feeds"
 
 sleep 4
 ssh "$HOST" "curl -s -o /dev/null -w 'local / -> %{http_code}\n' http://127.0.0.1:$PORT/"
