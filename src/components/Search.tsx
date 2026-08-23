@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { usePathname } from "next/navigation";
 import { TitleCard, type CardTitle } from "./TitleCard";
 import { cn } from "@/lib/cn";
 import { TitleSheet } from "./TitleSheet";
@@ -13,6 +14,7 @@ import type { MediaKind } from "@/db/schema";
  * rated even if it was never imported.
  */
 export function Search({ signedIn }: { signedIn: boolean }) {
+  const path = usePathname();
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState<{ tmdbId: number; kind: MediaKind } | null>(null);
   /* On a phone the field is a button until you tap it; a permanent input would
@@ -52,6 +54,46 @@ export function Search({ signedIn }: { signedIn: boolean }) {
     return () => clearTimeout(timer);
   }, [q]);
 
+  /**
+   * Going anywhere closes the search.
+   *
+   * This lives in the header, so it outlives every page under it: the results
+   * panel stayed up over whatever you had just navigated to, and with the real
+   * page hidden behind it the header looked dead — the only way out was to
+   * delete the query by hand. Two things end a search, because the pathname
+   * alone does not catch all of them.
+   */
+  const dismiss = () => {
+    setQuery("");
+    setExpanded(false);
+  };
+
+  /* Adjusted during render rather than in an effect: an effect would let the
+     stale results panel paint over the new page for a frame first. Covers the
+     back button and any push the app makes itself; the listener below covers
+     the rest. */
+  const [shownFor, setShownFor] = useState(path);
+  if (shownFor !== path) {
+    setShownFor(path);
+    dismiss();
+  }
+
+  useEffect(() => {
+    const onClick = (e: MouseEvent) => {
+      /* Tapping "Board" while already on the board leaves the pathname alone,
+         so the effect above never runs — and that was the click that felt most
+         broken, because the page being asked for was already underneath. A
+         link that opens a new tab is not going anywhere: every service badge on
+         a result is one, and closing the search behind it would throw away the
+         results the moment somebody went off to watch something. */
+      const link = (e.target as HTMLElement | null)?.closest("a[href]");
+      if (link && link.getAttribute("target") !== "_blank") dismiss();
+    };
+    // Capture, because a card stops the click before it ever reaches document.
+    document.addEventListener("click", onClick, true);
+    return () => document.removeEventListener("click", onClick, true);
+  }, []);
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "/" && document.activeElement !== input.current) {
@@ -88,15 +130,33 @@ export function Search({ signedIn }: { signedIn: boolean }) {
             : "hidden sm:flex",
         )}
       >
-        <input
-          ref={input}
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search anything…"
-          aria-label="Search"
-          enterKeyHint="search"
-          className="min-w-0 flex-1 rounded-full border border-line-strong bg-surface px-3.5 py-2.5 text-base outline-none transition focus:border-like sm:w-56 sm:flex-none sm:py-1.5 sm:text-[13px]"
-        />
+        {/* The field owns its own clear button. On a phone "Cancel" was the way
+            out; on a desktop there was none at all short of selecting the text
+            and deleting it, and Escape is not a thing anyone guesses. */}
+        <div className="relative min-w-0 flex-1 sm:flex-none">
+          <input
+            ref={input}
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search anything…"
+            aria-label="Search"
+            enterKeyHint="search"
+            className="w-full rounded-full border border-line-strong bg-surface py-2.5 pe-10 ps-3.5 text-base outline-none transition focus:border-like sm:w-56 sm:py-1.5 sm:pe-8 sm:text-[13px]"
+          />
+          {query ? (
+            <button
+              type="button"
+              aria-label="Clear search"
+              onClick={() => {
+                setQuery("");
+                input.current?.focus();
+              }}
+              className="absolute inset-y-0 end-0 grid w-10 place-items-center text-xl leading-none text-ink-faint transition hover:text-ink sm:w-8 sm:text-base"
+            >
+              ×
+            </button>
+          ) : null}
+        </div>
         {expanded ? (
           <button
             type="button"

@@ -59,7 +59,10 @@ export function BottomNav({ user }: { user: SessionUser | null }) {
   return (
     <nav
       aria-label="Sections"
-      className="fixed inset-x-0 bottom-0 z-30 border-t border-line bg-bg/95 pb-[env(safe-area-inset-bottom)] backdrop-blur-xl sm:hidden"
+      /* Above the search results (z-45), below the title sheet (z-50). At
+         z-30 the results panel buried it, so on a phone the section tabs
+         simply stopped responding for as long as a search was open. */
+      className="fixed inset-x-0 bottom-0 z-[46] border-t border-line bg-bg/95 pb-[env(safe-area-inset-bottom)] backdrop-blur-xl sm:hidden"
     >
       <ul className="flex">
         {tabs.map((t) => {
