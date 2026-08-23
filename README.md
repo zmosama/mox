@@ -6,7 +6,7 @@ The application uses Next.js 16, React 19, SQLite, Drizzle ORM, TMDB, Tailwind C
 
 ## Local setup
 
-Requirements: Node.js 20+, npm, and SQLite.
+Requirements: Node.js 24+ (for npm 11, which writes the lockfile), and SQLite.
 
 ```bash
 npm ci
