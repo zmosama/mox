@@ -418,7 +418,9 @@ export function universeTitles(slug: string, userId: number | null) {
   const avail = availabilityFor(rows.map((r) => r.tmdbId), userId);
   const lookup = serviceLookup();
   const verdicts = userId ? verdictsFor(userId) : new Map<string, Verdict>();
-  const today = new Date().toISOString().slice(0, 10);
+  // Cairo, not UTC. `toISOString()` here meant that between midnight and 2am
+  // local a film released today still rendered as "upcoming".
+  const today = todayISO();
 
   return rows
     .map((r) => {
