@@ -11,8 +11,8 @@ jobs:
   check:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
           # 24, not 20: package-lock.json is written by npm 11, and npm 10
           # cannot install from it — `npm ci` fails on every platform-gated
