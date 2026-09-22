@@ -11,6 +11,32 @@
 /** Rent and purchase are not a subscription; only what's included counts. */
 export const INCLUDED = ["flatrate", "free", "ads"] as const;
 
+/** What a store sells. Deliberately never merged into {@link INCLUDED}. */
+export const FOR_SALE = ["rent", "buy"] as const;
+
+/**
+ * Services that sell films rather than including them.
+ *
+ * TMDB reports these beside the subscriptions and says nothing to tell them
+ * apart, so the distinction has to be stated. It matters because a badge is a
+ * promise: putting "Apple TV Store" on a card the way "Netflix" appears there
+ * would say a film is yours to watch when it is actually yours to buy.
+ *
+ * Small and stable enough to keep by hand — there are only so many storefronts,
+ * and a provider missing from here simply behaves as a subscription would,
+ * which for a store means never matching anything and going quietly unused.
+ */
+export const STORE_PROVIDERS = new Set([
+  2,    // Apple TV Store
+  3,    // Google Play Movies
+  10,   // Amazon Video
+  68,   // Microsoft Store
+  35,   // Rakuten TV
+  192,  // YouTube
+]);
+
+export const isStore = (providerId: number) => STORE_PROVIDERS.has(providerId);
+
 export type WatchProvider = { provider_id: number; provider_name: string };
 
 /** TMDB's payload shape: region -> bucket -> providers. */

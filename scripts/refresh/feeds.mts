@@ -12,15 +12,22 @@
  */
 import { eq } from "drizzle-orm";
 import {
-  catalogue, db, fetchTitle, HOME, mapPool, s, saveTitle, type Fetched,
+  catalogue, db, fetchTitle, HOME, mapPool, s, saveTitle, subscribed, type Fetched,
 } from "./shared.mjs";
 import type { Feed, MediaKind } from "../../src/db/schema";
 import { FEEDS } from "../../src/db/schema";
 import { LIMIT, selectFeed, windowFor, type Candidate } from "../../src/lib/feeds";
 import { tmdb } from "../../src/lib/tmdb";
 
-/** TMDB pages are 20 items; this is a ceiling, not a target. */
-const MAX_PAGES = 5;
+/**
+ * TMDB pages are 20 items; this is a ceiling, not a target.
+ *
+ * A sweep stops as soon as it runs out of pages, so raising this costs nothing
+ * on the sweeps that are already short. It was 5, and the local movie sweep had
+ * grown to exactly 5 pages — one more title on a tracked service and the oldest
+ * day in the window would have started falling off the end without a word.
+ */
+const MAX_PAGES = 10;
 
 type Listed = {
   id: number;
@@ -120,13 +127,21 @@ export async function refreshFeeds(today: string) {
   const services = catalogue();
   if (!services.length) throw new Error("no services in the catalogue");
 
+  /* Two different lists on purpose. The sweeps ask only about services somebody
+     subscribes to, because that is all /new can ever show. Resolving a title's
+     providers still uses the whole catalogue, so the title sheet can go on
+     saying "also on MUBI" about a film you cannot watch tonight — knowing where
+     else something streams costs nothing extra once the title is fetched. */
+  const mine = subscribed();
+  const mineNames = new Set(mine.map((x) => x.name));
+
   const built: Partial<Record<Feed, Fetched[]>> = {};
   const failures: string[] = [];
 
   for (const feed of FEEDS) {
     let selected: Candidate[];
     try {
-      selected = selectFeed(feed, await gather(feed, today, services), today);
+      selected = selectFeed(feed, await gather(feed, today, mine), today);
     } catch (e) {
       failures.push(`${feed}: ${(e as Error).message}`);
       continue;
@@ -136,11 +151,14 @@ export async function refreshFeeds(today: string) {
       await mapPool(selected, 6, (c) => fetchTitle(c.tmdbId, c.kind, services))
     ).filter((f): f is Fetched => f !== null);
 
-    /* /new answers "what landed on a service", so a title TMDB no longer lists
-       on one has no business in it — it would render under "No tracked service"
+    /* /new answers "what landed on a service I have", so a title TMDB no longer
+       lists on one — or lists only on a service nobody subscribes to — has no
+       business in it. Either way it would render under "Not on your services"
        and push a real release off the end of the feed. Coming soon has not
        landed anywhere yet, so it is kept whatever the providers say. */
-    const kept = feed === "new" ? fetched.filter((f) => f.platforms.length) : fetched;
+    const kept = feed === "new"
+      ? fetched.filter((f) => f.platforms.some((p) => mineNames.has(p)))
+      : fetched;
 
     /* A feed that came back empty is left exactly as it was. An outage should
        show yesterday's timeline, not an empty one. */

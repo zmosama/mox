@@ -25,6 +25,22 @@ type Provider = {
 const slugify = (name: string) =>
   name.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
 
+/**
+ * Where to search a service that was never hand-configured.
+ *
+ * The originals came from the legacy import and only cover the services this
+ * install started with, so anything picked on /admin/services since then has
+ * had no link behind its badge — Apple TV Store came in with the store section
+ * and its cards led nowhere. Only ever filled in when the column is empty, so a
+ * hand-written URL is still the one that wins.
+ */
+const KNOWN_SEARCH: Record<number, string> = {
+  2: "https://tv.apple.com/search?term={q}",      // Apple TV Store
+  3: "https://play.google.com/store/search?q={q}&c=movies",
+  10: "https://www.amazon.com/s?k={q}&i=instant-video",
+  192: "https://www.youtube.com/results?search_query={q}+movie",
+};
+
 export async function refreshServices() {
   const seen = new Map<number, Provider>();
   for (const kind of ["movie", "tv"] as const) {
@@ -53,6 +69,7 @@ export async function refreshServices() {
           slug: slugify(p.provider_name),
           name: p.provider_name,
           logo: p.logo_path ? `https://image.tmdb.org/t/p/w92${p.logo_path}` : null,
+          searchUrl: KNOWN_SEARCH[p.provider_id] ?? null,
           priority: p.display_priority,
         })
         .onConflictDoUpdate({
@@ -61,6 +78,9 @@ export async function refreshServices() {
             name: p.provider_name,
             logo: p.logo_path ? `https://image.tmdb.org/t/p/w92${p.logo_path}` : null,
             priority: p.display_priority,
+            /* Never overwrites one that is already there — `search_url` is
+               hand-written and TMDB knows nothing about it. */
+            searchUrl: sql`coalesce(${s.services.searchUrl}, ${KNOWN_SEARCH[p.provider_id] ?? null})`,
           },
         })
         .run();

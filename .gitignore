@@ -29,6 +29,9 @@
 # Local assistant/editor state
 /.claude/
 
+# Scratch renders
+/output/
+
 # next.js
 /.next/
 /out/

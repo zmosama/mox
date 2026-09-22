@@ -16,9 +16,12 @@
  * with an empty answer, so a bad night shows yesterday's site, never a blank one.
  */
 import { todayISO } from "../src/lib/dates";
+import { pruneCache } from "../src/lib/tmdb";
 import { refreshCalendar } from "./refresh/calendar.mjs";
 import { refreshFeeds } from "./refresh/feeds.mjs";
 import { refreshServices } from "./refresh/services.mjs";
+import { refreshPrices } from "./refresh/prices.mjs";
+import { refreshStore } from "./refresh/store.mjs";
 import { refreshUniverses } from "./refresh/universes.mjs";
 
 const TODAY = todayISO();
@@ -62,8 +65,23 @@ await step("calendar", async () => ({
 
 await step("universes", async () => ({ summary: await refreshUniverses(), value: null }));
 
+// The shops. Independent of the feeds: what is for sale answers a different
+// question from what was released, and is recorded rather than filtered.
+await step("store", async () => ({ summary: await refreshStore(TODAY), value: null }));
+
+// After the store: pricing asks about the films that step just decided are
+// recent arrivals, so it has to know which those are.
+await step("prices", async () => ({ summary: await refreshPrices(TODAY), value: null }));
+
+// Last, and after everything that might have wanted a warm cache this run.
+await step("cache", async () => {
+  const { removed, freed } = await pruneCache();
+  return { summary: `${removed} stale entries dropped, ${(freed / 1e6).toFixed(1)}MB freed`,
+           value: null };
+});
+
 if (failed.length) {
-  console.error(`\n${failed.length} of 4 steps failed: ${failed.join(", ")}`);
+  console.error(`\n${failed.length} of 7 steps failed: ${failed.join(", ")}`);
   process.exit(1);
 }
-console.log("\nall four steps current");
+console.log("\nall seven steps current");

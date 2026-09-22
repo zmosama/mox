@@ -6,13 +6,14 @@
  * nobody in particular, and signing in only swaps in that account's verdicts,
  * follows and taste.
  */
-import { and, desc, eq, gte, inArray, lte, sql } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, isNotNull, lte, sql } from "drizzle-orm";
 import { db, schema } from "@/db";
 import { TasteModel, type Feature, type RatedTitle, type Scorable } from "./taste";
 import type { Feed, MediaKind, Verdict } from "@/db/schema";
+import type { ReleaseItem } from "@/components/NewReleases";
 import type { Service } from "@/components/ServiceBadge";
 import type { CardTitle } from "@/components/TitleCard";
-import { addDaysISO, todayISO } from "./dates";
+import { addDaysISO, episodeCode, todayISO } from "./dates";
 
 const key = (tmdbId: number, kind: MediaKind) => `${tmdbId}:${kind}`;
 
@@ -197,10 +198,29 @@ export function availabilityFor(ids: number[], userId: number | null) {
   return out;
 }
 
+/**
+ * "EGP 29.99 rent · EGP 99.99 buy", or nothing at all.
+ *
+ * Silence rather than a placeholder when the price has not been read: a film
+ * with no number next to it reads as "not looked up", while "—" or "free"
+ * would be a claim about what it costs.
+ */
+function priceLabel(
+  rentCent: number | null,
+  buyCent: number | null,
+  currency: string | null,
+): string | undefined {
+  const money = (cent: number) => `${currency ? `${currency} ` : ""}${(cent / 100).toFixed(2)}`;
+  const parts: string[] = [];
+  if (rentCent != null) parts.push(`${money(rentCent)} rent`);
+  if (buyCent != null) parts.push(`${money(buyCent)} buy`);
+  return parts.length ? parts.join(" · ") : undefined;
+}
+
 // ---------------------------------------------------------------- feeds
 
 /** Feed entries carrying their release date, for the timeline on /new. */
-export function datedFeed(name: Feed, userId: number | null, limit = 200) {
+export function datedFeed(name: Feed, userId: number | null, limit = 200): ReleaseItem[] {
   const rows = db
     .select({ tmdbId: schema.feedItems.tmdbId, kind: schema.feedItems.kind })
     .from(schema.feedItems)
@@ -213,7 +233,7 @@ export function datedFeed(name: Feed, userId: number | null, limit = 200) {
   const lookup = serviceLookup();
   const verdicts = userId ? verdictsFor(userId) : new Map<string, Verdict>();
 
-  const out = [];
+  const out: ReleaseItem[] = [];
   for (const r of rows) {
     const t = titles.get(key(r.tmdbId, r.kind));
     if (!t) continue;
@@ -237,6 +257,198 @@ export function datedFeed(name: Feed, userId: number | null, limit = 200) {
     if (out.length >= limit) break;
   }
   return out;
+}
+
+/**
+ * Episodes that landed on the viewer's services recently, for the same timeline.
+ *
+ * /new was keyed on release dates alone, so the page answered "what came out"
+ * while the question being asked of it was "what can I watch tonight". A show
+ * whose new episode dropped this morning last appeared under its premiere date
+ * weeks up the page, if the window still reached it at all, and a day on which
+ * nothing was newly *released* looked like a day on which nothing happened.
+ *
+ * One card per show per day, not per episode: a service dropping six at once is
+ * one thing to watch, and six identical posters in a row is not a timeline.
+ */
+export function datedEpisodes(
+  userId: number | null,
+  today = todayISO(),
+  days = 14,
+): ReleaseItem[] {
+  const from = addDaysISO(today, -days);
+
+  const rows = db
+    .select()
+    .from(schema.episodes)
+    .where(
+      and(
+        isNotNull(schema.episodes.tmdbId),
+        gte(schema.episodes.airs, from),
+        lte(schema.episodes.airs, today),
+      ),
+    )
+    .orderBy(desc(schema.episodes.airs), schema.episodes.season, schema.episodes.episode)
+    .all();
+
+  const ids = [...new Set(rows.map((r) => r.tmdbId).filter((x): x is number => x !== null))];
+  const titles = titlesByIds(ids.map((tmdbId) => ({ tmdbId, kind: "tv" as const })));
+  const avail = availabilityFor(ids, userId);
+  const lookup = serviceLookup();
+  const verdicts = userId ? verdictsFor(userId) : new Map<string, Verdict>();
+
+  // show + day -> the episodes of it that landed that day, in order.
+  const byDay = new Map<string, { tmdbId: number; airs: string; codes: string[] }>();
+
+  for (const r of rows) {
+    if (r.tmdbId === null) continue;
+    /* Only `hidden` suppresses an episode, which is the calendar's rule rather
+       than the feed's. A rated show is *more* interesting here, not less: the
+       feed drops what you have already judged because a film you loved is not
+       news, but a new episode of a show you love is the best row on the page.
+       Copying the feed's test hid Lanterns from its own release morning. */
+    if (verdicts.get(key(r.tmdbId, "tv")) === "hidden") continue;
+
+    const slot = `${r.tmdbId}:${r.airs}`;
+    const entry = byDay.get(slot) ?? { tmdbId: r.tmdbId, airs: r.airs, codes: [] };
+    entry.codes.push(episodeCode(r.season, r.episode));
+    byDay.set(slot, entry);
+  }
+
+  const out: ReleaseItem[] = [];
+  for (const { tmdbId, airs, codes } of byDay.values()) {
+    const t = titles.get(key(tmdbId, "tv"));
+    if (!t) continue;
+
+    const platforms = (avail.get(key(tmdbId, "tv")) ?? []).map((p) =>
+      toService(p.name, lookup, t.title, p.deepLink),
+    );
+    /* An episode with nowhere to watch it is not news. Unlike `datedFeed` this
+       holds for signed-out visitors too: the whole point of the row is that the
+       thing is playable now. */
+    if (!platforms.length) continue;
+
+    out.push({
+      tmdbId,
+      kind: "tv",
+      title: t.title,
+      year: t.year,
+      date: airs,
+      poster: t.poster,
+      rating: t.rating,
+      verdict: verdicts.get(key(tmdbId, "tv")) ?? null,
+      platforms,
+      episodeLabel: codes.length > 1 ? `${codes.length} episodes` : codes[0],
+    });
+  }
+  return out;
+}
+
+/**
+ * The whole "Available" timeline on /new: what was released, plus what aired.
+ *
+ * Composed here rather than in the page so the two halves cannot drift into
+ * different shapes. A show that premiered today appears in both — the feed
+ * because it is new, the episode scan because its first episode aired — so the
+ * episode folds into the release rather than sitting next to a copy of itself.
+ */
+export function newTimeline(userId: number | null, today = todayISO()): ReleaseItem[] {
+  const released = datedFeed("new", userId);
+  const aired = datedEpisodes(userId, today);
+
+  const seen = new Map(released.map((r) => [`${r.tmdbId}:${r.date}`, r]));
+  const extra: ReleaseItem[] = [];
+
+  for (const e of aired) {
+    const already = seen.get(`${e.tmdbId}:${e.date}`);
+    if (already) already.episodeLabel = e.episodeLabel;
+    else extra.push(e);
+  }
+  return [...released, ...extra];
+}
+
+/**
+ * Films that have just appeared in a store the viewer uses.
+ *
+ * The store badge is built from `services` rather than read from
+ * `availability`, because these titles are deliberately not in it: rent and buy
+ * are excluded from `INCLUDED`, so nothing here claims a film is yours to watch
+ * when it is only yours to buy. The section's own heading carries that.
+ */
+export function newInStore(userId: number | null, today = todayISO(), days = 30): CardTitle[] {
+  const from = addDaysISO(today, -days);
+
+  const mine = userId
+    ? new Set(
+        db
+          .select({ providerId: schema.userServices.providerId })
+          .from(schema.userServices)
+          .where(eq(schema.userServices.userId, userId))
+          .all()
+          .map((r) => r.providerId),
+      )
+    : null;
+
+  const rows = db
+    .select({
+      tmdbId: schema.storeItems.tmdbId,
+      providerId: schema.storeItems.providerId,
+      firstSeen: schema.storeItems.firstSeen,
+      rentCent: schema.storeItems.rentCent,
+      buyCent: schema.storeItems.buyCent,
+      currency: schema.storeItems.currency,
+    })
+    .from(schema.storeItems)
+    .where(and(gte(schema.storeItems.firstSeen, from), lte(schema.storeItems.firstSeen, today)))
+    .orderBy(desc(schema.storeItems.firstSeen))
+    .all();
+
+  const titles = titlesByIds(rows.map((r) => ({ tmdbId: r.tmdbId, kind: "movie" as const })));
+  const lookup = serviceLookup();
+  const byId = new Map(services().map((x) => [x.providerId, x]));
+  const verdicts = userId ? verdictsFor(userId) : new Map<string, Verdict>();
+
+  const out: CardTitle[] = [];
+  const seen = new Set<number>();
+
+  for (const r of rows) {
+    if (mine && mine.size && !mine.has(r.providerId)) continue;
+    if (seen.has(r.tmdbId)) continue;
+
+    const t = titles.get(key(r.tmdbId, "movie"));
+    const store = byId.get(r.providerId);
+    if (!t || !store) continue;
+
+    /* The feed's rule, not the calendar's: this is a shelf of things to
+       discover, so anything already judged drops out. Watchlisted is the
+       exception and the best row the section can print — a film you said you
+       wanted, now available to buy tonight. */
+    const verdict = verdicts.get(key(r.tmdbId, "movie")) ?? null;
+    if (verdict && verdict !== "watchlist") continue;
+
+    seen.add(r.tmdbId);
+    out.push({
+      tmdbId: t.tmdbId,
+      kind: "movie",
+      title: t.title,
+      year: t.year,
+      poster: t.poster,
+      rating: t.rating,
+      verdict,
+      platforms: [toService(store.name, lookup, t.title, null)],
+      price: priceLabel(r.rentCent, r.buyCent, r.currency),
+      arrived: r.firstSeen,
+    });
+  }
+
+  /* Newest first, and best within a day.
+     Sorting the whole month by score read as a leaderboard rather than a
+     shelf: the film that turned up this morning is the news, and a four-week
+     window sorted by rating buries it under whatever scored highest in
+     August. */
+  return out.sort(
+    (a, b) => (b.arrived ?? "").localeCompare(a.arrived ?? "") || (b.rating ?? 0) - (a.rating ?? 0),
+  );
 }
 
 export function feed(name: Feed, userId: number | null, limit = 60): CardTitle[] {

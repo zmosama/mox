@@ -280,3 +280,45 @@ export const userServices = sqliteTable(
   },
   (t) => [primaryKey({ columns: [t.userId, t.providerId] })],
 );
+
+/**
+ * What each store has, so "new to buy" can mean added and not released.
+ *
+ * A film reaches a digital store three or four months after cinemas: Apple's
+ * Egyptian store had 6,265 films, 168 of them released within the year and not
+ * one within the month. A release-date feed of it would have been permanently
+ * empty, which is the wrong answer to "has anything new turned up to rent
+ * tonight". So the store's contents are recorded and compared instead, and
+ * `firstSeen` is the day a title appeared in it.
+ *
+ * Only ids are kept. Six thousand full titles would be an enormous nightly
+ * fetch for a question answered by set difference; the handful that turn out to
+ * be new get fetched properly afterwards.
+ */
+export const storeItems = sqliteTable(
+  "store_items",
+  {
+    providerId: integer("provider_id").notNull(),
+    tmdbId: integer("tmdb_id").notNull(),
+    kind: text("kind", { enum: MEDIA_KINDS }).notNull(),
+    /** Cairo date. The first sweep of a store backdates everything it finds:
+        a baseline is not an arrival, and 6,265 of them is not a feed. */
+    firstSeen: text("first_seen").notNull(),
+    /**
+     * What a film costs, which is the fact that decides whether to buy it and
+     * the one TMDB has never carried. Read from JustWatch, in cents, cheapest
+     * of whatever qualities are offered. Null means not looked up rather than
+     * free — the card simply says nothing in that case.
+     */
+    jwSlug: text("jw_slug"),
+    rentCent: integer("rent_cent"),
+    buyCent: integer("buy_cent"),
+    currency: text("currency"),
+    /** Cairo date the price was read, so it can go stale and be re-read. */
+    pricedAt: text("priced_at"),
+  },
+  (t) => [
+    primaryKey({ columns: [t.providerId, t.tmdbId, t.kind] }),
+    index("store_items_first_seen").on(t.firstSeen),
+  ],
+);

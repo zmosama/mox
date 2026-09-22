@@ -1,0 +1,662 @@
+[
+ {
+  "tmdbId": 10215,
+  "arrived": "2026-09-21",
+  "slug": "sliding-doors"
+ },
+ {
+  "tmdbId": 1255369,
+  "arrived": "2026-09-21",
+  "slug": "finnik-2"
+ },
+ {
+  "tmdbId": 1430593,
+  "arrived": "2026-09-19",
+  "slug": "tinsel-town"
+ },
+ {
+  "tmdbId": 9894,
+  "arrived": "2026-09-17",
+  "slug": "the-cable-guy"
+ },
+ {
+  "tmdbId": 1321008,
+  "arrived": "2026-09-16",
+  "slug": "black-box-2026"
+ },
+ {
+  "tmdbId": 1228710,
+  "arrived": "2026-09-15",
+  "slug": "star-wars-the-mandalorian-and-grogu"
+ },
+ {
+  "tmdbId": 1288072,
+  "arrived": "2026-09-15",
+  "slug": "keeper"
+ },
+ {
+  "tmdbId": 305470,
+  "arrived": "2026-09-15",
+  "slug": "power-rangers"
+ },
+ {
+  "tmdbId": 1081003,
+  "arrived": "2026-09-15",
+  "slug": "supergirl-2026"
+ },
+ {
+  "tmdbId": 1375646,
+  "arrived": "2026-09-15",
+  "slug": "mst-mr"
+ },
+ {
+  "tmdbId": 1339713,
+  "arrived": "2026-09-14",
+  "slug": "hws"
+ },
+ {
+  "tmdbId": 4488,
+  "arrived": "2026-09-13",
+  "slug": "friday-the-13th-1980"
+ },
+ {
+  "tmdbId": 87513,
+  "arrived": "2026-09-09",
+  "slug": "motor-city"
+ },
+ {
+  "tmdbId": 1226699,
+  "arrived": "2026-09-09",
+  "slug": "the-wrong-girls"
+ },
+ {
+  "tmdbId": 1307384,
+  "arrived": "2026-09-09",
+  "slug": "the-fires"
+ },
+ {
+  "tmdbId": 1285959,
+  "arrived": "2026-09-09",
+  "slug": "the-passenger-2026"
+ },
+ {
+  "tmdbId": 1189885,
+  "arrived": "2026-09-09",
+  "slug": "the-morrigan"
+ },
+ {
+  "tmdbId": 156022,
+  "arrived": "2026-09-09",
+  "slug": "lm-dl"
+ },
+ {
+  "tmdbId": 1108427,
+  "arrived": "2026-09-09",
+  "slug": "moana-2025"
+ },
+ {
+  "tmdbId": 1120911,
+  "arrived": "2026-09-08",
+  "slug": "saturday-night-2024"
+ },
+ {
+  "tmdbId": 912649,
+  "arrived": "2026-09-06",
+  "slug": "venom-3"
+ },
+ {
+  "tmdbId": 649609,
+  "arrived": "2026-09-04",
+  "slug": "renfield"
+ },
+ {
+  "tmdbId": 1628071,
+  "arrived": "2026-09-04",
+  "slug": "ip-man-kung-fu-legend"
+ },
+ {
+  "tmdbId": 1181107,
+  "arrived": "2026-09-04",
+  "slug": "the-king-of-kings"
+ },
+ {
+  "tmdbId": 1232569,
+  "arrived": "2026-09-02",
+  "slug": "pinocchio-unstrung"
+ },
+ {
+  "tmdbId": 502356,
+  "arrived": "2026-08-28",
+  "slug": "super-mario-bros-the-movie"
+ },
+ {
+  "tmdbId": 46387,
+  "arrived": "2026-08-28",
+  "slug": "hum-aapke-hain-koun"
+ },
+ {
+  "tmdbId": 374305,
+  "arrived": "2026-08-28",
+  "slug": "wedding-pullav"
+ },
+ {
+  "tmdbId": 603418,
+  "arrived": "2026-08-28",
+  "slug": "i-am-human"
+ },
+ {
+  "tmdbId": 388333,
+  "arrived": "2026-08-28",
+  "slug": "m-s-dhoni-the-untold-story"
+ },
+ {
+  "tmdbId": 260514,
+  "arrived": "2026-08-28",
+  "slug": "three"
+ },
+ {
+  "tmdbId": 789213,
+  "arrived": "2026-08-28",
+  "slug": "freej-al-taibeen"
+ },
+ {
+  "tmdbId": 447447,
+  "arrived": "2026-08-28",
+  "slug": "love-surreal-and-odd"
+ },
+ {
+  "tmdbId": 755074,
+  "arrived": "2026-08-28",
+  "slug": "khabsa"
+ },
+ {
+  "tmdbId": 370870,
+  "arrived": "2026-08-28",
+  "slug": "aligarh"
+ },
+ {
+  "tmdbId": 958282,
+  "arrived": "2026-08-28",
+  "slug": "abdelinho"
+ },
+ {
+  "tmdbId": 598824,
+  "arrived": "2026-08-27",
+  "slug": "the-guard-of-auschwitz"
+ },
+ {
+  "tmdbId": 795841,
+  "arrived": "2026-08-26",
+  "slug": "nose"
+ },
+ {
+  "tmdbId": 6435,
+  "arrived": "2026-08-25",
+  "slug": "practical-magic"
+ },
+ {
+  "tmdbId": 1206617,
+  "arrived": "2026-08-25",
+  "slug": "the-best-christmas-pageant-ever-2024"
+ },
+ {
+  "tmdbId": 11005,
+  "arrived": "2026-08-23",
+  "slug": "awakenings"
+ },
+ {
+  "tmdbId": 3600,
+  "arrived": "2026-08-23",
+  "slug": "i-still-know-what-you-did-last-summer"
+ },
+ {
+  "tmdbId": 187,
+  "arrived": "2026-08-21",
+  "slug": "sin-city"
+ },
+ {
+  "tmdbId": 1084244,
+  "arrived": "2026-08-18",
+  "slug": "toy-story-5"
+ },
+ {
+  "tmdbId": 1292415,
+  "arrived": "2026-08-18",
+  "slug": "beast-2026"
+ },
+ {
+  "tmdbId": 507244,
+  "arrived": "2026-08-18",
+  "slug": "afterburn-2025"
+ },
+ {
+  "tmdbId": 1245708,
+  "arrived": "2026-08-18",
+  "slug": "crescent-city"
+ },
+ {
+  "tmdbId": 1455079,
+  "arrived": "2026-08-17",
+  "slug": "you-me-and-tuscany"
+ },
+ {
+  "tmdbId": 1127384,
+  "arrived": "2026-08-15",
+  "slug": "deep-water-2026"
+ },
+ {
+  "tmdbId": 2270,
+  "arrived": "2026-08-13",
+  "slug": "stardust"
+ },
+ {
+  "tmdbId": 858024,
+  "arrived": "2026-08-12",
+  "slug": "hamnet"
+ },
+ {
+  "tmdbId": 226,
+  "arrived": "2026-08-12",
+  "slug": "boys-dont-cry"
+ },
+ {
+  "tmdbId": 1341137,
+  "arrived": "2026-08-12",
+  "slug": "a-great-awakening"
+ },
+ {
+  "tmdbId": 1198984,
+  "arrived": "2026-08-11",
+  "slug": "we-bury-the-dead"
+ },
+ {
+  "tmdbId": 1314481,
+  "arrived": "2026-08-11",
+  "slug": "the-devil-wears-prada-2"
+ },
+ {
+  "tmdbId": 9924,
+  "arrived": "2026-08-11",
+  "slug": "the-hard-corps"
+ },
+ {
+  "tmdbId": 10776,
+  "arrived": "2026-08-08",
+  "slug": "little-shop-of-horrors"
+ },
+ {
+  "tmdbId": 931285,
+  "arrived": "2026-08-08",
+  "slug": "mortal-kombat-2"
+ },
+ {
+  "tmdbId": 840464,
+  "arrived": "2026-08-04",
+  "slug": "greenland-migration"
+ },
+ {
+  "tmdbId": 1440050,
+  "arrived": "2026-07-30",
+  "slug": "the-breadwinner-2026"
+ },
+ {
+  "tmdbId": 1480387,
+  "arrived": "2026-07-30",
+  "slug": "undertone"
+ },
+ {
+  "tmdbId": 644583,
+  "arrived": "2026-07-28",
+  "slug": "the-mauritanian"
+ },
+ {
+  "tmdbId": 730506,
+  "arrived": "2026-07-28",
+  "slug": "crock-of-gold-a-few-rounds-with-shane-macgowan"
+ },
+ {
+  "tmdbId": 1367642,
+  "arrived": "2026-07-27",
+  "slug": "reminders-of-him"
+ },
+ {
+  "tmdbId": 1368314,
+  "arrived": "2026-07-23",
+  "slug": "passenger-2026"
+ },
+ {
+  "tmdbId": 1284465,
+  "arrived": "2026-07-21",
+  "slug": "the-death-of-robin-hood"
+ },
+ {
+  "tmdbId": 1401778,
+  "arrived": "2026-07-21",
+  "slug": "turbulence-2025"
+ },
+ {
+  "tmdbId": 1390382,
+  "arrived": "2026-07-21",
+  "slug": "couture"
+ },
+ {
+  "tmdbId": 1338972,
+  "arrived": "2026-07-21",
+  "slug": "pitfall"
+ },
+ {
+  "tmdbId": 522406,
+  "arrived": "2026-07-21",
+  "slug": "flashback"
+ },
+ {
+  "tmdbId": 609181,
+  "arrived": "2026-07-20",
+  "slug": "golden-arm"
+ },
+ {
+  "tmdbId": 1368,
+  "arrived": "2026-07-20",
+  "slug": "first-blood"
+ },
+ {
+  "tmdbId": 8009,
+  "arrived": "2026-07-20",
+  "slug": "highlander"
+ },
+ {
+  "tmdbId": 412656,
+  "arrived": "2026-07-20",
+  "slug": "chaos-walking"
+ },
+ {
+  "tmdbId": 294963,
+  "arrived": "2026-07-20",
+  "slug": "bone-tomahawk"
+ },
+ {
+  "tmdbId": 11854,
+  "arrived": "2026-07-20",
+  "slug": "kuch-kuch-hota-hai"
+ },
+ {
+  "tmdbId": 835112,
+  "arrived": "2026-07-20",
+  "slug": "ted-bundy-american-boogeyman"
+ },
+ {
+  "tmdbId": 456086,
+  "arrived": "2026-07-20",
+  "slug": "support-the-girls"
+ },
+ {
+  "tmdbId": 582014,
+  "arrived": "2026-07-19",
+  "slug": "promising-young-woman"
+ },
+ {
+  "tmdbId": 628914,
+  "arrived": "2026-07-19",
+  "slug": "queenpins"
+ },
+ {
+  "tmdbId": 399057,
+  "arrived": "2026-07-19",
+  "slug": "the-killing-of-a-sacred-deer"
+ },
+ {
+  "tmdbId": 530915,
+  "arrived": "2026-07-19",
+  "slug": "1917"
+ },
+ {
+  "tmdbId": 431075,
+  "arrived": "2026-07-19",
+  "slug": "polaroid"
+ },
+ {
+  "tmdbId": 1079091,
+  "arrived": "2026-07-19",
+  "slug": "it-ends-with-us"
+ },
+ {
+  "tmdbId": 500904,
+  "arrived": "2026-07-19",
+  "slug": "a-vigilante"
+ },
+ {
+  "tmdbId": 587496,
+  "arrived": "2026-07-19",
+  "slug": "the-rental"
+ },
+ {
+  "tmdbId": 663870,
+  "arrived": "2026-07-19",
+  "slug": "riders-of-justice"
+ },
+ {
+  "tmdbId": 1278,
+  "arrived": "2026-07-19",
+  "slug": "the-dreamers"
+ },
+ {
+  "tmdbId": 746,
+  "arrived": "2026-07-18",
+  "slug": "the-last-emperor"
+ },
+ {
+  "tmdbId": 419835,
+  "arrived": "2026-07-18",
+  "slug": "crooked-house"
+ },
+ {
+  "tmdbId": 1370,
+  "arrived": "2026-07-18",
+  "slug": "rambo-iii"
+ },
+ {
+  "tmdbId": 480105,
+  "arrived": "2026-07-18",
+  "slug": "47-meters-down-uncaged"
+ },
+ {
+  "tmdbId": 61202,
+  "arrived": "2026-07-18",
+  "slug": "zindagi-na-milegi-dobara"
+ },
+ {
+  "tmdbId": 288129,
+  "arrived": "2026-07-18",
+  "slug": "liz-in-september"
+ },
+ {
+  "tmdbId": 374473,
+  "arrived": "2026-07-18",
+  "slug": "i-daniel-blake"
+ },
+ {
+  "tmdbId": 414454,
+  "arrived": "2026-07-18",
+  "slug": "submission"
+ },
+ {
+  "tmdbId": 737568,
+  "arrived": "2026-07-18",
+  "slug": "the-doorman"
+ },
+ {
+  "tmdbId": 432139,
+  "arrived": "2026-07-18",
+  "slug": "vikram-vedha"
+ },
+ {
+  "tmdbId": 523773,
+  "arrived": "2026-07-18",
+  "slug": "little-italy-2018"
+ },
+ {
+  "tmdbId": 565310,
+  "arrived": "2026-07-18",
+  "slug": "the-farewell"
+ },
+ {
+  "tmdbId": 532671,
+  "arrived": "2026-07-18",
+  "slug": "the-prodigy"
+ },
+ {
+  "tmdbId": 665488,
+  "arrived": "2026-07-18",
+  "slug": "divorce-club"
+ },
+ {
+  "tmdbId": 300425,
+  "arrived": "2026-07-18",
+  "slug": "lingaa"
+ },
+ {
+  "tmdbId": 412090,
+  "arrived": "2026-07-18",
+  "slug": "jolly-llb-2"
+ },
+ {
+  "tmdbId": 520318,
+  "arrived": "2026-07-18",
+  "slug": "fatima"
+ },
+ {
+  "tmdbId": 10148,
+  "arrived": "2026-07-18",
+  "slug": "krystal"
+ },
+ {
+  "tmdbId": 603603,
+  "arrived": "2026-07-18",
+  "slug": "american-traitor-the-trial-of-axis-sally"
+ },
+ {
+  "tmdbId": 508003,
+  "arrived": "2026-07-18",
+  "slug": "mcqueen"
+ },
+ {
+  "tmdbId": 406563,
+  "arrived": "2026-07-17",
+  "slug": "insidious-the-last-key"
+ },
+ {
+  "tmdbId": 1515899,
+  "arrived": "2026-07-16",
+  "slug": "billie-eilish-hit-me-hard-and-soft-the-tour-live-in-3d"
+ },
+ {
+  "tmdbId": 1465557,
+  "arrived": "2026-07-15",
+  "slug": "our-hero-balthazar"
+ },
+ {
+  "tmdbId": 257088,
+  "arrived": "2026-07-15",
+  "slug": "point-break-2015"
+ },
+ {
+  "tmdbId": 1266127,
+  "arrived": "2026-07-14",
+  "slug": "ready-or-not-here-i-come"
+ },
+ {
+  "tmdbId": 1062215,
+  "arrived": "2026-07-13",
+  "slug": "they-listen"
+ },
+ {
+  "tmdbId": 1297842,
+  "arrived": "2026-07-08",
+  "slug": "goat-2026"
+ },
+ {
+  "tmdbId": 19995,
+  "arrived": "2026-07-07",
+  "slug": "avatar-3"
+ },
+ {
+  "tmdbId": 10527,
+  "arrived": "2026-07-07",
+  "slug": "madagascar-escape-2-africa"
+ },
+ {
+  "tmdbId": 539745,
+  "arrived": "2026-07-07",
+  "slug": "animal-farm-2026"
+ },
+ {
+  "tmdbId": 1186532,
+  "arrived": "2026-07-06",
+  "slug": "the-forge"
+ },
+ {
+  "tmdbId": 1125073,
+  "arrived": "2026-07-06",
+  "slug": "between-the-temples"
+ },
+ {
+  "tmdbId": 1694978,
+  "arrived": "2026-07-04",
+  "slug": "chum"
+ },
+ {
+  "tmdbId": 804150,
+  "arrived": "2026-07-04",
+  "slug": "cocaine-bear"
+ },
+ {
+  "tmdbId": 1037035,
+  "arrived": "2026-07-04",
+  "slug": "janet-planet"
+ },
+ {
+  "tmdbId": 1354518,
+  "arrived": "2026-07-04",
+  "slug": "100-nights-of-hero"
+ },
+ {
+  "tmdbId": 1114967,
+  "arrived": "2026-06-28",
+  "slug": "good-fortune-2025"
+ },
+ {
+  "tmdbId": 524251,
+  "arrived": "2026-06-28",
+  "slug": "i-see-you"
+ },
+ {
+  "tmdbId": 1284016,
+  "arrived": "2026-06-26",
+  "slug": "power-ballad"
+ },
+ {
+  "tmdbId": 1146058,
+  "arrived": "2026-06-24",
+  "slug": "the-pout-pout-fish"
+ },
+ {
+  "tmdbId": 1094009,
+  "arrived": "2026-06-23",
+  "slug": "summer-camp"
+ },
+ {
+  "tmdbId": 1257868,
+  "arrived": "2026-06-23",
+  "slug": "a-tree-fell-in-the-woods"
+ },
+ {
+  "tmdbId": 1180629,
+  "arrived": "2026-06-23",
+  "slug": "kneecap"
+ },
+ {
+  "tmdbId": 467914,
+  "arrived": "2026-06-23",
+  "slug": "the-land-of-sometimes"
+ }
+]

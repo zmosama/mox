@@ -43,6 +43,20 @@
       "when": 1787455001421,
       "tag": "0005_magenta_ego",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1790002586125,
+      "tag": "0006_romantic_goliath",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "6",
+      "when": 1790009547715,
+      "tag": "0007_ambitious_silver_centurion",
+      "breakpoints": true
     }
   ]
 }

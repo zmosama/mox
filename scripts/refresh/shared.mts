@@ -39,6 +39,35 @@ export function catalogue() {
     .all();
 }
 
+/**
+ * The services somebody here actually pays for.
+ *
+ * `catalogue()` is what this install can recognise — forty-five providers, most
+ * of which nobody has ever subscribed to. Sweeping all of them meant asking
+ * TMDB about titles no page would ever render: twenty-six of the two hundred
+ * slots in /new were held by films on services nobody has, and they were
+ * dropped again at read time, so the cost was paid twice and the shelf space
+ * was lost for nothing.
+ *
+ * The union across accounts, not one viewer's picks — the refresh is shared, so
+ * narrowing it to whoever ran last would empty the site for everybody else.
+ *
+ * Nobody having chosen yet means "not told", not "subscribes to nothing", which
+ * is the same reading `availabilityFor` takes: a fresh install sweeps the whole
+ * catalogue rather than nothing at all.
+ */
+export function subscribed() {
+  const all = catalogue();
+  const picked = new Set(
+    db.selectDistinct({ providerId: s.userServices.providerId })
+      .from(s.userServices)
+      .all()
+      .map((r) => r.providerId),
+  );
+  if (!picked.size) return all;
+  return all.filter((x) => picked.has(x.providerId));
+}
+
 /** Bounded concurrency: polite to TMDB, and 250 titles in seconds not minutes. */
 export async function mapPool<T, R>(items: T[], size: number, fn: (item: T) => Promise<R>) {
   const out = new Array<R>(items.length);
@@ -68,6 +97,14 @@ export type Detail = {
   episode_run_time?: number[];
   belongs_to_collection?: { name: string } | null;
   next_episode_to_air?: { season_number: number } | null;
+  /* The finale case: once a season ends TMDB clears `next_episode_to_air`, so
+     this is the only handle left on the episode that just aired — and with the
+     landing-date shift, "just aired" can still be reaching us this morning. */
+  last_episode_to_air?: { season_number: number; air_date?: string | null } | null;
+  /** Who broadcasts it, which decides whether its air date needs shifting. */
+  networks?: { name?: string | null }[];
+  /** How a series is found in TVmaze, which knows what time it airs. */
+  external_ids?: { imdb_id?: string | null; tvdb_id?: number | null };
   "watch/providers"?: { results?: WatchProviders };
 };
 
@@ -86,8 +123,11 @@ export async function fetchTitle(
   services: ReturnType<typeof catalogue>,
 ): Promise<Fetched | null> {
   try {
+    /* Only series ask for `external_ids`: it is what matches a show to TVmaze,
+       films have no use for it, and the disk cache is keyed on the query, so
+       appending it for both would have thrown away every film ever cached. */
     const detail = await tmdb<Detail>(`/${kind}/${tmdbId}`, {
-      append_to_response: "watch/providers",
+      append_to_response: kind === "tv" ? "watch/providers,external_ids" : "watch/providers",
     });
     return {
       tmdbId,

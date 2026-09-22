@@ -16,6 +16,16 @@ export type CardTitle = {
   platforms: { name: string; logo: string | null; url: string | null }[];
   /** Shown instead of the service chip on titles that are not out yet. */
   releaseLabel?: string;
+  /**
+   * "S01E06", or "3 episodes". Shown alongside the service chip rather than in
+   * place of it: an episode that just landed is the one case where where to
+   * watch it and what arrived are both the point.
+   */
+  episodeLabel?: string;
+  /** "EGP 29.99 rent · EGP 99.99 buy". Only the store section sets this. */
+  price?: string;
+  /** The day it turned up, for ordering. Not rendered. */
+  arrived?: string;
 };
 
 const RING: Record<Verdict, string> = {
@@ -72,6 +82,12 @@ export function TitleCard({
           </span>
         ) : null}
 
+        {item.episodeLabel ? (
+          <span className="numeric absolute bottom-1.5 end-1.5 z-10 rounded-md bg-love px-1.5 py-0.5 text-[10.5px] font-bold text-[#04210f]">
+            {item.episodeLabel}
+          </span>
+        ) : null}
+
         <span
           aria-hidden
           className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/50 text-3xl opacity-0 transition-opacity group-hover:opacity-100"
@@ -94,6 +110,9 @@ export function TitleCard({
         {item.year ?? ""}
         {item.kind === "tv" ? " · TV" : ""}
       </div>
+      {item.price ? (
+        <div className="numeric text-[11.5px] font-semibold text-want">{item.price}</div>
+      ) : null}
     </div>
   );
 }

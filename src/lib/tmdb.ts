@@ -6,7 +6,7 @@
  * are keyed by path and query, with a per-endpoint lifetime.
  */
 import { createHash } from "node:crypto";
-import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
+import { mkdir, readdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
 const BASE = "https://api.themoviedb.org/3";
@@ -78,3 +78,43 @@ export async function tmdb<T>(path: string, params: Record<string, string | numb
 
 export const posterPath = (path: string | null | undefined, size = "w342") =>
   path ? `https://image.tmdb.org/t/p/${size}${path}` : null;
+
+/**
+ * Delete cache entries nothing will ever be served from again.
+ *
+ * Every response is written here and none were ever removed, so the directory
+ * on the server had reached 51MB across 2,870 files — a discover sweep from a
+ * date window that closed weeks ago is kept forever, and is unreachable the
+ * moment its query string stops being asked for. Nothing is served past the
+ * longest TTL, so anything older than that is dead weight by definition.
+ *
+ * Failures are swallowed on purpose: this is housekeeping, and a permission
+ * error on one file is no reason to fail a refresh that has already done its
+ * real work.
+ */
+export async function pruneCache(maxAgeDays = 14): Promise<{ removed: number; freed: number }> {
+  const cutoff = Date.now() - maxAgeDays * 86_400_000;
+  let removed = 0;
+  let freed = 0;
+
+  let names: string[];
+  try {
+    names = await readdir(CACHE_DIR);
+  } catch {
+    return { removed, freed };
+  }
+
+  for (const name of names) {
+    const file = join(CACHE_DIR, name);
+    try {
+      const info = await stat(file);
+      if (info.mtimeMs >= cutoff) continue;
+      await rm(file);
+      removed++;
+      freed += info.size;
+    } catch {
+      // gone already, or not ours to delete
+    }
+  }
+  return { removed, freed };
+}

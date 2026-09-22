@@ -23,12 +23,15 @@ export function Board({
   today,
   episodes,
   trending,
+  inStore,
   signedIn,
   needsServices = false,
 }: {
   today: string;
   episodes: CalendarEpisode[];
   trending: CardTitle[];
+  /** Films that turned up in a store recently — to buy, not included. */
+  inStore: CardTitle[];
   signedIn: boolean;
   /** Signed in, but has never said which services they pay for. */
   needsServices?: boolean;
@@ -140,6 +143,26 @@ export function Board({
           </Empty>
         )}
       </Section>
+
+      {/* Only when there is something. An empty shelf is not worth a heading
+          every day, and the stores go quiet for a week at a time. */}
+      {inStore.length ? (
+        <Section
+          title="New in the store"
+          count={inStore.length}
+          lede="Just added to rent or buy — not included with a subscription"
+        >
+          <Grid>
+            {inStore.slice(0, 12).map((t) => (
+              <TitleCard
+                key={`store-${t.tmdbId}`}
+                item={t}
+                onOpen={(i) => setOpen({ tmdbId: i.tmdbId, kind: i.kind })}
+              />
+            ))}
+          </Grid>
+        </Section>
+      ) : null}
 
       <Section
         title="Trending now"
