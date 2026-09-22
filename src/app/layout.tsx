@@ -1,11 +1,13 @@
 import type { Metadata, Viewport } from "next";
-import { Inter, IBM_Plex_Sans_Arabic } from "next/font/google";
+import { Sora, IBM_Plex_Sans_Arabic } from "next/font/google";
 import { BottomNav } from "@/components/BottomNav";
 import { Nav } from "@/components/Nav";
 import { currentUser } from "@/lib/auth";
 import "./globals.css";
 
-const inter = Inter({ subsets: ["latin"], variable: "--font-inter", display: "swap" });
+// Sora carries the wordmark's geometry into the text: the same circular o
+// and flat terminals, so the header and the sentence under it agree.
+const sora = Sora({ subsets: ["latin"], variable: "--font-sora", display: "swap" });
 const arabic = IBM_Plex_Sans_Arabic({
   subsets: ["arabic"],
   weight: ["400", "500", "600", "700"],
@@ -22,7 +24,7 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#07070a",
+  themeColor: "#0b0f0e",
   width: "device-width",
   initialScale: 1,
   /* Reach under the notch and the home indicator; the safe-area padding in
@@ -34,7 +36,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   const user = await currentUser();
 
   return (
-    <html lang="en" className={`${inter.variable} ${arabic.variable}`}>
+    <html lang="en" className={`${sora.variable} ${arabic.variable}`}>
       <body className="min-h-dvh">
         <Nav user={user} />
         {/* pb leaves room for the bottom bar plus the home indicator. */}

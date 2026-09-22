@@ -11,25 +11,33 @@
   /* An elevation ramp you can actually see.
      These used to run #0a0a0c -> #101014 -> #131318: about three percent of
      luminance across three levels, which on a phone screen reads as one flat
-     black with everything melted into it. Each step up is now a clear jump,
-     and slightly blue so a raised surface reads as lit rather than as grey. */
-  --color-bg: #07070a;
-  --color-surface: #14151b;
-  --color-card: #1b1d24;
-  --color-raised: #262932;
-  --color-line: #23252d;
-  --color-line-strong: #3a3e4a;
+     black with everything melted into it. Each step up is now a clear jump.
+
+     The two ends are the identity's own darks — #0B0F0E for the page, #1F2422
+     for a card — and the steps between and above them are interpolated in that
+     same green-neutral hue. The ramp used to lean blue; a blue surface under a
+     green mark reads as two brands sharing a screen. */
+  --color-bg: #0b0f0e;
+  --color-surface: #161c1a;
+  --color-card: #1f2422;
+  --color-raised: #2b322f;
+  --color-line: #252c2a;
+  --color-line-strong: #3c4441;
 
   /* Depth, so a card sits on the page instead of being a slightly paler
      rectangle painted onto it. */
   --shadow-card: 0 1px 2px rgb(0 0 0 / 0.5), 0 4px 14px -6px rgb(0 0 0 / 0.6);
   --shadow-pop: 0 12px 40px -8px rgb(0 0 0 / 0.75);
 
-  --color-ink: #f4f5f7;
-  --color-ink-dim: #9aa0ad;
-  --color-ink-faint: #6b7280;
+  --color-ink: #f8faf8;
+  --color-ink-dim: #9ba5a1;
+  --color-ink-faint: #6c7873;
 
-  --color-love: #2bd66a;
+  /* The identity's green. It is also the "love" verdict, deliberately: the mark
+     and the strongest thing you can say about a title are one colour. */
+  --color-love: #00d084;
+  /* The mint beside it, for the glow the mark carries and nothing else yet. */
+  --color-love-soft: #a7f3d0;
   --color-like: #4a9eff;
   --color-want: #ffb020;
   --color-against: #ff5a52;
@@ -38,8 +46,12 @@
   --radius-card: 12px;
   --radius-sheet: 16px;
 
-  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, sans-serif;
-  --font-arabic: "IBM Plex Sans Arabic", var(--font-sans);
+  /* Through the variables `next/font` defines rather than by family name. Both
+     work — it registers the real name too — but the variable also carries the
+     metric-matched fallback it generates, which is what stops the page shifting
+     when the webfont finally arrives. */
+  --font-sans: var(--font-sora), ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-arabic: var(--font-plex-arabic);
 }
 
 @layer base {

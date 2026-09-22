@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { Search } from "./Search";
 import { cn } from "@/lib/cn";
@@ -25,9 +26,20 @@ export function Nav({ user }: { user: SessionUser | null }) {
       <div className="mx-auto flex h-14 max-w-[1180px] items-center gap-3 px-4 sm:gap-5 sm:px-6">
         <Link
           href="/"
-          className="shrink-0 text-[19px] font-bold tracking-tight transition active:opacity-60 sm:hover:opacity-75"
+          className="shrink-0 transition active:opacity-60 sm:hover:opacity-75"
         >
-          m<span className="text-love">o</span>x
+          {/* The wordmark as it is drawn in the identity, glow and all, rather
+              than three letters set in whatever font has loaded. `priority`
+              because it is the one image above the fold on every page and a
+              header that pops in a frame late is the first thing you notice. */}
+          <Image
+            src="/wordmark.png"
+            alt="mox"
+            width={376}
+            height={116}
+            priority
+            className="h-[17px] w-auto"
+          />
         </Link>
 
         <nav className="hidden gap-1 sm:flex">
