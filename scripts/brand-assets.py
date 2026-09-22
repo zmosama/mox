@@ -74,6 +74,20 @@ def wordmark() -> Image.Image:
     return Image.fromarray(out, "RGBA")
 
 
+def banner(width: int = 1280, height: int = 400) -> Image.Image:
+    """The mark on the page colour, for the top of the README.
+
+    GitHub renders a README on white as readily as on black, so this cannot be
+    a transparent wordmark: it would vanish for half the people who open it.
+    """
+    out = Image.new("RGB", (width, height), TILE_BG)
+    mark = wordmark()
+    scaled = round(mark.height * (width * 0.34) / mark.width)
+    mark = mark.resize((round(width * 0.34), scaled), Image.LANCZOS)
+    out.paste(mark, ((width - mark.width) // 2, (height - mark.height) // 2 - 14), mark)
+    return out
+
+
 def rounded(size: int, source: Image.Image) -> Image.Image:
     """The tile at `size`, its corners cut to transparency.
 
@@ -128,7 +142,10 @@ def main() -> None:
     print("  public/icon-maskable.png    512  full bleed, for Android launchers")
 
     wordmark().save(PUBLIC / "wordmark.png")
-    print("  public/wordmark.png         382x116  transparent, glow intact")
+    print("  public/wordmark.png         376x116  transparent, glow intact")
+
+    banner().save(ROOT / "brand" / "banner.png")
+    print("  brand/banner.png            1280x400 for the repository page")
 
     # A tab favicon is read at 16 pixels, where the tile's rounded corners are a
     # pixel each and the ring is the only thing that carries. Every size is the
