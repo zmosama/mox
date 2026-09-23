@@ -2,7 +2,7 @@ import { Home } from "@/components/Home";
 import { avatarUrl, currentUser } from "@/lib/auth";
 import { APP_TIME_ZONE, todayISO } from "@/lib/dates";
 import { calendar, feed, forYou, newInStore, withReasons } from "@/lib/queries";
-import { newFromPeople } from "@/lib/people";
+import { newFromPeople, within } from "@/lib/people";
 import { hasPickedServices } from "@/lib/services";
 
 /** Reads the database on every request; nothing here is worth caching. */
@@ -24,7 +24,7 @@ export default async function HomePage() {
       forYou={id ? forYou(id, today) : []}
       episodes={calendar(id, 14)}
       trending={withReasons(id, feed("trending", id, 24))}
-      fromPeople={id ? await newFromPeople(id, today) : []}
+      fromPeople={id ? await within(2500, newFromPeople(id, today), []) : []}
       inStore={newInStore(id, today)}
       needsServices={Boolean(user) && !hasPickedServices(user!.id)}
     />

@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { avatarUrl, currentUser } from "@/lib/auth";
 import { todayISO } from "@/lib/dates";
 import { calendar, feed, forYou, newInStore, withReasons } from "@/lib/queries";
-import { newFromPeople } from "@/lib/people";
+import { newFromPeople, within } from "@/lib/people";
 
 /**
  * Everything the iPhone app's home screen draws, in one round trip.
@@ -25,7 +25,7 @@ export async function GET() {
       forYou: id ? forYou(id, today) : [],
       calendar: calendar(id, 14),
       trending: withReasons(id, feed("trending", id, 24)),
-      fromPeople: id ? await newFromPeople(id, today) : [],
+      fromPeople: id ? await within(2500, newFromPeople(id, today), []) : [],
       inStore: newInStore(id, today),
     },
     { headers: { "cache-control": "no-store" } },

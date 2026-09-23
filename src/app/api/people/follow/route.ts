@@ -6,7 +6,13 @@ import { setFollowingPerson } from "@/lib/people";
 const Body = z.object({
   id: z.number().int().positive(),
   name: z.string().min(1).max(200),
-  profile: z.string().max(500).nullable(),
+  /* Only a TMDB image: this is stored and shown back as an <img>, and any other
+     address would let a client make the page load whatever it liked. */
+  profile: z
+    .string()
+    .max(500)
+    .regex(/^https:\/\/image\.tmdb\.org\/t\/p\/[\w]+\/[\w.-]+$/)
+    .nullable(),
   following: z.boolean(),
 });
 

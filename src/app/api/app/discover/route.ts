@@ -5,6 +5,7 @@ import { currentUser } from "@/lib/auth";
 import { includedOn, isStore, type WatchProviders } from "@/lib/providers";
 import { serviceLookup, verdictsFor } from "@/lib/queries";
 import { posterPath, region, tmdb } from "@/lib/tmdb";
+import { clientAddress, takeRequest } from "@/lib/rate-limit";
 import type { MediaKind } from "@/db/schema";
 
 /**
@@ -43,6 +44,15 @@ export async function GET(req: Request) {
   const params = new URL(req.url).searchParams;
   const mood = MOODS[params.get("mood") ?? ""];
   if (!mood) return NextResponse.json({ error: "unknown mood" }, { status: 400 });
+
+  // Each mood costs TMDB a couple of dozen requests; keep one address from spending the key.
+  const limited = takeRequest(`discover:${clientAddress(req)}`, 60, 10 * 60_000);
+  if (!limited.allowed) {
+    return NextResponse.json(
+      { error: "Too many at once. Try again shortly." },
+      { status: 429, headers: { "retry-after": String(limited.retryAfter) } },
+    );
+  }
   const only = params.get("kind") as MediaKind | null;
 
   const user = await currentUser();

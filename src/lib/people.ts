@@ -62,7 +62,7 @@ type RawCredit = {
   genre_ids?: number[];
 };
 
-type RawPerson = {
+export type RawPerson = {
   id: number;
   name: string;
   profile_path: string | null;
@@ -104,8 +104,8 @@ async function rawPerson(id: number): Promise<RawPerson> {
   return tmdb<RawPerson>(`/person/${id}`, { append_to_response: "combined_credits" });
 }
 
-/** Every work, one entry per title, with all their roles on it. */
-function creditsOf(p: RawPerson): Omit<PersonCredit, "verdict" | "platforms">[] {
+/** Every work, one entry per title, with all their roles on it. Exported for tests. */
+export function creditsOf(p: RawPerson): Omit<PersonCredit, "verdict" | "platforms">[] {
   const byTitle = new Map<string, Omit<PersonCredit, "verdict" | "platforms"> & { roles: Set<string> }>();
   const add = (c: RawCredit, role: string | undefined, as: "acting" | "crew") => {
     if (c.media_type !== "movie" && c.media_type !== "tv") return;
@@ -216,6 +216,19 @@ export async function personDetail(id: number, userId: number | null): Promise<P
       // Newest first; undated (announced, not yet scheduled) at the very top.
       .sort((a, b) => (b.date || "9999").localeCompare(a.date || "9999")),
   };
+}
+
+/**
+ * The answer if it comes in time, otherwise the fallback. For the extras on a
+ * page — work from followed people, the people you love — that must not hold
+ * the page itself: what was slow this time is cached for the next.
+ */
+export function within<T>(ms: number, work: Promise<T>, fallback: T): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const late = new Promise<T>((resolve) => {
+    timer = setTimeout(() => resolve(fallback), ms);
+  });
+  return Promise.race([work.catch(() => fallback), late]).finally(() => clearTimeout(timer));
 }
 
 // ---------------------------------------------------------------- following

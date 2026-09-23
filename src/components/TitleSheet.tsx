@@ -185,7 +185,8 @@ export function TitleSheet({
     if (res.ok) patch({ ...data, following: !data.following });
   }, [data, patch]);
 
-  const [rating, setRating] = useState(false);
+  /** Where the rating menu is drawn, fixed to the screen, or null when shut. */
+  const [rating, setRating] = useState<{ left: number; top: number; above: boolean } | null>(null);
   const [person, setPerson] = useState<number | null>(null);
   const router = useRouter();
   const signIn = () => {
@@ -236,7 +237,7 @@ export function TitleSheet({
         ref={panelRef}
         onClick={(e) => {
           e.stopPropagation();
-          setRating(false);
+          setRating(null);
         }}
         className={cn(
           "relative flex w-full max-w-[560px] flex-col overflow-hidden bg-bg shadow-[0_-10px_60px_rgba(0,0,0,.7)]",
@@ -269,7 +270,7 @@ export function TitleSheet({
           </svg>
         </button>
 
-        <div className="min-h-0 flex-1 overflow-auto overscroll-contain">
+        <div className="min-h-0 flex-1 overflow-auto overscroll-contain" onScroll={() => rating && setRating(null)}>
           {/* The picture, with the title set on it as it fades into the sheet. */}
           <div
             className="relative h-[260px] w-full bg-surface bg-cover bg-center"
@@ -338,11 +339,19 @@ export function TitleSheet({
                     <button
                       type="button"
                       aria-label="Rate"
-                      aria-expanded={rating}
+                      aria-expanded={rating !== null}
                       onClick={(e) => {
                         e.stopPropagation();
-                        if (signedIn) setRating(!rating);
-                        else signIn();
+                        if (!signedIn) return signIn();
+                        if (rating) return setRating(null);
+                        /* Placed from where the star actually is: on a phone
+                           the star wraps to the start of its own line, and a
+                           menu hung from its far edge ran off the screen. */
+                        const r = e.currentTarget.getBoundingClientRect();
+                        const width = 208;
+                        const left = Math.min(Math.max(r.left + r.width / 2 - width / 2, 12), window.innerWidth - width - 12);
+                        const above = r.top > 260;
+                        setRating({ left, top: above ? r.top - 8 : r.bottom + 8, above });
                       }}
                       className={cn(
                         "grid size-11 place-items-center rounded-full bg-surface transition hover:bg-card",
@@ -357,7 +366,11 @@ export function TitleSheet({
                       <div
                         role="menu"
                         onClick={(e) => e.stopPropagation()}
-                        className="absolute bottom-full end-0 z-30 mb-2 w-52 overflow-hidden rounded-2xl border border-white/10 bg-card/95 py-1 shadow-pop backdrop-blur-xl sm:start-0 sm:end-auto"
+                        style={{ left: rating.left, top: rating.top }}
+                        className={cn(
+                          "fixed z-[60] w-52 overflow-hidden rounded-2xl border border-white/10 bg-card/95 py-1 shadow-pop backdrop-blur-xl",
+                          rating.above && "-translate-y-full",
+                        )}
                       >
                         {RATINGS.map(([verdict, label]) => (
                           <button
@@ -365,7 +378,7 @@ export function TitleSheet({
                             role="menuitem"
                             type="button"
                             onClick={() => {
-                              setRating(false);
+                              setRating(null);
                               if (data.verdict !== verdict) setVerdict(verdict);
                             }}
                             className={cn(
@@ -384,7 +397,7 @@ export function TitleSheet({
                             role="menuitem"
                             type="button"
                             onClick={() => {
-                              setRating(false);
+                              setRating(null);
                               setVerdict(data.verdict!);
                             }}
                             className="w-full px-4 py-2.5 text-start text-[14px] text-against transition hover:bg-white/5"

@@ -117,8 +117,11 @@ struct SettingsView: View {
                     VStack(alignment: .leading, spacing: 6) {
                         Text(user.name).font(.sora(17, .semibold))
                         HStack(spacing: 14) {
+                            // Worked out here: the picker's label closure is Sendable
+                            // and may not read the view's state itself.
+                            let pickLabel = savingPhoto ? "Saving…" : user.avatar == nil ? "Add a photo" : "Change photo"
                             PhotosPicker(selection: $photo, matching: .images) {
-                                Text(savingPhoto ? "Saving…" : user.avatar == nil ? "Add a photo" : "Change photo")
+                                Text(pickLabel)
                             }
                             .disabled(savingPhoto)
                             if user.avatar != nil {
