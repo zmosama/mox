@@ -388,7 +388,13 @@ export function TitleSheet({
                       )}
                     >
                       <svg viewBox="0 0 24 24" className="size-5 fill-current" aria-hidden>
-                        <path d={RATE_ICON[data.verdict ?? ""] ?? ICON.star} />
+                        {/* Your rating, or an empty thumb inviting one. Hidden,
+                            seen and watchlist are not ratings, so they leave it empty. */}
+                        {data.verdict === "love" || data.verdict === "like" || data.verdict === "dislike" ? (
+                          <path d={RATE_ICON[data.verdict]} />
+                        ) : (
+                          <path d={RATE_ICON.like} fill="none" stroke="currentColor" strokeWidth={1.7} strokeLinejoin="round" />
+                        )}
                       </svg>
                     </button>
                     {rating ? (
@@ -505,7 +511,6 @@ const ICON = {
   eyeOn:
     "M12 2a10 10 0 1 1 0 20 10 10 0 0 1 0-20zm0 5.5c-3.2 0-5.9 1.9-7 4.5 1.1 2.6 3.8 4.5 7 4.5s5.9-1.9 7-4.5c-1.1-2.6-3.8-4.5-7-4.5zm0 2.5a2 2 0 1 1 0 4 2 2 0 0 1 0-4z",
   eye: "M12 5c5 0 9.3 3.1 11 7-1.7 3.9-6 7-11 7S2.7 15.9 1 12c1.7-3.9 6-7 11-7zm0 2a5 5 0 1 0 0 10 5 5 0 0 0 0-10zm0 2.5a2.5 2.5 0 1 1 0 5 2.5 2.5 0 0 1 0-5z",
-  star: "M12 2.5l2.9 6.2 6.6.6-5 4.5 1.5 6.6L12 17l-6 3.4 1.5-6.6-5-4.5 6.6-.6L12 2.5zm0 4.8-1.6 3.4-3.7.3 2.8 2.5-.8 3.7L12 15.3l3.3 1.9-.8-3.7 2.8-2.5-3.7-.3L12 7.3z",
 };
 
 const RATE_ICON: Record<string, string> = {

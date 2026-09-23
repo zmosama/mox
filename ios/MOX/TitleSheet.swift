@@ -153,7 +153,7 @@ struct TitleSheet: View {
             }
             if api.user == nil {
                 Button { signingIn = true } label: {
-                    Image(systemName: "star")
+                    Image(systemName: icon(for: nil))
                         .frame(width: 44, height: 44)
                         .background(Theme.surface, in: .circle)
                         .foregroundStyle(Theme.paper)
@@ -208,13 +208,14 @@ struct TitleSheet: View {
         .buttonStyle(.plain)
     }
 
+    /// The rating button shows your rating, or an empty thumb inviting one.
+    /// Hidden, seen and watchlist are not ratings, so they leave it empty.
     private func icon(for verdict: String?) -> String {
         switch verdict {
         case "love": "heart.fill"
         case "like": "hand.thumbsup.fill"
         case "dislike": "hand.thumbsdown.fill"
-        case "hidden": "eye.slash"
-        default: "star"
+        default: "hand.thumbsup"
         }
     }
 
