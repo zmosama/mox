@@ -49,6 +49,13 @@ watch tonight on your services, what is coming, then all of it, newest first.
 Follow them and their new work turns up on Home. Titles show their cast and
 crew as faces, each one a way into that person's page.
 
+**A title** — where it streams, then what you think of it: Follow (for a
+series), Watchlist, Seen and a rating, each one plain about its state — a tick
+and "In Watchlist", "Watched" — so nothing rests on colour alone. **Share**
+sends a mox link to someone as a recommendation: the phone's share sheet in the
+app and on a phone browser, a copied link on a desktop. The link opens the
+title on the website, and chat apps preview it with its name and backdrop.
+
 **Today** — a timeline of what reached each service, newest first, grouped by
 day and then by service. Filter it to one service, or to films or TV. In the app,
 connect your calendar and your day sits on top of it.
@@ -330,6 +337,9 @@ Optional:
 - `MOX_SECURE_COOKIES=true` forces session cookies to HTTPS-only. Normally mox
   detects HTTPS from the request or `X-Forwarded-Proto`; leave it off if you
   reach the server directly over plain HTTP.
+- `MOX_PUBLIC_URL` is the site's public address, used for the absolute links
+  in shared-title previews. Defaults to `https://mox.mosama.me`; the app's
+  Share button uses the same address (`AppSettings.publicSite`).
 - `MOX_OWNER` names the owner account for `scripts/check-owner.mts` and the
   legacy importer.
 
