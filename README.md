@@ -56,6 +56,12 @@ sends a mox link to someone as a recommendation: the phone's share sheet in the
 app and on a phone browser, a copied link on a desktop. The link opens the
 title on the website, and chat apps preview it with its name and backdrop.
 
+<p align="center">
+  <img src="brand/screens/app-title.png" alt="A title in the iPhone app, with Follow, Watchlist, Seen, rating and Share" width="300">
+  &nbsp;&nbsp;
+  <img src="brand/screens/app-share.png" alt="Sharing a title from the iPhone app as a mox link" width="300">
+</p>
+
 **Today** — a timeline of what reached each service, newest first, grouped by
 day and then by service. Filter it to one service, or to films or TV. In the app,
 connect your calendar and your day sits on top of it.
