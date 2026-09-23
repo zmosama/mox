@@ -131,7 +131,7 @@ struct TitleSheet: View {
     }
 
     private func actions(_ d: TitleDetail) -> some View {
-        HStack(spacing: 10) {
+        WrapLayout(spacing: 10) {
             if d.kind == "tv" {
                 toggle(following ? "Following" : "Follow", following ? "bookmark.fill" : "bookmark", on: following) {
                     guard api.user != nil else { signingIn = true; return }
@@ -140,10 +140,15 @@ struct TitleSheet: View {
                     Task { try? await api.setFollowing(d.tmdbId, value) }
                 }
             }
-            toggle("Watchlist", verdict == "watchlist" ? "plus.circle.fill" : "plus.circle", on: verdict == "watchlist") {
+            // Added shows as a tick, so it is plain whether it is on your list.
+            toggle(verdict == "watchlist" ? "In Watchlist" : "Watchlist",
+                   verdict == "watchlist" ? "checkmark.circle.fill" : "plus.circle", on: verdict == "watchlist") {
                 set(verdict == "watchlist" ? nil : "watchlist")
             }
-            toggle("Seen", verdict == "seen" ? "checkmark.circle.fill" : "checkmark.circle", on: verdict == "seen") {
+            // An eye, so its mark is not mistaken for the watchlist's tick;
+            // the words change too, so it never rests on colour alone.
+            toggle(verdict == "seen" ? "Watched" : "Mark as seen",
+                   verdict == "seen" ? "eye.circle.fill" : "eye", on: verdict == "seen") {
                 set(verdict == "seen" ? nil : "seen")
             }
             if api.user == nil {
@@ -170,6 +175,22 @@ struct TitleSheet: View {
             }
             .accessibilityLabel("Rate")
             }
+
+            // A mox link to this title, to send as a recommendation. Always the
+            // public site, whatever server a development build is pointed at.
+            ShareLink(
+                item: AppSettings.publicSite.appending(path: "title/\(d.kind)/\(d.tmdbId)"),
+                subject: Text(d.title),
+                message: Text(d.platforms.first.map { "\(d.title) — watch it on \($0.name)" } ?? d.title)
+            ) {
+                Label("Share", systemImage: "square.and.arrow.up")
+                    .font(.sora(13, .medium))
+                    .padding(.horizontal, 12)
+                    .frame(height: 44)
+                    .background(Theme.surface, in: .capsule)
+                    .foregroundStyle(Theme.paper)
+            }
+            .buttonStyle(.plain)
         }
         .padding(.horizontal, 20)
     }

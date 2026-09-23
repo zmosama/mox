@@ -6,6 +6,9 @@ import Security
 /// the Keychain, because it is a credential.
 @Observable
 final class AppSettings {
+    /// Where shared links point: the live site, for anyone to open.
+    static let publicSite = URL(string: "https://mox.mosama.me")!
+
     #if DEBUG
     static let defaultServer = "http://localhost:3000"
     #else

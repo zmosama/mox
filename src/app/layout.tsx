@@ -14,6 +14,8 @@ const arabic = IBM_Plex_Sans_Arabic({
 });
 
 export const metadata: Metadata = {
+  // Absolute addresses for shared links' previews.
+  metadataBase: new URL(process.env.MOX_PUBLIC_URL ?? "https://mox.mosama.me"),
   title: "mox",
   description: "What's on tonight, and where to watch it.",
   manifest: "/manifest.webmanifest",

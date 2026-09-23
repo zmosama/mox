@@ -188,6 +188,22 @@ export function TitleSheet({
   /** Where the rating menu is drawn, fixed to the screen, or null when shut. */
   const [rating, setRating] = useState<{ left: number; top: number; above: boolean } | null>(null);
   const [person, setPerson] = useState<number | null>(null);
+  const [copied, setCopied] = useState(false);
+
+  /** The phone's share sheet where there is one; otherwise copy the link. */
+  const share = async () => {
+    if (!data) return;
+    const url = `${window.location.origin}/title/${data.kind}/${data.tmdbId}`;
+    const where = data.platforms[0]?.name;
+    const text = where ? `${data.title} — watch it on ${where}` : data.title;
+    if (navigator.share) {
+      await navigator.share({ title: data.title, text, url }).catch(() => null);
+      return;
+    }
+    await navigator.clipboard?.writeText(url).catch(() => null);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
   const router = useRouter();
   const signIn = () => {
     onClose();
@@ -328,11 +344,24 @@ export function TitleSheet({
                       <path d={data.following ? ICON.bookmarkOn : ICON.bookmark} />
                     </Pill>
                   ) : null}
-                  <Pill on={data.verdict === "watchlist"} disabled={busy} onClick={signedIn ? () => setVerdict("watchlist") : signIn} label="Watchlist">
-                    <path d={ICON.plus} />
+                  {/* Added shows as a tick, so it is plain whether it is on your list. */}
+                  <Pill
+                    on={data.verdict === "watchlist"}
+                    disabled={busy}
+                    onClick={signedIn ? () => setVerdict("watchlist") : signIn}
+                    label={data.verdict === "watchlist" ? "In Watchlist" : "Watchlist"}
+                  >
+                    <path d={data.verdict === "watchlist" ? ICON.checkOn : ICON.plus} />
                   </Pill>
-                  <Pill on={data.verdict === "seen"} disabled={busy} onClick={signedIn ? () => setVerdict("seen") : signIn} label="Seen">
-                    <path d={ICON.check} />
+                  {/* An eye, so its mark is not mistaken for the watchlist's tick;
+                      the words change too, so it never rests on colour alone. */}
+                  <Pill
+                    on={data.verdict === "seen"}
+                    disabled={busy}
+                    onClick={signedIn ? () => setVerdict("seen") : signIn}
+                    label={data.verdict === "seen" ? "Watched" : "Mark as seen"}
+                  >
+                    <path d={data.verdict === "seen" ? ICON.eyeOn : ICON.eye} fillRule="evenodd" />
                   </Pill>
 
                   <div className="relative">
@@ -408,6 +437,22 @@ export function TitleSheet({
                       </div>
                     ) : null}
                   </div>
+
+                  {/* A mox link to this title, to send as a recommendation. */}
+                  <button
+                    type="button"
+                    onClick={share}
+                    aria-label={copied ? "Link copied" : "Share"}
+                    className={cn(
+                      "flex h-11 items-center gap-2 rounded-full px-3.5 text-[13px] font-medium transition",
+                      copied ? "bg-love/20 text-love" : "bg-surface text-ink hover:bg-card",
+                    )}
+                  >
+                    <svg viewBox="0 0 24 24" className="size-[18px] fill-current" aria-hidden>
+                      <path d={copied ? ICON.checkOn : ICON.share} />
+                    </svg>
+                    {copied ? "Link copied" : "Share"}
+                  </button>
                 </div>
                 {!signedIn ? (
                   <a href="/admin/login" className="text-[13px] text-ink-faint transition hover:text-ink">
@@ -455,7 +500,11 @@ const ICON = {
   bookmark: "M6 3h12a1 1 0 0 1 1 1v17l-7-4.2L5 21V4a1 1 0 0 1 1-1zm1 2v12.5l5-3 5 3V5H7z",
   bookmarkOn: "M6 3h12a1 1 0 0 1 1 1v17l-7-4.2L5 21V4a1 1 0 0 1 1-1z",
   plus: "M12 2a10 10 0 1 1 0 20 10 10 0 0 1 0-20zm0 2a8 8 0 1 0 0 16 8 8 0 0 0 0-16zm1 3v4h4v2h-4v4h-2v-4H7v-2h4V7h2z",
-  check: "M12 2a10 10 0 1 1 0 20 10 10 0 0 1 0-20zm0 2a8 8 0 1 0 0 16 8 8 0 0 0 0-16zm4.3 4.3 1.4 1.4-6.7 6.7-3.7-3.7 1.4-1.4 2.3 2.3 5.3-5.3z",
+  share: "M12 2.6 16.7 7.3l-1.4 1.4L13 6.4V15h-2V6.4L8.7 8.7 7.3 7.3 12 2.6zM5 11h3v2H6v7h12v-7h-2v-2h3a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-9a1 1 0 0 1 1-1z",
+  checkOn: "M12 2a10 10 0 1 1 0 20 10 10 0 0 1 0-20zm4.3 6.3-5.3 5.3-2.3-2.3-1.4 1.4 3.7 3.7 6.7-6.7-1.4-1.4z",
+  eyeOn:
+    "M12 2a10 10 0 1 1 0 20 10 10 0 0 1 0-20zm0 5.5c-3.2 0-5.9 1.9-7 4.5 1.1 2.6 3.8 4.5 7 4.5s5.9-1.9 7-4.5c-1.1-2.6-3.8-4.5-7-4.5zm0 2.5a2 2 0 1 1 0 4 2 2 0 0 1 0-4z",
+  eye: "M12 5c5 0 9.3 3.1 11 7-1.7 3.9-6 7-11 7S2.7 15.9 1 12c1.7-3.9 6-7 11-7zm0 2a5 5 0 1 0 0 10 5 5 0 0 0 0-10zm0 2.5a2.5 2.5 0 1 1 0 5 2.5 2.5 0 0 1 0-5z",
   star: "M12 2.5l2.9 6.2 6.6.6-5 4.5 1.5 6.6L12 17l-6 3.4 1.5-6.6-5-4.5 6.6-.6L12 2.5zm0 4.8-1.6 3.4-3.7.3 2.8 2.5-.8 3.7L12 15.3l3.3 1.9-.8-3.7 2.8-2.5-3.7-.3L12 7.3z",
 };
 
