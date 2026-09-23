@@ -21,6 +21,13 @@ final class AppSettings {
     var calendarTab: Bool { didSet { save("calendarTab", calendarTab) } }
     var tasksTab: Bool { didSet { save("tasksTab", tasksTab) } }
     var aiProvider: String { didSet { save("aiProvider", aiProvider) } }
+    /// Episodes of shows you follow, on the morning they reach you.
+    var notifyEpisodes: Bool { didSet { save("notifyEpisodes", notifyEpisodes) } }
+    /// A watchlist title reaching one of your services.
+    var notifyWatchlist: Bool { didSet { save("notifyWatchlist", notifyWatchlist) } }
+    /// When episode notifications go off, in minutes after midnight, Cairo
+    /// time. Ten o'clock is when the global streamers' midnight Pacific lands.
+    var notifyAt: Int { didSet { save("notifyAt", notifyAt) } }
 
     var aiKey: String {
         get { Keychain.read("ai-key") ?? "" }
@@ -38,6 +45,9 @@ final class AppSettings {
         calendarTab = defaults.bool(forKey: "calendarTab")
         tasksTab = defaults.bool(forKey: "tasksTab")
         aiProvider = defaults.string(forKey: "aiProvider") ?? "Anthropic"
+        notifyEpisodes = defaults.bool(forKey: "notifyEpisodes")
+        notifyWatchlist = defaults.bool(forKey: "notifyWatchlist")
+        notifyAt = defaults.object(forKey: "notifyAt") as? Int ?? 10 * 60
     }
 
     private func save(_ key: String, _ value: Any) { defaults.set(value, forKey: key) }

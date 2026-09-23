@@ -1,16 +1,26 @@
 import SwiftUI
+import UserNotifications
 
 @main
 struct MOXApp: App {
     @State private var settings: AppSettings
     @State private var api: API
     @State private var calendar = CalendarStore()
-    @State private var router = Router()
+    @State private var router: Router
+    @State private var notifier = Notifier()
+    @Environment(\.scenePhase) private var phase
+    /// Static: the notification centre holds its delegate weakly.
+    private static let opener = NotificationOpener()
 
     init() {
         let settings = AppSettings()
+        let router = Router()
         _settings = State(initialValue: settings)
         _api = State(initialValue: API(settings: settings))
+        _router = State(initialValue: router)
+        // Before the first screen: a tap on a notification may be what launched us.
+        Self.opener.open = { router.title = $0 }
+        UNUserNotificationCenter.current().delegate = Self.opener
     }
 
     var body: some Scene {
@@ -20,8 +30,20 @@ struct MOXApp: App {
                 .environment(api)
                 .environment(calendar)
                 .environment(router)
+                .environment(notifier)
                 .preferredColorScheme(.dark)
                 .tint(Theme.green)
+        }
+        .onChange(of: phase) {
+            switch phase {
+            case .active: Task { await notifier.refresh(api: api, settings: settings) }
+            case .background: notifier.scheduleBackgroundRefresh()
+            default: break
+            }
+        }
+        .backgroundTask(.appRefresh(Notifier.refreshTask)) {
+            await notifier.refresh(api: api, settings: settings, force: true)
+            await notifier.scheduleBackgroundRefresh()
         }
     }
 }

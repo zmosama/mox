@@ -77,6 +77,7 @@ final class API {
 
     func today() async throws -> TodayPayload { try await get("/api/app/today") }
     func library() async throws -> LibraryPayload { try await get("/api/app/library") }
+    func alerts() async throws -> AlertsPayload { try await get("/api/app/alerts") }
     func title(_ ref: TitleRef) async throws -> TitleDetail { try await get("/api/title/\(ref.kind)/\(ref.tmdbId)") }
 
     func search(_ query: String) async throws -> (titles: [Card], people: [PersonHit]) {

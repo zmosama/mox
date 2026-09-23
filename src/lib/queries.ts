@@ -694,6 +694,103 @@ export function library(userId: number): { following: CardTitle[]; watchlist: Ca
   return { following: followed.map(card).filter(present), watchlist: wanted.map(card).filter(present) };
 }
 
+// ---------------------------------------------------------------- alerts
+
+export type EpisodeAlert = {
+  tmdbId: number;
+  show: string;
+  season: number;
+  episode: number;
+  /** The Cairo date it reaches a viewer here, as the calendar files it. */
+  airs: string;
+  platforms: string[];
+};
+
+export type WatchlistAlert = {
+  tmdbId: number;
+  kind: MediaKind;
+  title: string;
+  platforms: string[];
+};
+
+/**
+ * What the app turns into notifications: the coming fortnight of episodes from
+ * shows you follow, and where each title on your watchlist streams today.
+ *
+ * The phone schedules the episodes itself and spots a watchlist title arriving
+ * by comparing against what it saw last time, so this answers with the whole
+ * state rather than a list of changes — the server keeps no record of what a
+ * phone has already been told. `services` lets the phone tell "it arrived"
+ * apart from "you just subscribed to the service it was already on".
+ */
+export function alerts(
+  userId: number,
+  today = todayISO(),
+  days = 14,
+): { episodes: EpisodeAlert[]; watchlist: WatchlistAlert[]; services: string } {
+  const follows = followsFor(userId);
+  const verdicts = verdictsFor(userId);
+
+  const rows = follows.size
+    ? db
+        .select()
+        .from(schema.episodes)
+        .where(
+          and(
+            inArray(schema.episodes.tmdbId, [...follows]),
+            gte(schema.episodes.airs, today),
+            lte(schema.episodes.airs, addDaysISO(today, days)),
+          ),
+        )
+        .orderBy(schema.episodes.airs, schema.episodes.season, schema.episodes.episode)
+        .all()
+    : [];
+
+  const watched = new Set(
+    db
+      .select()
+      .from(schema.watchedEpisodes)
+      .where(eq(schema.watchedEpisodes.userId, userId))
+      .all()
+      .map((w) => `${w.tmdbId}:${w.season}:${w.episode}`),
+  );
+
+  const showIds = [...new Set(rows.map((r) => r.tmdbId!))];
+  const titles = titlesByIds(showIds.map((tmdbId) => ({ tmdbId, kind: "tv" as const })));
+  const avail = availabilityFor(showIds, userId);
+
+  const episodes = rows
+    .filter((r) => r.tmdbId !== null)
+    .filter((r) => verdicts.get(key(r.tmdbId!, "tv")) !== "hidden")
+    .filter((r) => !watched.has(`${r.tmdbId}:${r.season}:${r.episode}`))
+    .map((r) => ({
+      tmdbId: r.tmdbId!,
+      show: titles.get(key(r.tmdbId!, "tv"))?.title ?? r.show,
+      season: r.season,
+      episode: r.episode,
+      airs: r.airs,
+      platforms: (avail.get(key(r.tmdbId!, "tv")) ?? []).map((p) => p.name),
+    }));
+
+  const watchlist = library(userId).watchlist.map((c) => ({
+    tmdbId: c.tmdbId,
+    kind: c.kind,
+    title: c.title,
+    platforms: c.platforms.map((p) => p.name),
+  }));
+
+  const services = db
+    .select({ providerId: schema.userServices.providerId })
+    .from(schema.userServices)
+    .where(eq(schema.userServices.userId, userId))
+    .all()
+    .map((r) => r.providerId)
+    .sort((a, b) => a - b)
+    .join(",");
+
+  return { episodes, watchlist, services };
+}
+
 // ---------------------------------------------------------------- rating wall
 
 /**

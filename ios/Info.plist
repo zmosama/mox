@@ -18,6 +18,14 @@
 		<string>Sora-SemiBold.ttf</string>
 		<string>Sora-Bold.ttf</string>
 	</array>
+	<key>BGTaskSchedulerPermittedIdentifiers</key>
+	<array>
+		<string>me.mosama.mox.alerts</string>
+	</array>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>fetch</string>
+	</array>
 	<key>LSApplicationQueriesSchemes</key>
 	<array>
 		<string>nflx</string>

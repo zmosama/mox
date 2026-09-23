@@ -6,6 +6,8 @@ struct SettingsView: View {
     @Environment(AppSettings.self) private var settings
     @Environment(API.self) private var api
     @Environment(CalendarStore.self) private var calendar
+    @Environment(Notifier.self) private var notifier
+    @Environment(\.openURL) private var openURL
     @Environment(\.dismiss) private var dismiss
 
     @State private var username = ""
@@ -42,6 +44,8 @@ struct SettingsView: View {
                 } footer: {
                     Text(accessNote)
                 }
+
+                notifications
 
                 Section {
                     Picker("Provider", selection: $settings.aiProvider) {
@@ -92,6 +96,63 @@ struct SettingsView: View {
             }
             .onAppear { aiKey = settings.aiKey }
         }
+    }
+
+    // MARK: - Notifications
+
+    private var notifications: some View {
+        Section {
+            Toggle("New episodes", isOn: notifyBinding(\.notifyEpisodes))
+            if settings.notifyEpisodes {
+                DatePicker("Episodes at", selection: notifyTime, displayedComponents: .hourAndMinute)
+                    .environment(\.timeZone, Day.zone)
+            }
+            Toggle("Watchlist arrivals", isOn: notifyBinding(\.notifyWatchlist))
+            if notifier.status == .denied {
+                Button("Open iOS Settings") {
+                    if let url = URL(string: UIApplication.openNotificationSettingsURLString) { openURL(url) }
+                }
+            }
+        } header: {
+            Text("Notifications")
+        } footer: {
+            Text(notificationNote)
+        }
+        .disabled(api.user == nil)
+        .task { await notifier.checkStatus() }
+    }
+
+    private var notificationNote: String {
+        if api.user == nil { return "Sign in to be told about your shows and your watchlist." }
+        if notifier.status == .denied { return "Notifications are off for MOX in iOS Settings." }
+        return "New episodes: shows you follow, on the day they reach you. Watchlist arrivals: when something you want to watch lands on one of your services."
+    }
+
+    /// Turning one on asks iOS for permission first; refused, it stays off.
+    private func notifyBinding(_ path: ReferenceWritableKeyPath<AppSettings, Bool>) -> Binding<Bool> {
+        Binding(
+            get: { settings[keyPath: path] && notifier.status != .denied },
+            set: { on in
+                Task {
+                    settings[keyPath: path] = on ? await notifier.requestPermission() : false
+                    await notifier.refresh(api: api, settings: settings, force: true)
+                }
+            }
+        )
+    }
+
+    /// Minutes after midnight in Cairo, shown as a time of day.
+    private var notifyTime: Binding<Date> {
+        var cal = Calendar(identifier: .gregorian)
+        cal.timeZone = Day.zone
+        return Binding(
+            get: { cal.date(byAdding: .minute, value: settings.notifyAt, to: cal.startOfDay(for: .now)) ?? .now },
+            set: { date in
+                let parts = cal.dateComponents([.hour, .minute], from: date)
+                settings.notifyAt = (parts.hour ?? 10) * 60 + (parts.minute ?? 0)
+                Task { await notifier.refresh(api: api, settings: settings, force: true) }
+            }
+        )
     }
 
     @ViewBuilder
@@ -152,7 +213,7 @@ struct SettingsView: View {
                     Label("Rate titles", systemImage: "star")
                 }
                 Button("Sign out", role: .destructive) {
-                    Task { await api.signOut() }
+                    Task { await api.signOut(); notifier.clearAll() }
                 }
             } else {
                 TextField("Username", text: $username)
