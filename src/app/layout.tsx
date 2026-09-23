@@ -1,8 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Sora, IBM_Plex_Sans_Arabic } from "next/font/google";
-import { BottomNav } from "@/components/BottomNav";
-import { Nav } from "@/components/Nav";
-import { currentUser } from "@/lib/auth";
+import { GlassBar } from "@/components/GlassBar";
 import "./globals.css";
 
 // Sora carries the wordmark's geometry into the text: the same circular o
@@ -24,7 +22,7 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#0b0f0e",
+  themeColor: "#000000",
   width: "device-width",
   initialScale: 1,
   /* Reach under the notch and the home indicator; the safe-area padding in
@@ -32,18 +30,20 @@ export const viewport: Viewport = {
   viewportFit: "cover",
 };
 
-export default async function RootLayout({ children }: { children: React.ReactNode }) {
-  const user = await currentUser();
-
+/**
+ * No header: like the iPhone app, each screen carries its own title, the
+ * account lives behind the avatar on Home, and the sections sit in the floating
+ * glass bar at the bottom — on a phone and on a desktop alike.
+ */
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" className={`${sora.variable} ${arabic.variable}`}>
       <body className="min-h-dvh">
-        <Nav user={user} />
-        {/* pb leaves room for the bottom bar plus the home indicator. */}
-        <main className="mx-auto max-w-[1180px] px-4 pb-[calc(5.5rem+env(safe-area-inset-bottom))] pt-5 sm:px-6 sm:pb-20 sm:pt-6">
+        {/* pb leaves room for the floating bar plus the home indicator. */}
+        <main className="mx-auto max-w-[1180px] px-4 pb-[calc(7rem+env(safe-area-inset-bottom))] pt-[calc(0.75rem+env(safe-area-inset-top))] sm:px-6">
           {children}
         </main>
-        <BottomNav user={user} />
+        <GlassBar />
       </body>
     </html>
   );

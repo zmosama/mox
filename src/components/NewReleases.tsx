@@ -72,8 +72,21 @@ export function NewReleases({
     return days;
   }, [shown, signedIn]);
 
+  const date = new Intl.DateTimeFormat("en-GB", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    timeZone: "UTC",
+  }).format(new Date(`${today}T12:00:00Z`));
+
   return (
     <>
+      {/* The app's Today header: the date in green, then the name. */}
+      <header className="mb-7">
+        <div className="text-[13px] font-medium text-love">{date}</div>
+        <h1 className="text-[28px] font-bold tracking-tight">Today</h1>
+      </header>
+
       <Section
         title={
           when === "soon"

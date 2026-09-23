@@ -2,8 +2,11 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Poster } from "./Poster";
-import { ServiceBadge, type Service } from "./ServiceBadge";
+import { useRouter } from "next/navigation";
+import type { Service } from "./ServiceBadge";
+import { PeopleRow, type PersonChipData } from "./People";
+import { PersonSheet } from "./PersonSheet";
+import { isTopSheet, popSheet, pushSheet } from "./sheets";
 import { cn } from "@/lib/cn";
 import { backdropUrl } from "@/lib/images";
 import type { MediaKind, Verdict } from "@/db/schema";
@@ -25,19 +28,12 @@ export type SheetTitle = {
   cast: string[];
   directors: string[];
   trailer: string | null;
+  /** Directors first, then the cast, with faces — each opens their page. */
+  people?: PersonChipData[];
   platforms: Service[];
   verdict: Verdict | null;
   following: boolean;
 };
-
-const VERDICT_BUTTONS: { verdict: Verdict; label: string; tone: string }[] = [
-  { verdict: "love", label: "👍👍 Loved", tone: "data-[on=true]:bg-love data-[on=true]:text-[#04210f]" },
-  { verdict: "like", label: "👍 Liked", tone: "data-[on=true]:bg-like data-[on=true]:text-[#04142b]" },
-  { verdict: "dislike", label: "👎 Not for me", tone: "data-[on=true]:bg-against data-[on=true]:text-[#2b0505]" },
-  { verdict: "watchlist", label: "🔖 Want to watch", tone: "data-[on=true]:bg-want data-[on=true]:text-[#2b1a02]" },
-  { verdict: "seen", label: "✓ Seen it", tone: "data-[on=true]:bg-ink data-[on=true]:text-bg" },
-  { verdict: "hidden", label: "✕ Not interested", tone: "data-[on=true]:bg-ink-faint data-[on=true]:text-bg" },
-];
 
 /**
  * The one place a title is acted on. Cards and rows open this rather than each
@@ -124,11 +120,14 @@ export function TitleSheet({
 
   useEffect(() => {
     const previous = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const me = pushSheet();
     const bodyOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     closeRef.current?.focus();
 
     const onKey = (e: KeyboardEvent) => {
+      // Only the sheet in front: a person opened from here is a sheet too.
+      if (!isTopSheet(me)) return;
       if (e.key === "Escape") {
         onClose();
         return;
@@ -151,6 +150,7 @@ export function TitleSheet({
     };
     document.addEventListener("keydown", onKey);
     return () => {
+      popSheet(me);
       document.removeEventListener("keydown", onKey);
       document.body.style.overflow = bodyOverflow;
       previous?.focus();
@@ -185,12 +185,26 @@ export function TitleSheet({
     if (res.ok) patch({ ...data, following: !data.following });
   }, [data, patch]);
 
+  const [rating, setRating] = useState(false);
+  const [person, setPerson] = useState<number | null>(null);
+  const router = useRouter();
+  const signIn = () => {
+    onClose();
+    router.push("/admin/login");
+  };
+
+  /* The app's meta line: year, then seasons or running time, two genres and
+     the score. */
   const facts = data
     ? [
         data.year?.toString(),
-        data.runtime ? `${data.runtime} min` : null,
-        data.seasons ? `${data.seasons} season${data.seasons > 1 ? "s" : ""}` : null,
-        data.genres.join(" · ") || null,
+        data.kind === "tv" && data.seasons
+          ? `${data.seasons} season${data.seasons > 1 ? "s" : ""}`
+          : data.runtime
+            ? `${Math.floor(data.runtime / 60) ? `${Math.floor(data.runtime / 60)}h ` : ""}${data.runtime % 60}m`
+            : null,
+        ...data.genres.slice(0, 2),
+        data.rating ? `★ ${data.rating}` : null,
       ].filter(Boolean)
     : [];
 
@@ -202,6 +216,10 @@ export function TitleSheet({
    * results — portalled to the body at z-45 — painted straight over it: the
    * sheet was there, correct and interactive, with only a sliver of it showing
    * above the results. Tapping a result looked like nothing happening.
+   *
+   * Laid out like the iPhone app's title sheet: the picture across the top with
+   * the title on it, where to watch as full-width rows, then what you think of
+   * it, then the story and the people.
    */
   return createPortal(
     <div
@@ -209,22 +227,23 @@ export function TitleSheet({
       aria-modal="true"
       aria-label={data?.title ?? "Title details"}
       onClick={(e) => e.target === e.currentTarget && onClose()}
-      /* Nearly opaque on purpose: at 72% a bright poster behind showed through
-         and read as this card's own banner spilling past its edge. */
       /* On a phone this is a sheet that rises from the bottom edge, where the
          thumb already is; a centred dialog puts its close button and actions in
          the hardest part of the screen to reach. */
-      className="fixed inset-0 z-50 flex items-end justify-center bg-[#060608]/95 backdrop-blur-xl sm:items-center sm:p-6"
+      className="fixed inset-0 z-50 flex items-end justify-center bg-black/80 backdrop-blur-xl sm:items-center sm:p-6"
     >
       <div
         ref={panelRef}
-        onClick={(e) => e.stopPropagation()}
+        onClick={(e) => {
+          e.stopPropagation();
+          setRating(false);
+        }}
         className={cn(
-          "relative flex w-full max-w-[720px] flex-col border-[#33333d] bg-card shadow-[0_-10px_60px_rgba(0,0,0,.7)]",
+          "relative flex w-full max-w-[560px] flex-col overflow-hidden bg-bg shadow-[0_-10px_60px_rgba(0,0,0,.7)]",
           // Full height on a phone: a half sheet wastes the screen and leaves
           // the actions crowded against the bottom edge.
-          "h-[96dvh] rounded-t-[20px] border-x border-t",
-          "sm:h-auto sm:max-h-[88dvh] sm:rounded-sheet sm:border sm:shadow-[0_30px_90px_rgba(0,0,0,.75)]",
+          "h-[96dvh] rounded-t-[28px] border-x border-t border-white/10",
+          "sm:h-auto sm:max-h-[90dvh] sm:rounded-[28px] sm:border sm:shadow-[0_30px_90px_rgba(0,0,0,.75)]",
           sliding ? "transition-transform duration-200" : "",
         )}
         style={offset ? { transform: `translateY(${offset}px)` } : undefined}
@@ -233,159 +252,251 @@ export function TitleSheet({
             top drags — aiming at a 4px bar with a thumb is a poor target. */}
         <div
           onPointerDown={startDrag}
-          className="flex shrink-0 cursor-grab touch-none justify-center py-3.5 active:cursor-grabbing sm:hidden"
+          className="absolute inset-x-0 top-0 z-20 flex h-8 cursor-grab touch-none justify-center pt-2.5 active:cursor-grabbing sm:hidden"
         >
-          <span className="h-1 w-10 rounded-full bg-line-strong" />
+          <span className="h-1 w-10 rounded-full bg-white/40" />
         </div>
 
-        <div className="min-h-0 flex-1 overflow-auto overscroll-contain">
         <button
           ref={closeRef}
           type="button"
           onClick={onClose}
           aria-label="Close"
-          className="absolute end-3 top-3 z-10 grid size-11 place-items-center rounded-full border border-line-strong bg-bg/80 text-xl leading-none transition active:bg-raised sm:size-8 sm:text-lg sm:hover:bg-raised"
+          className="absolute end-4 top-4 z-20 grid size-9 place-items-center rounded-full border border-white/15 bg-black/40 text-ink backdrop-blur-xl transition hover:bg-black/60"
         >
-          ×
+          <svg viewBox="0 0 24 24" className="size-4 fill-current" aria-hidden>
+            <path d="M18.3 5.7 12 12l6.3 6.3-1.4 1.4L10.6 13.4 4.3 19.7l-1.4-1.4L9.2 12 2.9 5.7l1.4-1.4 6.3 6.3 6.3-6.3z" />
+          </svg>
         </button>
 
-        {/* Width must be explicit: with only an aspect ratio and a capped
-            height the browser derives width from height and the image stops
-            short of the card's edge. */}
-        <div
-          className="h-[150px] w-full bg-surface bg-cover bg-center sm:h-[200px]"
-          style={
-            data?.backdrop || data?.poster
-              ? { backgroundImage: `url('${backdropUrl(data.backdrop ?? data.poster!)}')` }
-              : undefined
-          }
-        />
+        <div className="min-h-0 flex-1 overflow-auto overscroll-contain">
+          {/* The picture, with the title set on it as it fades into the sheet. */}
+          <div
+            className="relative h-[260px] w-full bg-surface bg-cover bg-center"
+            style={
+              data?.backdrop || data?.poster
+                ? { backgroundImage: `url('${backdropUrl(data.backdrop ?? data.poster!)}')` }
+                : undefined
+            }
+          >
+            <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-bg" />
+            {data ? (
+              <div className="absolute inset-x-5 bottom-0">
+                <h2 className="text-[28px] font-bold leading-tight tracking-tight">{data.title}</h2>
+                <p className="numeric mt-1 text-[13px] text-ink-dim">{facts.join(" · ")}</p>
+              </div>
+            ) : null}
+          </div>
 
-        {error ? (
-          <p className="p-6 text-center text-ink-faint">Couldn’t load this title — {error}</p>
-        ) : !data ? (
-          <p className="p-6 text-center text-ink-faint">Loading…</p>
-        ) : (
-          /* items-start, or the flex row stretches the poster to the full height
-             of the text column and overrides its aspect ratio. */
-          /* The overlap is a desktop composition: the poster tucks up into the
-             backdrop beside the text. Stacked on a phone it just sat on top of
-             the hero, and the backdrop already shows the artwork there. */
-          <div className="flex flex-col items-start gap-4 px-5 pb-6 sm:-mt-14 sm:flex-row sm:px-6">
-            <Poster
-              src={data.poster}
-              alt={data.title}
-              size="w342"
-              className="hidden w-[118px] shrink-0 rounded-lg shadow-[0_8px_24px_rgba(0,0,0,.5)] sm:block"
-            />
+          {error ? (
+            <p className="p-6 text-center text-ink-faint">Couldn’t load this title — {error}</p>
+          ) : !data ? (
+            <p className="p-6 text-center text-ink-faint">Loading…</p>
+          ) : (
+            <div className="flex flex-col gap-5 px-5 pb-10 pt-5">
+              <section className="flex flex-col gap-2.5">
+                <h3 className="text-[13px] font-semibold text-ink-dim">
+                  {data.platforms.length ? "Watch on" : signedIn ? "Not on your services in Egypt" : "Not on a tracked service"}
+                </h3>
+                {data.platforms.map((p) => (
+                  <a
+                    key={p.name}
+                    href={p.url ?? undefined}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-3 rounded-2xl bg-surface p-3 transition hover:bg-card"
+                  >
+                    {p.logo ? (
+                      // eslint-disable-next-line @next/next/no-img-element -- TMDB logo
+                      <img src={p.logo} alt="" className="size-[30px] rounded-[7px]" />
+                    ) : null}
+                    <span className="flex-1 text-[16px] font-semibold">{p.name}</span>
+                    <svg viewBox="0 0 24 24" className="size-5 fill-love" aria-hidden>
+                      <path d="M7 4v16l13-8z" />
+                    </svg>
+                  </a>
+                ))}
+              </section>
 
-            <div className="min-w-0 flex-1 pt-4 sm:pt-14">
-              <h2 className="text-xl font-bold leading-tight">{data.title}</h2>
-              {data.tagline ? (
-                <p className="mt-0.5 text-[13px] italic text-ink-dim">{data.tagline}</p>
-              ) : null}
+              {/* Always shown: hidden when signed out, they looked missing
+                  rather than locked. Signed out, any of them goes to sign in. */}
+              <div className="flex flex-col gap-2">
+                <div className="flex flex-wrap items-center gap-2.5">
+                  {data.kind === "tv" ? (
+                    <Pill on={data.following} disabled={busy} onClick={signedIn ? toggleFollow : signIn} label={data.following ? "Following" : "Follow"}>
+                      <path d={data.following ? ICON.bookmarkOn : ICON.bookmark} />
+                    </Pill>
+                  ) : null}
+                  <Pill on={data.verdict === "watchlist"} disabled={busy} onClick={signedIn ? () => setVerdict("watchlist") : signIn} label="Watchlist">
+                    <path d={ICON.plus} />
+                  </Pill>
+                  <Pill on={data.verdict === "seen"} disabled={busy} onClick={signedIn ? () => setVerdict("seen") : signIn} label="Seen">
+                    <path d={ICON.check} />
+                  </Pill>
 
-              <p className="mt-2.5 flex flex-wrap items-center gap-2 text-[12.5px] text-ink-dim">
-                {data.rating ? <b className="numeric text-want">★ {data.rating}</b> : null}
-                <span>{facts.join(" · ")}</span>
-              </p>
+                  <div className="relative">
+                    <button
+                      type="button"
+                      aria-label="Rate"
+                      aria-expanded={rating}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (signedIn) setRating(!rating);
+                        else signIn();
+                      }}
+                      className={cn(
+                        "grid size-11 place-items-center rounded-full bg-surface transition hover:bg-card",
+                        data.verdict === "love" || data.verdict === "like" ? "text-love" : "text-ink",
+                      )}
+                    >
+                      <svg viewBox="0 0 24 24" className="size-5 fill-current" aria-hidden>
+                        <path d={RATE_ICON[data.verdict ?? ""] ?? ICON.star} />
+                      </svg>
+                    </button>
+                    {rating ? (
+                      <div
+                        role="menu"
+                        onClick={(e) => e.stopPropagation()}
+                        className="absolute bottom-full end-0 z-30 mb-2 w-52 overflow-hidden rounded-2xl border border-white/10 bg-card/95 py-1 shadow-pop backdrop-blur-xl sm:start-0 sm:end-auto"
+                      >
+                        {RATINGS.map(([verdict, label]) => (
+                          <button
+                            key={verdict}
+                            role="menuitem"
+                            type="button"
+                            onClick={() => {
+                              setRating(false);
+                              if (data.verdict !== verdict) setVerdict(verdict);
+                            }}
+                            className={cn(
+                              "flex w-full items-center gap-3 px-4 py-2.5 text-start text-[14px] transition hover:bg-white/5",
+                              data.verdict === verdict && "text-love",
+                            )}
+                          >
+                            <svg viewBox="0 0 24 24" className="size-[18px] fill-current" aria-hidden>
+                              <path d={RATE_ICON[verdict]} />
+                            </svg>
+                            {label}
+                          </button>
+                        ))}
+                        {data.verdict && data.verdict !== "watchlist" && data.verdict !== "seen" ? (
+                          <button
+                            role="menuitem"
+                            type="button"
+                            onClick={() => {
+                              setRating(false);
+                              setVerdict(data.verdict!);
+                            }}
+                            className="w-full px-4 py-2.5 text-start text-[14px] text-against transition hover:bg-white/5"
+                          >
+                            Clear
+                          </button>
+                        ) : null}
+                      </div>
+                    ) : null}
+                  </div>
+                </div>
+                {!signedIn ? (
+                  <a href="/admin/login" className="text-[13px] text-ink-faint transition hover:text-ink">
+                    Sign in to rate this, follow it or add it to your list.
+                  </a>
+                ) : null}
+              </div>
 
-              {data.overview ? (
-                <p className="my-3 text-sm leading-relaxed text-[#d2d5da]">{data.overview}</p>
-              ) : null}
-
-              <Facts label="Watch on">
-                {data.platforms.length ? (
-                  <span className="flex flex-wrap gap-1.5">
-                    {data.platforms.map((p) => (
-                      <ServiceBadge key={p.name} service={p} title={data.title} />
-                    ))}
-                  </span>
-                ) : (
-                  <span className="text-ink-faint">
-                    {signedIn ? "Not on your services" : "Not on a tracked service"}
-                  </span>
-                )}
-              </Facts>
-              <Facts label="Director">{data.directors.join(", ")}</Facts>
-              <Facts label="Cast">{data.cast.join(", ")}</Facts>
-              <Facts label="Release">{data.releaseDate}</Facts>
+              {data.tagline ? <p className="text-[15px] font-medium italic text-love-soft">{data.tagline}</p> : null}
+              {data.overview ? <p className="text-[15px] leading-relaxed text-ink/85">{data.overview}</p> : null}
+              {data.people?.length ? (
+                <PeopleRow title="Cast & crew" people={data.people} onOpen={(p) => setPerson(p.id)} size={68} />
+              ) : (
+                <>
+                  {data.cast.length ? <Credit label="Starring">{data.cast.join(", ")}</Credit> : null}
+                  {data.directors.length ? <Credit label="By">{data.directors.join(", ")}</Credit> : null}
+                </>
+              )}
 
               {data.trailer ? (
                 <a
                   href={data.trailer}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="mt-3.5 inline-flex items-center gap-2 rounded-lg bg-[#ff0033] px-4 py-2.5 text-[13px] font-bold text-white transition hover:brightness-110"
+                  className="inline-flex w-fit items-center gap-2 rounded-full border border-white/15 bg-white/[0.06] px-4 py-2.5 text-[14px] font-medium text-love backdrop-blur-xl transition hover:bg-white/10"
                 >
-                  <svg viewBox="0 0 24 24" className="size-4 fill-current" aria-hidden>
-                    <path d="M23 12s0-3.9-.5-5.8a3 3 0 0 0-2.1-2.1C18.5 3.6 12 3.6 12 3.6s-6.5 0-8.4.5A3 3 0 0 0 1.5 6.2C1 8.1 1 12 1 12s0 3.9.5 5.8a3 3 0 0 0 2.1 2.1c1.9.5 8.4.5 8.4.5s6.5 0 8.4-.5a3 3 0 0 0 2.1-2.1C23 15.9 23 12 23 12zM9.8 15.6V8.4l6.3 3.6-6.3 3.6z" />
+                  <svg viewBox="0 0 24 24" className="size-[18px] fill-current" aria-hidden>
+                    <path d="M4 5h16a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1zm1 2v10h14V7H5zm5 1.5 5 3.5-5 3.5z" />
                   </svg>
-                  Watch trailer
+                  Watch the trailer
                 </a>
               ) : null}
-
-              {signedIn ? (
-                <div className="mt-4 grid grid-cols-2 gap-1.5 sm:flex sm:flex-wrap sm:items-center">
-                  {VERDICT_BUTTONS.map((b) => (
-                    <button
-                      key={b.verdict}
-                      type="button"
-                      disabled={busy}
-                      data-on={data.verdict === b.verdict}
-                      onClick={() => setVerdict(b.verdict)}
-                      className={cn(
-                        "min-h-11 rounded-lg border border-line-strong bg-raised px-3 text-[13px] font-semibold text-ink-dim transition",
-                        "active:bg-[#25252e] sm:min-h-0 sm:py-2 sm:text-[12.5px] sm:hover:bg-[#25252e] sm:hover:text-ink",
-                        "disabled:opacity-50 data-[on=true]:border-transparent",
-                        b.tone,
-                      )}
-                    >
-                      {b.label}
-                    </button>
-                  ))}
-
-                  {data.kind === "tv" ? (
-                    <>
-                      <span className="hidden h-5 w-px bg-line-strong sm:mx-1 sm:block" />
-                      <button
-                        type="button"
-                        disabled={busy}
-                        data-on={data.following}
-                        onClick={toggleFollow}
-                        className={cn(
-                          "col-span-2 min-h-11 rounded-lg border border-line-strong bg-raised px-3 text-[13px] font-semibold text-ink-dim transition",
-                          "active:bg-[#25252e] sm:col-span-1 sm:min-h-0 sm:py-2 sm:text-[12.5px] sm:hover:bg-[#25252e] sm:hover:text-ink",
-                          "disabled:opacity-50 data-[on=true]:border-transparent data-[on=true]:bg-love data-[on=true]:text-[#04210f]",
-                        )}
-                      >
-                        {data.following ? "★ Following" : "☆ Follow"}
-                      </button>
-                    </>
-                  ) : null}
-                </div>
-              ) : (
-                <p className="mt-4 text-[12.5px] text-ink-faint">
-                  Sign in to rate this or add it to your list.
-                </p>
-              )}
             </div>
-          </div>
-        )}
+          )}
         </div>
       </div>
+
+      {person !== null ? <PersonSheet id={person} signedIn={signedIn} onClose={() => setPerson(null)} /> : null}
     </div>,
     document.body,
   );
 }
 
-function Facts({ label, children }: { label: string; children: React.ReactNode }) {
-  if (!children || (Array.isArray(children) && !children.length)) return null;
-  if (typeof children === "string" && !children.trim()) return null;
+const ICON = {
+  bookmark: "M6 3h12a1 1 0 0 1 1 1v17l-7-4.2L5 21V4a1 1 0 0 1 1-1zm1 2v12.5l5-3 5 3V5H7z",
+  bookmarkOn: "M6 3h12a1 1 0 0 1 1 1v17l-7-4.2L5 21V4a1 1 0 0 1 1-1z",
+  plus: "M12 2a10 10 0 1 1 0 20 10 10 0 0 1 0-20zm0 2a8 8 0 1 0 0 16 8 8 0 0 0 0-16zm1 3v4h4v2h-4v4h-2v-4H7v-2h4V7h2z",
+  check: "M12 2a10 10 0 1 1 0 20 10 10 0 0 1 0-20zm0 2a8 8 0 1 0 0 16 8 8 0 0 0 0-16zm4.3 4.3 1.4 1.4-6.7 6.7-3.7-3.7 1.4-1.4 2.3 2.3 5.3-5.3z",
+  star: "M12 2.5l2.9 6.2 6.6.6-5 4.5 1.5 6.6L12 17l-6 3.4 1.5-6.6-5-4.5 6.6-.6L12 2.5zm0 4.8-1.6 3.4-3.7.3 2.8 2.5-.8 3.7L12 15.3l3.3 1.9-.8-3.7 2.8-2.5-3.7-.3L12 7.3z",
+};
+
+const RATE_ICON: Record<string, string> = {
+  love: "M12 21s-7.5-4.6-9.6-9.2C.9 8.4 3 4.5 6.7 4.5c2 0 3.3 1 5.3 3 2-2 3.3-3 5.3-3 3.7 0 5.8 3.9 4.3 7.3C19.5 16.4 12 21 12 21z",
+  like: "M2 10h4v11H2zm6 11V10l5-7 1.2.8c.5.4.7 1 .6 1.6L14 9h6.5c1 0 1.8 1 1.5 2l-2 8.5c-.2.9-1 1.5-1.9 1.5H8z",
+  dislike: "M22 14h-4V3h4zm-6-11v11l-5 7-1.2-.8c-.5-.4-.7-1-.6-1.6L10 15H3.5c-1 0-1.8-1-1.5-2l2-8.5C4.2 3.6 5 3 5.9 3H16z",
+  hidden: "M2.8 1.4 1.4 2.8l3.2 3.2C3 7.3 1.8 9 1 12c1.7 4.4 6 7.5 11 7.5 1.8 0 3.5-.4 5-1.1l4.2 4.2 1.4-1.4L2.8 1.4zM12 6.5c-.9 0-1.8.2-2.6.5l1.9 1.9L12 8.9a3 3 0 0 1 3.1 3.1v.7l3.4 3.4c1.9-1.2 3.4-2.9 4.5-5.1-1.7-4.4-6-7.5-11-7.5z",
+};
+
+const RATINGS: [Verdict, string][] = [
+  ["love", "Loved it"],
+  ["like", "Liked it"],
+  ["dislike", "Not for me"],
+  ["hidden", "Hide it"],
+];
+
+function Pill({
+  on,
+  disabled,
+  onClick,
+  label,
+  children,
+}: {
+  on: boolean;
+  disabled: boolean;
+  onClick: () => void;
+  label: string;
+  children: React.ReactNode;
+}) {
   return (
-    <div className="my-1.5 flex items-baseline gap-2 text-[13px]">
-      <span className="w-[74px] shrink-0 text-xs text-ink-faint">{label}</span>
-      <span className="text-[#d2d5da]">{children}</span>
+    <button
+      type="button"
+      disabled={disabled}
+      aria-pressed={on}
+      onClick={onClick}
+      className={cn(
+        "flex h-11 items-center gap-2 rounded-full px-3.5 text-[13px] font-medium transition disabled:opacity-50",
+        on ? "bg-love/20 text-love" : "bg-surface text-ink hover:bg-card",
+      )}
+    >
+      <svg viewBox="0 0 24 24" className="size-[18px] fill-current" aria-hidden>
+        {children}
+      </svg>
+      {label}
+    </button>
+  );
+}
+
+function Credit({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <div className="text-[12px] font-semibold text-ink-dim">{label}</div>
+      <div className="mt-0.5 text-[14px] text-ink">{children}</div>
     </div>
   );
 }

@@ -5,6 +5,7 @@ import { currentUser } from "@/lib/auth";
 import { includedOn, type WatchProviders } from "@/lib/providers";
 import { serviceLookup } from "@/lib/queries";
 import { posterPath, region, tmdb } from "@/lib/tmdb";
+import { profileUrl } from "@/lib/people";
 import { MEDIA_KINDS, type MediaKind } from "@/db/schema";
 
 type TmdbTitle = {
@@ -21,7 +22,10 @@ type TmdbTitle = {
   vote_average?: number;
   poster_path?: string | null;
   backdrop_path?: string | null;
-  credits?: { cast?: { name: string }[]; crew?: { name: string; job?: string }[] };
+  credits?: {
+    cast?: { id: number; name: string; character?: string; profile_path?: string | null }[];
+    crew?: { id: number; name: string; job?: string; profile_path?: string | null }[];
+  };
   videos?: { results?: { site: string; key: string; type: string; official?: boolean }[] };
   "watch/providers"?: { results?: WatchProviders };
 };
@@ -132,6 +136,16 @@ export async function GET(
         ),
       ].slice(0, 3),
       trailer: trailer ? `https://www.youtube.com/watch?v=${trailer.key}` : null,
+      /* The people, with faces and ids so each opens their own page:
+         directors first, then the cast in billing order. */
+      people: [
+        ...(d.credits?.crew ?? [])
+          .filter((c) => c.job === "Director")
+          .map((c) => ({ id: c.id, name: c.name, profile: profileUrl(c.profile_path), role: "Director" })),
+        ...(d.credits?.cast ?? [])
+          .slice(0, 15)
+          .map((c) => ({ id: c.id, name: c.name, profile: profileUrl(c.profile_path), role: c.character || "" })),
+      ].filter((p, i, all) => all.findIndex((q) => q.id === p.id && q.role === p.role) === i),
       platforms: names.map((name) => {
         const row = lookup.get(name);
         return {

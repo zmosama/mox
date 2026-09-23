@@ -21,7 +21,13 @@ export type SessionUser = {
   username: string;
   displayName: string | null;
   isAdmin: boolean;
+  /** Profile photo version (unix seconds), or null for none. See avatarUrl. */
+  avatarAt: number | null;
 };
+
+/** Where a user's profile photo is served, versioned so a new one shows at once. */
+export const avatarUrl = (user: { id: number; avatarAt: number | null }) =>
+  user.avatarAt ? `/api/avatar/${user.id}?v=${user.avatarAt}` : null;
 
 export async function createSession(userId: number): Promise<string> {
   const id = randomBytes(32).toString("base64url");
@@ -48,6 +54,7 @@ export async function currentUser(): Promise<SessionUser | null> {
       username: schema.users.username,
       displayName: schema.users.displayName,
       isAdmin: schema.users.isAdmin,
+      avatarAt: schema.users.avatarAt,
     })
     .from(schema.sessions)
     .innerJoin(schema.users, eq(schema.users.id, schema.sessions.userId))
@@ -83,6 +90,7 @@ export async function signIn(username: string, password: string): Promise<Sessio
     username: user.username,
     displayName: user.displayName,
     isAdmin: user.isAdmin,
+    avatarAt: user.avatarAt,
   };
 }
 

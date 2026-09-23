@@ -38,6 +38,12 @@ export const users = sqliteTable("users", {
    * anybody's role. There is exactly one, enforced by a partial unique index.
    */
   isOwner: integer("is_owner", { mode: "boolean" }).notNull().default(false),
+  /**
+   * When the profile photo was last set (unix seconds), or null for none. The
+   * photo itself is a file under data/avatars/; this is its cache-busting
+   * version, so a new photo shows at once everywhere.
+   */
+  avatarAt: integer("avatar_at"),
   createdAt: integer("created_at").notNull().default(sql`(unixepoch())`),
 }, (t) => [
   // "Exactly one owner" is a database rule, not a convention someone has to
@@ -108,6 +114,41 @@ export const follows = sqliteTable(
     addedAt: integer("added_at").notNull().default(sql`(unixepoch())`),
   },
   (t) => [primaryKey({ columns: [t.userId, t.tmdbId] })],
+);
+
+/**
+ * Actors and directors you follow. Their new work turns up on Home when it
+ * reaches a service you have. Name and photo are kept with the follow, so the
+ * list draws without asking TMDB for every face.
+ */
+export const followedPeople = sqliteTable(
+  "followed_people",
+  {
+    userId: integer("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    personId: integer("person_id").notNull(),
+    name: text("name").notNull(),
+    profile: text("profile"),
+    addedAt: integer("added_at").notNull().default(sql`(unixepoch())`),
+  },
+  (t) => [primaryKey({ columns: [t.userId, t.personId] })],
+);
+
+/**
+ * Episodes you have watched, one row each.
+ *
+ * No service reports this, so it is only ever what you ticked. It exists for one
+ * question: of the episodes that just landed, which have you not seen yet.
+ */
+export const watchedEpisodes = sqliteTable(
+  "watched_episodes",
+  {
+    userId: integer("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    tmdbId: integer("tmdb_id").notNull(),
+    season: integer("season").notNull(),
+    episode: integer("episode").notNull(),
+    watchedAt: integer("watched_at").notNull().default(sql`(unixepoch())`),
+  },
+  (t) => [primaryKey({ columns: [t.userId, t.tmdbId, t.season, t.episode] })],
 );
 
 /** Keywords, cast, crew, studio — what actually separates two action films. */

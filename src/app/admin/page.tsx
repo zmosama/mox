@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { currentUser } from "@/lib/auth";
+import { avatarUrl, currentUser } from "@/lib/auth";
+import { ProfilePhoto } from "@/components/ProfilePhoto";
 import { stats, tasteFor } from "@/lib/queries";
 
 export const dynamic = "force-dynamic";
@@ -15,6 +16,8 @@ export default async function AdminHome() {
 
   return (
     <div className="flex flex-col gap-8">
+      <ProfilePhoto name={user.displayName ?? user.username} avatar={avatarUrl(user)} />
+
       <section>
         <h2 className="mb-3 text-base font-semibold">Your ratings</h2>
         <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-6">

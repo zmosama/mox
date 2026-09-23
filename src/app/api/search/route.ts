@@ -2,12 +2,16 @@ import { NextResponse } from "next/server";
 import { currentUser } from "@/lib/auth";
 import { availabilityFor, searchLocal, serviceLookup } from "@/lib/queries";
 import { posterPath, tmdb } from "@/lib/tmdb";
+import { profileUrl } from "@/lib/people";
 import type { MediaKind } from "@/db/schema";
 
 type MultiResult = {
   results?: {
     id: number;
     media_type?: string;
+    profile_path?: string | null;
+    known_for_department?: string;
+    known_for?: { title?: string; name?: string }[];
     title?: string;
     name?: string;
     release_date?: string;
@@ -74,8 +78,22 @@ export async function GET(req: Request) {
       };
     });
 
+  /* People too: an actor or director is as good a way into a film as its
+     title. Only ones with a face and some known work — TMDB also has every
+     extra who ever had a line. */
+  const people = (remote.results ?? [])
+    .filter((r) => r.media_type === "person" && r.profile_path && r.known_for?.length)
+    .slice(0, 8)
+    .map((r) => ({
+      id: r.id,
+      name: r.name ?? "",
+      profile: profileUrl(r.profile_path),
+      department: r.known_for_department ?? null,
+      knownFor: (r.known_for ?? []).map((k) => k.title ?? k.name ?? "").filter(Boolean).slice(0, 3),
+    }));
+
   return NextResponse.json(
-    { results: [...local, ...extra] },
+    { results: [...local, ...extra], people },
     { headers: { "cache-control": "no-store" } },
   );
 }

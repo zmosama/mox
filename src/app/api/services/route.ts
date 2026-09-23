@@ -1,11 +1,18 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { currentUser } from "@/lib/auth";
-import { replaceUserServices } from "@/lib/services";
+import { replaceUserServices, serviceChoices } from "@/lib/services";
 
 const Body = z.object({
   providerIds: z.array(z.number().int().positive()).max(50),
 });
+
+/** The install's services, marked with the ones this account pays for. */
+export async function GET() {
+  const user = await currentUser();
+  if (!user) return NextResponse.json({ error: "Sign in first" }, { status: 401 });
+  return NextResponse.json({ services: serviceChoices(user.id) }, { headers: { "cache-control": "no-store" } });
+}
 
 export async function POST(req: Request) {
   const user = await currentUser();

@@ -58,3 +58,6 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Xcode build output for the iPhone app
+/ios/build/

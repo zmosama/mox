@@ -58,11 +58,13 @@ fi
 echo "    backed up $(du -h "$HERE/backup/mox.db" | cut -f1)"
 
 echo "==> syncing code to $HOST:$DEST"
+# ios/ is the iPhone app, built on this Mac; the server never needs it, and its
+# build output alone is hundreds of megabytes.
 ssh "$HOST" "mkdir -p $DEST/data"
 rsync -az --delete \
   --exclude 'node_modules/' --exclude '.next/' --exclude '.git/' \
   --exclude 'data/' --exclude 'backup/' --exclude 'legacy/' \
-  --exclude '.env.local' \
+  --exclude '.env.local' --exclude 'ios/' \
   "$HERE"/ "$HOST:$DEST/"
 
 echo "==> installing"

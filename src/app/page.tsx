@@ -1,23 +1,31 @@
-import { Board } from "@/components/Board";
-import { currentUser } from "@/lib/auth";
-import { todayISO } from "@/lib/dates";
-import { calendar, feed, newInStore } from "@/lib/queries";
+import { Home } from "@/components/Home";
+import { avatarUrl, currentUser } from "@/lib/auth";
+import { APP_TIME_ZONE, todayISO } from "@/lib/dates";
+import { calendar, feed, forYou, newInStore, withReasons } from "@/lib/queries";
+import { newFromPeople } from "@/lib/people";
 import { hasPickedServices } from "@/lib/services";
 
 /** Reads the database on every request; nothing here is worth caching. */
 export const dynamic = "force-dynamic";
 
-export default async function BoardPage() {
+export default async function HomePage() {
   const user = await currentUser();
+  const id = user?.id ?? null;
   const today = todayISO();
+  const hour = Number(
+    new Intl.DateTimeFormat("en-GB", { hour: "numeric", hourCycle: "h23", timeZone: APP_TIME_ZONE }).format(new Date()),
+  );
 
   return (
-    <Board
+    <Home
       today={today}
-      episodes={calendar(user?.id ?? null, 14)}
-      trending={feed("trending", user?.id ?? null, 24)}
-      inStore={newInStore(user?.id ?? null, today)}
-      signedIn={Boolean(user)}
+      hour={hour}
+      user={user ? { name: user.displayName ?? user.username, avatar: avatarUrl(user) } : null}
+      forYou={id ? forYou(id, today) : []}
+      episodes={calendar(id, 14)}
+      trending={withReasons(id, feed("trending", id, 24))}
+      fromPeople={id ? await newFromPeople(id, today) : []}
+      inStore={newInStore(id, today)}
       needsServices={Boolean(user) && !hasPickedServices(user!.id)}
     />
   );

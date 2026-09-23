@@ -14,9 +14,11 @@
 
 ---
 
-**mox** is a personal film and TV board. It answers four questions, in the order
-you actually ask them: what is airing today, what just landed on the services I
-pay for, what is worth buying, and which of these would I actually like.
+**mox** is a personal film and TV guide, on the web and on the iPhone. It
+answers the questions you actually ask, in the order you ask them: is there a new
+episode of something I follow, what just landed on the services I pay for, what
+is worth buying, which of these would I actually like — and what else has that
+actor made that I can watch tonight.
 
 It is built for one household in Egypt, which shapes almost every decision in
 here — the calendar runs on Cairo time, the service catalogue is TMDB's Egyptian
@@ -25,24 +27,41 @@ reports, not a constant.
 
 ## What it looks like
 
-**The board** — what airs today, your calendar, and what is trending on the
-services you actually have.
+The website and the iPhone app are one product: the same screens, the same
+order, the same data, from the same server.
 
-![The board](brand/screens/board.png)
+**Home** — the ring, a question, and Ask MOX. Search for a film, a series, an
+actor or a director; tap `+` for a mood ("Something funny", "Action") drawn from
+what streams on your services. Scroll, and the board comes up underneath: new
+episodes of your shows that you haven't watched, work from people you follow,
+the airing calendar, what is trending, and what just reached the store.
 
-**New** — a timeline of what reached each service, newest first, grouped by day
-and then by service. Filter it to one service, or to films or TV.
-
-![New](brand/screens/new.png)
-
-**Universes** — franchise progress, rebuilt from TMDB every night, so a film
-announced next month appears on its own.
-
-![Universes](brand/screens/universes.png)
+![Home on the web](brand/screens/web-home.png)
 
 <p align="center">
-  <img src="brand/screens/mobile.png" alt="mox on a phone" width="300">
+  <img src="brand/screens/app-home.png" alt="Home in the iPhone app" width="300">
+  &nbsp;&nbsp;
+  <img src="brand/screens/app-person.png" alt="A director's page in the iPhone app" width="300">
 </p>
+
+**People** — every actor and director has a page: what of their work you can
+watch tonight on your services, what is coming, then all of it, newest first.
+Follow them and their new work turns up on Home. Titles show their cast and
+crew as faces, each one a way into that person's page.
+
+**Today** — a timeline of what reached each service, newest first, grouped by
+day and then by service. Filter it to one service, or to films or TV. In the app,
+connect your calendar and your day sits on top of it.
+
+![Today](brand/screens/web-new.png)
+
+**My List** — the shows and people you follow, your watchlist, and the people
+who keep turning up in what you rated well.
+
+**Universes** — franchise progress, rebuilt from TMDB every night, so a film
+announced next month appears on its own. On the website only, for now.
+
+![Universes](brand/screens/universes.png)
 
 ## The idea
 
@@ -61,7 +80,12 @@ timeline, the franchise pages.
 **It has an opinion.** Six verdicts (`love`, `like`, `dislike`, `watchlist`,
 `seen`, `hidden`) feed a taste model that ranks everything else. Rating
 something removes it from the queue, which is the point: the board is a queue,
-not a library.
+not a library. The same model knows the people you keep rating well, so a card
+can say why it is there — "Because you like Denis Villeneuve".
+
+**It knows what you have watched.** Tick an episode and it leaves "New for you".
+No streaming service tells anyone what you watched, so this is the only way to
+know which of today's episodes you have not seen yet.
 
 ## How it stays current
 
@@ -160,6 +184,39 @@ implementation's own output, title for title and score for score.
 `toISOString()` meant that between midnight and 2am local, a film released today
 still rendered as unreleased.
 
+### People and where their work streams
+
+Actors and directors come from TMDB's person records. A person's work is one
+entry per title, with every role they had on it joined ("Writer, Producer,
+Director"), so a film someone wrote and directed is not listed twice. Talk shows,
+news and "Himself" appearances are dropped — they are appearances, not work —
+and so are "Thanks" credits, which otherwise put films a director never touched
+under his name. "Director" means directed; producing lives under the same crew
+heading at TMDB and is filtered out of it here.
+
+Where each title streams in Egypt is a request per title, so it is asked only
+for the forty most popular, and anything already in the catalog is answered from
+the local availability table. Everything is disk-cached, so the second visit to a
+page is instant.
+
+### The ring
+
+The ring on Home is the identity board's artwork, drawn as supplied, with a glow
+that behaves like something charged rather than something spinning: one
+`energy` value — a slow breath, an occasional surge, a faint waver, all from sines
+at unrelated frequencies so it never visibly repeats — drives a bloom in the
+ring's own shape, a light from inside it, a corona, and waves that leave the rim
+at their own strength. The screen-wide light rises and falls with it.
+
+It is the same curve on both platforms. In the app it is SwiftUI with
+`plusLighter` and a Metal shader for the wide light. On the web every frame is
+drawn into a small canvas with the canvas's own `lighter` operation, because the
+CSS equivalents — `mix-blend-mode`, `filter: blur` — are composited differently
+by Safari and came out there as a dark box, tiles and a washed-out ring. The
+wide light is painted once per layout, a pixel at a time, with a one-step dither:
+at that strength a plain gradient spans a dozen 8-bit steps and shows each as a
+ring.
+
 ## The stack
 
 - **Next.js 16** (App Router, React 19) — every page is server-rendered on demand
@@ -168,7 +225,8 @@ still rendered as unreleased.
   `globals.css`
 - **Vitest** — no network, no fixture of the real database, nothing that
   needs a server running
-- **TMDB** for titles, **TVmaze** for air times, **JustWatch** for prices
+- **TMDB** for titles and people, **TVmaze** for air times, **JustWatch** for prices
+- **SwiftUI** for the iPhone app, iOS 26 and later, talking to the same routes
 
 No hosted database, no queue, no container. It runs as one Node process next to
 one file.
@@ -185,7 +243,11 @@ src/
     feeds.ts        which titles belong in which feed
     airing.ts       when an episode actually reaches a viewer here
     providers.ts    which of your services a title is included on
+    people.ts       actors and directors: their work, follows, the people you love
+    avatars.ts      profile photos, kept beside the database
     queries.ts      every read the pages do, in one place
+  app/api/app/    what the iPhone app reads: home, today, library, discover, rate
+ios/              the iPhone app (SwiftUI), MOX.xcodeproj
 scripts/
   refresh.mts     the nightly job
   refresh/        one module per step
@@ -229,6 +291,29 @@ Then fill it with something:
 npm run refresh
 ```
 
+### The iPhone app
+
+`ios/MOX.xcodeproj` builds with Xcode 26 or later. A Debug build talks to
+`http://localhost:3000`; a Release build to `https://mox.mosama.me`; either can
+be pointed elsewhere from Settings in the app.
+
+```bash
+cd ios
+xcodebuild -project MOX.xcodeproj -scheme MOX -configuration Release \
+  -destination 'id=<your iPhone UDID>' -derivedDataPath build \
+  DEVELOPMENT_TEAM=<team id> -allowProvisioningUpdates build
+xcrun devicectl device install app --device <UDID> build/Build/Products/Release-iphoneos/MOX.app
+```
+
+The phone needs Developer Mode on, and the first launch needs the developer
+trusted under Settings → General → VPN & Device Management. With a free Apple
+account the install lasts seven days.
+
+The app reads and writes the calendars and reminders already on the phone
+(iCloud, Google, Outlook) through EventKit, so what you add in MOX shows up there
+too, and the other way round. Calendar and Tasks tabs are off until you turn them
+on in Settings.
+
 ### Environment
 
 `.env.local` in the project root, ignored by Git:
@@ -256,7 +341,7 @@ Deploy settings live in `deploy/target.env`, not here.
   add.
 - `data/`, `backup/`, `legacy/`, `.env*` and `deploy/target.env` are ignored:
   they hold accounts, sessions, ratings, API keys and one particular server's
-  details.
+  details. Profile photos live in `data/avatars/`, so a deploy never touches them.
 - SQLite runs in WAL mode. Use `VACUUM INTO` for a consistent live backup —
   copying `mox.db` alone silently omits recent writes sitting in `mox.db-wal`.
 - Never copy a local database over a running install. The server owns its own.
@@ -300,7 +385,7 @@ Then, from the repository root:
 
 It backs the server's database up first and **refuses to continue if that backup
 failed**; syncs code while excluding every database, backup, build output and
-`.env.local`; installs, migrates and builds on the server; then renders
+`.env.local` and the iPhone app in `ios/`; installs, migrates and builds on the server; then renders
 `deploy/launchd/*.template` into LaunchAgents and reloads both. Because the
 refresh agent is `RunAtLoad`, a deploy also brings the data current rather than
 waiting for the next night.

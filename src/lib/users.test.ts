@@ -33,6 +33,7 @@ const asSession = (u: { id: number; username: string; isAdmin: boolean }): Sessi
   username: u.username,
   displayName: null,
   isAdmin: u.isAdmin,
+  avatarAt: null,
 });
 
 beforeAll(async () => {
@@ -130,7 +131,7 @@ describe("who may hand out admin", () => {
 
   it("ignores a session that merely claims to be an admin", () => {
     const victim = users.listUsers().find((u) => u.username === "tester_victim")!;
-    const liar: SessionUser = { id: victim.id, username: victim.username, displayName: null, isAdmin: true };
+    const liar: SessionUser = { id: victim.id, username: victim.username, displayName: null, isAdmin: true, avatarAt: null };
     expect(users.setAdmin(liar, victim.id, true).ok).toBe(false);
   });
 });

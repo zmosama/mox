@@ -18,13 +18,11 @@ export function Section({
 }) {
   return (
     <section className="mb-10 first:mt-0 sm:mb-12">
-      <div className="mb-3 flex items-center gap-2.5">
-        <span aria-hidden className="h-[18px] w-[3px] rounded-full bg-love" />
-        <h2 className="text-[19px] font-bold tracking-tight sm:text-[21px]">{title}</h2>
+      {/* The app's section heading: title, then a quiet count beside it. */}
+      <div className="mb-3 flex items-baseline gap-2">
+        <h2 className="text-[20px] font-semibold tracking-tight">{title}</h2>
         {count !== undefined ? (
-          <span className="numeric rounded-full bg-raised px-2 py-0.5 text-[11px] font-bold text-ink-dim">
-            {count}
-          </span>
+          <span className="numeric text-[13px] text-ink-dim">{count}</span>
         ) : null}
       </div>
       {lede ? <p className="-mt-1 mb-4 text-[13px] leading-relaxed text-ink-dim">{lede}</p> : null}

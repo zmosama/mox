@@ -546,6 +546,154 @@ export function calendar(userId: number | null, days = 14): CalendarEpisode[] {
     });
 }
 
+// ---------------------------------------------------------------- for you
+
+export type FreshEpisode = CardTitle & {
+  date: string;
+  season: number;
+  episode: number;
+  backdrop: string | null;
+  overview: string | null;
+};
+
+/**
+ * Episodes of shows you follow that landed today or yesterday and that you
+ * have not ticked as watched — the answer to opening the app at all.
+ *
+ * One card per show, at its earliest unwatched episode: two episodes dropping
+ * the same morning are one thing to go and watch, and the first is where you
+ * would start.
+ */
+export function forYou(userId: number, today = todayISO(), days = 1): FreshEpisode[] {
+  const follows = followsFor(userId);
+  if (!follows.size) return [];
+
+  const rows = db
+    .select()
+    .from(schema.episodes)
+    .where(
+      and(
+        inArray(schema.episodes.tmdbId, [...follows]),
+        gte(schema.episodes.airs, addDaysISO(today, -days)),
+        lte(schema.episodes.airs, today),
+      ),
+    )
+    .orderBy(schema.episodes.airs, schema.episodes.season, schema.episodes.episode)
+    .all();
+
+  const watched = new Set(
+    db
+      .select()
+      .from(schema.watchedEpisodes)
+      .where(eq(schema.watchedEpisodes.userId, userId))
+      .all()
+      .map((w) => `${w.tmdbId}:${w.season}:${w.episode}`),
+  );
+
+  const first = new Map<number, (typeof rows)[number]>();
+  for (const r of rows) {
+    if (r.tmdbId === null || first.has(r.tmdbId)) continue;
+    if (watched.has(`${r.tmdbId}:${r.season}:${r.episode}`)) continue;
+    first.set(r.tmdbId, r);
+  }
+
+  const ids = [...first.keys()];
+  const titles = titlesByIds(ids.map((tmdbId) => ({ tmdbId, kind: "tv" as const })));
+  const avail = availabilityFor(ids, userId);
+  const lookup = serviceLookup();
+  const verdicts = verdictsFor(userId);
+
+  const out: FreshEpisode[] = [];
+  for (const r of first.values()) {
+    const t = titles.get(key(r.tmdbId!, "tv"));
+    out.push({
+      tmdbId: r.tmdbId!,
+      kind: "tv",
+      title: t?.title ?? r.show,
+      year: t?.year ?? null,
+      poster: t?.poster ?? null,
+      backdrop: t?.backdrop ?? null,
+      overview: t?.overview ?? null,
+      rating: t?.rating ?? null,
+      verdict: verdicts.get(key(r.tmdbId!, "tv")) ?? null,
+      platforms: (avail.get(key(r.tmdbId!, "tv")) ?? []).map((p) =>
+        toService(p.name, lookup, t?.title ?? r.show, p.deepLink),
+      ),
+      date: r.airs,
+      season: r.season,
+      episode: r.episode,
+      episodeLabel: episodeCode(r.season, r.episode),
+    });
+  }
+  // Today's first, then yesterday's.
+  return out.sort((a, b) => b.date.localeCompare(a.date));
+}
+
+// ---------------------------------------------------------------- reasons
+
+/**
+ * "Because you like Tom Hardy" on the cards where it is true: a person who
+ * keeps turning up in what you rated well is in this title too. Only titles in
+ * the catalog carry cast and crew, so the rest go without a reason.
+ */
+export function withReasons<T extends CardTitle>(userId: number | null, cards: T[]): T[] {
+  const loved = tasteFor(userId)?.strongest("person", 3, 25) ?? [];
+  if (!loved.length) return cards;
+  const rank = new Map(loved.map((p, i) => [p.value, i]));
+  const feats = featuresByTitle();
+  return cards.map((card) => {
+    let best: string | null = null;
+    for (const f of feats.get(key(card.tmdbId, card.kind)) ?? []) {
+      if (f.feature !== "person" || !rank.has(f.value)) continue;
+      if (best === null || rank.get(f.value)! < rank.get(best)!) best = f.value;
+    }
+    return best ? { ...card, reason: `Because you like ${best}` } : card;
+  });
+}
+
+// ---------------------------------------------------------------- my list
+
+/** Shows you follow, then what you said you want to watch. */
+export function library(userId: number): { following: CardTitle[]; watchlist: CardTitle[] } {
+  const followed = db
+    .select({ tmdbId: schema.follows.tmdbId })
+    .from(schema.follows)
+    .where(eq(schema.follows.userId, userId))
+    .orderBy(desc(schema.follows.addedAt))
+    .all()
+    .map((r) => ({ tmdbId: r.tmdbId, kind: "tv" as MediaKind }));
+
+  const wanted = db
+    .select({ tmdbId: schema.verdicts.tmdbId, kind: schema.verdicts.kind })
+    .from(schema.verdicts)
+    .where(and(eq(schema.verdicts.userId, userId), eq(schema.verdicts.verdict, "watchlist")))
+    .all();
+
+  const all = [...followed, ...wanted];
+  const titles = titlesByIds(all);
+  const avail = availabilityFor(all.map((r) => r.tmdbId), userId);
+  const lookup = serviceLookup();
+
+  const card = (r: { tmdbId: number; kind: MediaKind }): CardTitle | null => {
+    const t = titles.get(key(r.tmdbId, r.kind));
+    if (!t) return null;
+    return {
+      tmdbId: t.tmdbId,
+      kind: t.kind,
+      title: t.title,
+      year: t.year,
+      poster: t.poster,
+      rating: t.rating,
+      verdict: null,
+      platforms: (avail.get(key(t.tmdbId, t.kind)) ?? []).map((p) =>
+        toService(p.name, lookup, t.title, p.deepLink),
+      ),
+    };
+  };
+  const present = (c: CardTitle | null): c is CardTitle => c !== null;
+  return { following: followed.map(card).filter(present), watchlist: wanted.map(card).filter(present) };
+}
+
 // ---------------------------------------------------------------- rating wall
 
 /**
