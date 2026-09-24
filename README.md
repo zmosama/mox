@@ -76,6 +76,35 @@ announced next month appears on its own. On the website only, for now.
 
 ![Universes](brand/screens/universes.png)
 
+**News** — what happened today that you would want to know. First your own
+updates, made from mox's data: a season of a show you follow about to start,
+something on your watchlist that just reached one of your services, new work
+from people you follow. Then stories from the film and TV press — Variety,
+Deadline, The Hollywood Reporter, IndieWire and Collider in English, Youm7 and
+CNN Arabic in Arabic — with the ones about what you follow, want or loved
+first, each saying why ("You follow Silo"). No model decides this: a story
+ranks because it names something you told mox about. Stories open at the
+newsroom; mox keeps only the headline, the feed's picture and the link.
+
+**F1** — the next race weekend with every session in Cairo time, a countdown,
+and a button to watch it on TOD. Results sit behind a spoiler shield: a race
+is often watched later, recorded, so its result — and the standings it moved —
+stay covered until you say you have watched it. Then the standings and the
+whole season, round by round. Notifications go off before qualifying, sprints
+and races, and say only when a session starts. The first of the *interests*:
+football, anime or games can follow as tabs of their own.
+
+<p align="center">
+  <img src="brand/screens/app-news.png" alt="News in the iPhone app" width="300">
+  &nbsp;&nbsp;
+  <img src="brand/screens/app-f1.png" alt="The F1 tab, with the spoiler shield up" width="300">
+</p>
+
+**Your tabs** — the ring is always in the middle of the glass bar; which tabs
+sit either side of it, and in what order, is yours to choose in Settings — up
+to four from Today, News, My List and F1, plus Calendar and Tasks in the app.
+The choice belongs to the account, so the website's bar follows the app's.
+
 ## The idea
 
 Most "what to watch" tools are catalogues you search. mox is the opposite: it
@@ -110,6 +139,7 @@ safe to run by hand at any time.
 | **services** | the streaming-service catalogue people pick from, in TMDB's own priority order |
 | **feeds** | `/new` — what reached a tracked service in the last 60 days, what is due in the next 90, what is trending this week |
 | **calendar** | upcoming episodes for every series the site knows, 60 days ahead, timed to when they actually arrive here |
+| **watchlist** | where every title on anybody's watchlist streams now, so an arrival is noticed the night it happens |
 | **universes** | franchise membership, from each universe's TMDB keyword, company or collection |
 | **store** | what has appeared on the digital shelves since the last sweep |
 | **prices** | what those arrivals cost to rent or buy |
@@ -258,6 +288,10 @@ src/
     providers.ts    which of your services a title is included on
     people.ts       actors and directors: their work, follows, the people you love
     avatars.ts      profile photos, kept beside the database
+    prefs.ts        the account's tabs, news languages and F1 spoiler shield
+    news-rules.ts   reading feeds and deciding which stories are about you
+    news.ts         the News tab: your updates, then the press
+    f1.ts           the F1 calendar, results and standings, and the shield
     queries.ts      every read the pages do, in one place
   app/api/app/    what the iPhone app reads: home, today, library, discover, rate
 ios/              the iPhone app (SwiftUI), MOX.xcodeproj
@@ -324,8 +358,16 @@ account the install lasts seven days.
 
 The app reads and writes the calendars and reminders already on the phone
 (iCloud, Google, Outlook) through EventKit, so what you add in MOX shows up there
-too, and the other way round. Calendar and Tasks tabs are off until you turn them
-on in Settings.
+too, and the other way round. Calendar and Tasks are tabs you can add in
+Settings; they ask for access first.
+
+Notifications are made on the phone, not pushed: episodes of shows you follow
+are scheduled for the morning they reach you (10:00 Cairo by default), F1
+sessions a few minutes before they start, and a watchlist title reaching one of
+your services is spotted by comparing where it streams with what the phone saw
+last time. They refresh when the app opens and when iOS gives it a moment in
+the background, from `/api/app/alerts`. Push from the server needs a paid Apple
+developer account and can later wake the same refresh.
 
 ### Environment
 

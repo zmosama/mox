@@ -18,6 +18,7 @@ struct SettingsView: View {
     @State private var photo: PhotosPickerItem?
     @State private var photoError: String?
     @State private var savingPhoto = false
+    @State private var prefs: Prefs?
 
     var body: some View {
         @Bindable var settings = settings
@@ -31,18 +32,42 @@ struct SettingsView: View {
                         get: { settings.showCalendarInToday && calendar.canReadEvents },
                         set: { on in Task { settings.showCalendarInToday = on ? await calendar.requestEvents() : false } }
                     ))
-                    Toggle("Calendar tab", isOn: Binding(
-                        get: { settings.calendarTab },
-                        set: { on in Task { settings.calendarTab = on ? await calendar.requestEvents() : false } }
-                    ))
-                    Toggle("Tasks tab", isOn: Binding(
-                        get: { settings.tasksTab },
-                        set: { on in Task { settings.tasksTab = on ? await calendar.requestReminders() : false } }
-                    ))
                 } header: {
                     Text("Your day")
                 } footer: {
                     Text(accessNote)
+                }
+
+                Section {
+                    NavigationLink {
+                        TabsSettingsView()
+                    } label: {
+                        LabeledContent("Tabs", value: settings.tabs.map(\.label).joined(separator: ", "))
+                    }
+                } footer: {
+                    Text("Which tabs sit either side of the ring, and in what order.")
+                }
+
+                if api.user != nil, let prefs {
+                    Section {
+                        Toggle("English", isOn: langBinding("en", prefs))
+                        Toggle("عربي", isOn: langBinding("ar", prefs))
+                    } header: {
+                        Text("News")
+                    } footer: {
+                        Text("Which newsrooms the News tab reads.")
+                    }
+
+                    Section {
+                        Toggle("Hide results until I've watched", isOn: Binding(
+                            get: { prefs.f1Shield },
+                            set: { on in savePrefs(["f1Shield": on]) }
+                        ))
+                    } header: {
+                        Text("F1")
+                    } footer: {
+                        Text("A race's result, and the standings it changed, stay covered until you say you've seen it.")
+                    }
                 }
 
                 notifications
@@ -95,6 +120,30 @@ struct SettingsView: View {
                 }
             }
             .onAppear { aiKey = settings.aiKey }
+            .task(id: api.user?.id) { prefs = api.user == nil ? nil : try? await api.prefs() }
+        }
+    }
+
+    // MARK: - Preferences
+
+    private func langBinding(_ lang: String, _ prefs: Prefs) -> Binding<Bool> {
+        Binding(
+            get: { prefs.newsLangs.contains(lang) },
+            set: { on in
+                let langs = on ? prefs.newsLangs + [lang] : prefs.newsLangs.filter { $0 != lang }
+                // At least one: a News tab reading no newsroom would only ever be empty.
+                guard !langs.isEmpty else { return }
+                savePrefs(["newsLangs": langs])
+            }
+        )
+    }
+
+    private func savePrefs(_ patch: [String: Any]) {
+        Task {
+            if let saved = try? await api.savePrefs(patch) {
+                prefs = saved
+                api.touch()
+            }
         }
     }
 
@@ -108,6 +157,15 @@ struct SettingsView: View {
                     .environment(\.timeZone, Day.zone)
             }
             Toggle("Watchlist arrivals", isOn: notifyBinding(\.notifyWatchlist))
+            Toggle("F1 sessions", isOn: notifyBinding(\.notifyF1))
+            if settings.notifyF1 {
+                Picker("Before the start", selection: Binding(
+                    get: { settings.f1Lead },
+                    set: { settings.f1Lead = $0; Task { await notifier.refresh(api: api, settings: settings, force: true) } }
+                )) {
+                    ForEach([5, 15, 30, 60], id: \.self) { Text("\($0) minutes").tag($0) }
+                }
+            }
             if notifier.status == .denied {
                 Button("Open iOS Settings") {
                     if let url = URL(string: UIApplication.openNotificationSettingsURLString) { openURL(url) }
@@ -125,7 +183,7 @@ struct SettingsView: View {
     private var notificationNote: String {
         if api.user == nil { return "Sign in to be told about your shows and your watchlist." }
         if notifier.status == .denied { return "Notifications are off for MOX in iOS Settings." }
-        return "New episodes: shows you follow, on the day they reach you. Watchlist arrivals: when something you want to watch lands on one of your services."
+        return "New episodes: shows you follow, on the day they reach you. Watchlist arrivals: when something you want to watch lands on one of your services. F1: before qualifying, sprints and races — never a result."
     }
 
     /// Turning one on asks iOS for permission first; refused, it stays off.

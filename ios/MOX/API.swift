@@ -78,6 +78,31 @@ final class API {
     func today() async throws -> TodayPayload { try await get("/api/app/today") }
     func library() async throws -> LibraryPayload { try await get("/api/app/library") }
     func alerts() async throws -> AlertsPayload { try await get("/api/app/alerts") }
+    func news() async throws -> NewsPayload { try await get("/api/news") }
+    func f1() async throws -> F1Board { try await get("/api/f1") }
+    func f1Round(_ round: Int) async throws -> F1RoundDetail { try await get("/api/f1/round/\(round)") }
+
+    func setF1Watched(season: Int, round: Int, _ watched: Bool) async throws {
+        try await post("/api/f1/watched", ["season": season, "round": round, "watched": watched])
+    }
+
+    /// Something changed that the open screens should reload for.
+    func touch() { revision += 1 }
+
+    func prefs() async throws -> Prefs {
+        let payload: PrefsPayload = try await get("/api/account/prefs")
+        return payload.prefs
+    }
+
+    /// Change some preferences; the answer is all of them, as now stored.
+    func savePrefs(_ patch: [String: Any]) async throws -> Prefs {
+        var request = URLRequest(url: try url("/api/account/prefs"))
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "content-type")
+        request.httpBody = try JSONSerialization.data(withJSONObject: patch)
+        let payload: PrefsPayload = try await send(request)
+        return payload.prefs
+    }
     func title(_ ref: TitleRef) async throws -> TitleDetail { try await get("/api/title/\(ref.kind)/\(ref.tmdbId)") }
 
     func search(_ query: String) async throws -> (titles: [Card], people: [PersonHit]) {

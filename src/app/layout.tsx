@@ -1,6 +1,8 @@
 import type { Metadata, Viewport } from "next";
 import { Sora, IBM_Plex_Sans_Arabic } from "next/font/google";
 import { GlassBar } from "@/components/GlassBar";
+import { currentUser } from "@/lib/auth";
+import { readPrefs, webTabs } from "@/lib/prefs";
 import "./globals.css";
 
 // Sora carries the wordmark's geometry into the text: the same circular o
@@ -37,7 +39,9 @@ export const viewport: Viewport = {
  * account lives behind the avatar on Home, and the sections sit in the floating
  * glass bar at the bottom — on a phone and on a desktop alike.
  */
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  const user = await currentUser();
+  const tabs = webTabs(readPrefs(user?.id ?? null));
   return (
     <html lang="en" className={`${sora.variable} ${arabic.variable}`}>
       <body className="min-h-dvh">
@@ -45,7 +49,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <main className="mx-auto max-w-[1180px] px-4 pb-[calc(7rem+env(safe-area-inset-bottom))] pt-[calc(0.75rem+env(safe-area-inset-top))] sm:px-6">
           {children}
         </main>
-        <GlassBar />
+        <GlassBar tabs={tabs} />
       </body>
     </html>
   );

@@ -184,11 +184,11 @@ export function saveTitle(tx: Tx, { tmdbId, kind, detail, platforms }: Fetched) 
 
   /* Deep links are hand-curated — they came from the legacy import and TMDB has
      never known about them — so a provider that is still carrying the title
-     keeps the link it already had instead of being rebuilt as a bare name. */
+     keeps the link it already had instead of being rebuilt as a bare name,
+     and the date it first appeared there. */
   const where = and(eq(s.availability.tmdbId, tmdbId), eq(s.availability.kind, kind));
-  const links = new Map(
-    tx.select().from(s.availability).where(where).all().map((a) => [a.provider, a.deepLink]),
-  );
+  const before = new Map(tx.select().from(s.availability).where(where).all().map((a) => [a.provider, a]));
+  const now = Math.floor(Date.now() / 1000);
   tx.delete(s.availability).where(where).run();
   for (const provider of platforms) {
     tx.insert(s.availability)
@@ -197,8 +197,12 @@ export function saveTitle(tx: Tx, { tmdbId, kind, detail, platforms }: Fetched) 
         kind,
         provider,
         region: HOME,
-        deepLink: links.get(provider) ?? null,
-        updatedAt: Math.floor(Date.now() / 1000),
+        deepLink: before.get(provider)?.deepLink ?? null,
+        updatedAt: now,
+        /* The day it arrived is the day it was first seen here. A provider
+           that was already carrying it keeps its old date — including 0,
+           "arrived before anyone was counting". */
+        firstSeen: before.get(provider)?.firstSeen ?? now,
       })
       .onConflictDoNothing()
       .run();

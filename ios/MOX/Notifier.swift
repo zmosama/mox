@@ -23,9 +23,20 @@ nonisolated struct AlertsPayload: Codable, Sendable {
         let platforms: [String]
     }
 
+    /// A qualifying, sprint or race start. Only the start — never a result.
+    struct F1Session: Codable, Sendable {
+        let round: Int
+        let race: String
+        let kind: String
+        let label: String
+        let at: String
+    }
+
     let user: Int
     let episodes: [Episode]
     let watchlist: [Wanted]
+    let f1: [F1Session]?
+    let f1Watch: String?
     /// The services this account picked, so a new subscription is not
     /// mistaken for a title arriving.
     let services: String
@@ -70,8 +81,9 @@ final class Notifier {
         if !force, let lastRun, Date.now.timeIntervalSince(lastRun) < 15 * 60 { return }
         await checkStatus()
         guard status == .authorized || status == .provisional,
-              settings.notifyEpisodes || settings.notifyWatchlist else {
+              settings.notifyEpisodes || settings.notifyWatchlist || settings.notifyF1 else {
             await clearEpisodes()
+            await clearF1()
             return
         }
         guard let payload = try? await api.alerts() else { return }
@@ -81,6 +93,11 @@ final class Notifier {
             await schedule(payload.episodes, at: settings.notifyAt)
         } else {
             await clearEpisodes()
+        }
+        if settings.notifyF1 {
+            await scheduleF1(payload.f1 ?? [], lead: settings.f1Lead, watch: payload.f1Watch)
+        } else {
+            await clearF1()
         }
         if settings.notifyWatchlist {
             await announceArrivals(payload)
@@ -164,6 +181,39 @@ final class Notifier {
         return first.platforms.first.map { "\(what) — watch it on \($0)" } ?? "\(what) today"
     }
 
+    // MARK: - F1
+
+    private func clearF1() async {
+        let ids = await center.pendingNotificationRequests().map(\.identifier).filter { $0.hasPrefix("f1:") }
+        center.removePendingNotificationRequests(withIdentifiers: ids)
+    }
+
+    /// "Azerbaijan Grand Prix — Race in 15 minutes, live on TOD". Nothing a
+    /// notification says can give a result away: it is scheduled from start
+    /// times alone, days before anything happens.
+    private func scheduleF1(_ sessions: [AlertsPayload.F1Session], lead: Int, watch: String?) async {
+        await clearF1()
+        let parse = ISO8601DateFormatter()
+        parse.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        for s in sessions.prefix(12) {
+            guard let start = parse.date(from: s.at) else { continue }
+            let at = start.addingTimeInterval(-Double(lead) * 60)
+            guard at > .now else { continue }
+            let content = UNMutableNotificationContent()
+            content.title = s.race
+            content.body = "\(s.label) in \(lead) minutes" + (watch.map { " — live on \($0)" } ?? "")
+            content.sound = .default
+            content.threadIdentifier = "f1"
+            content.userInfo = ["tab": "f1"]
+            let request = UNNotificationRequest(
+                identifier: "f1:\(s.round):\(s.kind)",
+                content: content,
+                trigger: UNTimeIntervalNotificationTrigger(timeInterval: at.timeIntervalSinceNow, repeats: false)
+            )
+            try? await center.add(request)
+        }
+    }
+
     // MARK: - Watchlist
 
     private func memoryKey(_ user: Int) -> String { "alerts.watchlist.\(user)" }
@@ -207,6 +257,7 @@ final class Notifier {
 /// which is why it is installed before the first screen exists.
 final class NotificationOpener: NSObject, UNUserNotificationCenterDelegate {
     var open: ((TitleRef) -> Void)?
+    var openTab: ((TabID) -> Void)?
 
     nonisolated func userNotificationCenter(
         _ center: UNUserNotificationCenter,
@@ -220,6 +271,10 @@ final class NotificationOpener: NSObject, UNUserNotificationCenterDelegate {
         didReceive response: UNNotificationResponse
     ) async {
         let info = response.notification.request.content.userInfo
+        if let tab = (info["tab"] as? String).flatMap(TabID.init(rawValue:)) {
+            await MainActor.run { openTab?(tab) }
+            return
+        }
         guard let kind = info["kind"] as? String, let id = info["id"] as? Int else { return }
         await MainActor.run { open?(TitleRef(tmdbId: id, kind: kind)) }
     }

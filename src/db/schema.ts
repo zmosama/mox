@@ -44,6 +44,14 @@ export const users = sqliteTable("users", {
    * version, so a new photo shows at once everywhere.
    */
   avatarAt: integer("avatar_at"),
+  /**
+   * Preferences that follow the account between the website and the app: which
+   * tabs sit in the glass bar and in what order, which languages the news
+   * comes in, whether race results wait until you have watched. JSON, read
+   * through `readPrefs`, which fills in anything missing — so a new preference
+   * needs no migration and an old row is never wrong, only incomplete.
+   */
+  prefs: text("prefs"),
   createdAt: integer("created_at").notNull().default(sql`(unixepoch())`),
 }, (t) => [
   // "Exactly one owner" is a database rule, not a convention someone has to
@@ -213,6 +221,13 @@ export const availability = sqliteTable(
     mine: integer("mine", { mode: "boolean" }).notNull().default(false),
     deepLink: text("deep_link"),
     updatedAt: integer("updated_at").notNull().default(sql`(unixepoch())`),
+    /**
+     * When this title first turned up on this provider (unix seconds), kept
+     * across refreshes the way `deepLink` is. Zero for rows older than the
+     * column: when they arrived is unknown, and claiming "today" for all of
+     * them would announce the whole catalogue as news.
+     */
+    firstSeen: integer("first_seen").notNull().default(0),
   },
   (t) => [
     primaryKey({ columns: [t.tmdbId, t.kind, t.provider, t.region] }),
@@ -362,4 +377,46 @@ export const storeItems = sqliteTable(
     primaryKey({ columns: [t.providerId, t.tmdbId, t.kind] }),
     index("store_items_first_seen").on(t.firstSeen),
   ],
+);
+
+/**
+ * Formula 1 races you have watched, so their results can stop being hidden.
+ *
+ * A race is often watched hours later, recorded, and every results screen in
+ * the world opens with who won. Until a race is here its result, and the
+ * standings it changed, stay covered.
+ */
+export const f1Watched = sqliteTable(
+  "f1_watched",
+  {
+    userId: integer("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    season: integer("season").notNull(),
+    round: integer("round").notNull(),
+    watchedAt: integer("watched_at").notNull().default(sql`(unixepoch())`),
+  },
+  (t) => [primaryKey({ columns: [t.userId, t.season, t.round] })],
+);
+
+/**
+ * Headlines from the film and TV press, in English and Arabic.
+ *
+ * Only what a feed publishes openly is kept — headline, the feed's own
+ * summary, its picture and the link — and the page sends you to the article
+ * rather than reproducing it.
+ */
+export const newsItems = sqliteTable(
+  "news_items",
+  {
+    url: text("url").primaryKey(),
+    source: text("source").notNull(),
+    lang: text("lang", { enum: ["en", "ar"] }).notNull(),
+    title: text("title").notNull(),
+    summary: text("summary"),
+    image: text("image"),
+    /** The feed's own categories, JSON — Variety files a story under the show's name. */
+    categories: text("categories"),
+    publishedAt: integer("published_at").notNull(),
+    fetchedAt: integer("fetched_at").notNull().default(sql`(unixepoch())`),
+  },
+  (t) => [index("news_published").on(t.publishedAt)],
 );

@@ -18,8 +18,6 @@ final class AppSettings {
     var server: String { didSet { save("server", server) } }
     /// Today's events from the phone's calendar, at the top of Today.
     var showCalendarInToday: Bool { didSet { save("showCalendarInToday", showCalendarInToday) } }
-    var calendarTab: Bool { didSet { save("calendarTab", calendarTab) } }
-    var tasksTab: Bool { didSet { save("tasksTab", tasksTab) } }
     var aiProvider: String { didSet { save("aiProvider", aiProvider) } }
     /// Episodes of shows you follow, on the morning they reach you.
     var notifyEpisodes: Bool { didSet { save("notifyEpisodes", notifyEpisodes) } }
@@ -28,6 +26,13 @@ final class AppSettings {
     /// When episode notifications go off, in minutes after midnight, Cairo
     /// time. Ten o'clock is when the global streamers' midnight Pacific lands.
     var notifyAt: Int { didSet { save("notifyAt", notifyAt) } }
+    /// Qualifying, sprint and race, a little before they start.
+    var notifyF1: Bool { didSet { save("notifyF1", notifyF1) } }
+    /// How many minutes before a session its notification goes off.
+    var f1Lead: Int { didSet { save("f1Lead", f1Lead) } }
+    /// The account's tabs, kept here too so the bar is right before the
+    /// server has answered. The server's copy wins whenever it arrives.
+    var tabs: [TabID] { didSet { save("tabs", tabs.map(\.rawValue)) } }
 
     var aiKey: String {
         get { Keychain.read("ai-key") ?? "" }
@@ -42,12 +47,14 @@ final class AppSettings {
     init() {
         server = defaults.string(forKey: "server") ?? Self.defaultServer
         showCalendarInToday = defaults.bool(forKey: "showCalendarInToday")
-        calendarTab = defaults.bool(forKey: "calendarTab")
-        tasksTab = defaults.bool(forKey: "tasksTab")
         aiProvider = defaults.string(forKey: "aiProvider") ?? "Anthropic"
         notifyEpisodes = defaults.bool(forKey: "notifyEpisodes")
         notifyWatchlist = defaults.bool(forKey: "notifyWatchlist")
         notifyAt = defaults.object(forKey: "notifyAt") as? Int ?? 10 * 60
+        notifyF1 = defaults.bool(forKey: "notifyF1")
+        f1Lead = defaults.object(forKey: "f1Lead") as? Int ?? 15
+        tabs = (defaults.stringArray(forKey: "tabs") ?? []).compactMap(TabID.init(rawValue:))
+        if tabs.isEmpty { tabs = TabID.defaults }
     }
 
     private func save(_ key: String, _ value: Any) { defaults.set(value, forKey: key) }

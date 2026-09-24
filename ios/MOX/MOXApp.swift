@@ -20,6 +20,7 @@ struct MOXApp: App {
         _router = State(initialValue: router)
         // Before the first screen: a tap on a notification may be what launched us.
         Self.opener.open = { router.title = $0 }
+        Self.opener.openTab = { router.tab = .tab($0) }
         UNUserNotificationCenter.current().delegate = Self.opener
     }
 
@@ -48,41 +49,45 @@ struct MOXApp: App {
     }
 }
 
-/// Which sheets are up. Any screen can open a title or Settings.
+/// Which sheets are up, and which tab. Any screen can open a title or
+/// Settings; a notification can open a tab.
 @Observable
 final class Router {
     var title: TitleRef?
     var person: PersonRef?
     var settings = false
+    var tab: AppTab = .home
 }
 
+/// The ring, or one of the account's tabs.
 enum AppTab: Hashable {
-    case tasks, today, home, library, calendar
+    case home
+    case tab(TabID)
 }
 
 struct RootView: View {
     @Environment(AppSettings.self) private var settings
     @Environment(API.self) private var api
     @Environment(Router.self) private var router
-    @State private var tab: AppTab = .home
 
     var body: some View {
         @Bindable var router = router
+        // Your tabs either side of the ring, in your order; the ring never moves.
+        let tabs = settings.tabs
+        let half = (tabs.count + 1) / 2
 
-        TabView(selection: $tab) {
-            if settings.tasksTab {
-                Tab("Tasks", systemImage: "checklist", value: AppTab.tasks) { TasksView() }
+        TabView(selection: $router.tab) {
+            ForEach(Array(tabs.prefix(half))) { id in
+                Tab(id.label, systemImage: id.icon, value: AppTab.tab(id)) { screen(id) }
             }
-            Tab("Today", systemImage: "sparkles.tv", value: AppTab.today) { TodayView() }
             // The ring in its own colours, and no label: the logo is the name.
             Tab(value: AppTab.home) {
                 HomeView()
             } label: {
                 Image("TabRing").renderingMode(.original).accessibilityLabel("MOX")
             }
-            Tab("My List", systemImage: "bookmark", value: AppTab.library) { LibraryView() }
-            if settings.calendarTab {
-                Tab("Calendar", systemImage: "calendar", value: AppTab.calendar) { CalendarTabView() }
+            ForEach(Array(tabs.dropFirst(half))) { id in
+                Tab(id.label, systemImage: id.icon, value: AppTab.tab(id)) { screen(id) }
             }
         }
         .tabBarMinimizeBehavior(.onScrollDown)
@@ -95,7 +100,25 @@ struct RootView: View {
         .sheet(isPresented: $router.settings) {
             SettingsView()
         }
-        .onChange(of: settings.tasksTab) { if !settings.tasksTab && tab == .tasks { tab = .home } }
-        .onChange(of: settings.calendarTab) { if !settings.calendarTab && tab == .calendar { tab = .home } }
+        // The account's tabs, from the server, whenever who is signed in changes.
+        .task(id: api.user?.id) {
+            guard api.user != nil, let prefs = try? await api.prefs(), !prefs.tabIDs.isEmpty else { return }
+            settings.tabs = prefs.tabIDs
+        }
+        .onChange(of: settings.tabs) {
+            if case .tab(let id) = router.tab, !settings.tabs.contains(id) { router.tab = .home }
+        }
+    }
+
+    @ViewBuilder
+    private func screen(_ id: TabID) -> some View {
+        switch id {
+        case .today: TodayView()
+        case .news: NewsView()
+        case .library: LibraryView()
+        case .f1: F1View()
+        case .calendar: CalendarTabView()
+        case .tasks: TasksView()
+        }
     }
 }
