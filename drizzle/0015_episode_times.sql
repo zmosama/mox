@@ -1,0 +1,1 @@
+ALTER TABLE `episodes` ADD `airs_at` integer;

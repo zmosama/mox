@@ -18,7 +18,7 @@ import { db, schema } from "@/db";
 import { upcomingSessions, WATCH } from "./f1";
 import { readPrefs } from "./prefs";
 import { alerts, library } from "./queries";
-import { arrivals, dueEpisodes, dueSessions, type Outgoing } from "./push-plan";
+import { arrivals, dueEpisodes, dueSessions, episodeKey, type Outgoing } from "./push-plan";
 
 type Keys = { publicKey: string; privateKey: string };
 
@@ -105,6 +105,16 @@ function recentArrivals(userId: number) {
   });
 }
 
+function alreadySent(userId: number, keys: string[]) {
+  if (!keys.length) return new Set<string>();
+  return new Set(
+    db.select({ key: schema.pushSent.key }).from(schema.pushSent)
+      .where(and(eq(schema.pushSent.userId, userId), inArray(schema.pushSent.key, keys)))
+      .all()
+      .map((r) => r.key),
+  );
+}
+
 let running = false;
 
 /** One pass: everything due, for everyone subscribed, sent once. */
@@ -121,20 +131,23 @@ export async function runSender(now = Date.now()) {
       if (!notify.episodes && !notify.watchlist && !notify.f1) continue;
 
       const due: Outgoing[] = [];
-      if (notify.episodes) due.push(...dueEpisodes(alerts(userId).episodes, notify.episodesAt, now));
+      if (notify.episodes) {
+        // Shows already announced for that day are left out before grouping,
+        // so a group never repeats one of them.
+        const episodes = alerts(userId).episodes;
+        const announced = alreadySent(userId, [...new Set(episodes.map(episodeKey))]);
+        due.push(...dueEpisodes(episodes.filter((e) => !announced.has(episodeKey(e))), notify.episodesAt, now));
+      }
       if (notify.f1) due.push(...dueSessions(sessions, notify.f1Lead, WATCH.name, now));
       if (notify.watchlist) due.push(...arrivals(recentArrivals(userId)));
       if (!due.length) continue;
 
-      const sent = new Set(
-        db.select({ key: schema.pushSent.key }).from(schema.pushSent)
-          .where(and(eq(schema.pushSent.userId, userId), inArray(schema.pushSent.key, due.map((d) => d.key))))
-          .all()
-          .map((r) => r.key),
-      );
+      const sent = alreadySent(userId, due.map((d) => d.key));
       for (const item of due.filter((d) => !sent.has(d.key))) {
         // Recorded first: a crash mid-send costs one notification, never a repeat every five minutes.
-        db.insert(schema.pushSent).values({ userId, key: item.key }).onConflictDoNothing().run();
+        for (const key of new Set([item.key, ...(item.covers ?? [])])) {
+          db.insert(schema.pushSent).values({ userId, key }).onConflictDoNothing().run();
+        }
         await sendTo(userId, { title: item.title, body: item.body, url: item.url, tag: item.tag });
       }
     }

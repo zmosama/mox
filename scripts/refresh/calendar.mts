@@ -38,7 +38,7 @@ const HORIZON_DAYS = 60;
 
 type Episode = { season_number: number; episode_number: number; air_date: string | null };
 
-type Airing = { season: number; episode: number; airs: string };
+type Airing = { season: number; episode: number; airs: string; airsAt: number | null };
 
 /**
  * One season's episodes, dated by when they reach us rather than by when the
@@ -57,6 +57,7 @@ async function upcomingEpisodes(
   shifted: boolean,
   known: ShowSchedule | null,
   catalogueServices: ReturnType<typeof catalogue>,
+  stamps: Map<string, string> | null = null,
 ) {
   /* The season's own watch providers come in the same request: which service
      has *these* episodes, which is not always the show's. */
@@ -87,7 +88,16 @@ async function upcomingEpisodes(
     if (fromStamp) timed++;
 
     if (airs < from || airs > to) continue;
-    out.push({ season: e.season_number, episode: e.episode_number, airs });
+    // The exact instant only when the date came from it: a stamp TVmaze gives
+    // for a differently numbered episode is no answer for this one.
+    const stamp = fromStamp ? stamps?.get(episodeKey(e.season_number, e.episode_number)) : undefined;
+    const at = stamp ? Date.parse(stamp) : NaN;
+    out.push({
+      season: e.season_number,
+      episode: e.episode_number,
+      airs,
+      airsAt: Number.isNaN(at) ? null : Math.floor(at / 1000),
+    });
   }
   return { out, timed, season: seasonNumber, services };
 }
@@ -197,9 +207,13 @@ export async function refreshCalendar(today: string, extraSeries: number[] = [])
       title.detail.external_ids?.tvdb_id ?? null,
     );
 
+    const stamps = schedule.stampsFor(
+      title.detail.external_ids?.imdb_id ?? null,
+      title.detail.external_ids?.tvdb_id ?? null,
+    );
     const scanned = await Promise.all(
       seasons.map((n) =>
-        upcomingEpisodes(tmdbId, n, today, horizon, shifted, known, services).catch(() => null),
+        upcomingEpisodes(tmdbId, n, today, horizon, shifted, known, services, stamps).catch(() => null),
       ),
     );
     if (scanned.some((season) => season === null)) return null;
@@ -260,11 +274,12 @@ export async function refreshCalendar(today: string, extraSeries: number[] = [])
             season: a.season,
             episode: a.episode,
             airs: a.airs,
+            airsAt: a.airsAt,
             tmdbId: show.tmdbId,
           })
           .onConflictDoUpdate({
             target: [s.episodes.show, s.episodes.season, s.episodes.episode],
-            set: { airs: a.airs, tmdbId: show.tmdbId },
+            set: { airs: a.airs, airsAt: a.airsAt, tmdbId: show.tmdbId },
           })
           .run();
       }

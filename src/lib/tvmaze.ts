@@ -27,14 +27,20 @@ export type Schedule = {
   forShow: (imdbId: string | null, tvdbId: number | null) => ShowSchedule | null;
   /** How many episodes carried a usable air time, for the run's summary. */
   dated: number;
+  /**
+   * The same episodes' exact instants (ISO), for notifying when an episode
+   * actually lands rather than at one fixed hour for the whole day.
+   */
+  stampsFor: (imdbId: string | null, tvdbId: number | null) => Map<string, string> | null;
 };
 
 export const episodeKey = (season: number, episode: number) => `${season}x${episode}`;
 
-export const EMPTY_SCHEDULE: Schedule = { forShow: () => null, dated: 0 };
+export const EMPTY_SCHEDULE: Schedule = { forShow: () => null, stampsFor: () => null, dated: 0 };
 
 export function indexSchedule(entries: ScheduleEntry[]): Schedule {
   const byShow = new Map<string, ShowSchedule>();
+  const stamps = new Map<string, Map<string, string>>();
   let dated = 0;
 
   for (const e of entries) {
@@ -58,12 +64,19 @@ export function indexSchedule(entries: ScheduleEntry[]): Schedule {
       const show = byShow.get(key) ?? new Map<string, string>();
       show.set(episodeKey(e.season, e.number), airs);
       byShow.set(key, show);
+      const at = stamps.get(key) ?? new Map<string, string>();
+      at.set(episodeKey(e.season, e.number), e.airstamp);
+      stamps.set(key, at);
     }
     dated++;
   }
 
   return {
     dated,
+    stampsFor: (imdbId, tvdbId) =>
+      (imdbId ? stamps.get(`imdb:${imdbId}`) : undefined) ??
+      (tvdbId ? stamps.get(`tvdb:${tvdbId}`) : undefined) ??
+      null,
     forShow: (imdbId, tvdbId) =>
       (imdbId ? byShow.get(`imdb:${imdbId}`) : undefined) ??
       (tvdbId ? byShow.get(`tvdb:${tvdbId}`) : undefined) ??

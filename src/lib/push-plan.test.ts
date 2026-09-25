@@ -21,6 +21,7 @@ describe("dueEpisodes", () => {
         body: "S2 E3 is out — watch it on TOD",
         url: "/title/tv/247718",
         tag: "ep:247718",
+        covers: ["ep:247718:2026-10-02"],
       },
     ]);
     expect(dueEpisodes([mobland], 600, at10 + 7 * 3600_000)).toEqual([]);
@@ -29,6 +30,35 @@ describe("dueEpisodes", () => {
   it("makes one notification of a season dropped at once", () => {
     const drop = [1, 2, 3].map((episode) => ({ ...mobland, season: 1, episode }));
     expect(dueEpisodes(drop, 600, at10 + 60_000).map((o) => o.body)).toEqual(["S1 E1–E3 are out — watch it on TOD"]);
+  });
+});
+
+describe("dueEpisodes with real air times", () => {
+  const fiveAm = Date.UTC(2026, 9, 5, 2, 0) / 1000; // 05:00 in Cairo
+  const hbo = { tmdbId: 95350, show: "Lanterns", season: 1, episode: 8, airs: "2026-10-05", airsAt: fiveAm, platforms: ["OSN+"] };
+
+  it("announces an episode when it lands, even at five in the morning", () => {
+    expect(dueEpisodes([hbo], 600, fiveAm * 1000 - 60_000)).toEqual([]);
+    expect(dueEpisodes([hbo], 600, fiveAm * 1000 + 60_000).map((o) => o.title)).toEqual(["Lanterns"]);
+  });
+
+  it("puts shows landing at the same moment in one notification", () => {
+    const tenAm = cairoInstant("2026-10-05", 600);
+    const drop = ["Show A", "Show B", "Show C"].map((show, i) => ({
+      tmdbId: 100 + i, show, season: 1, episode: 1, airs: "2026-10-05", airsAt: tenAm / 1000, platforms: ["Netflix"],
+    }));
+    const due = dueEpisodes(drop, 600, tenAm + 60_000);
+    expect(due).toHaveLength(1);
+    expect(due[0].title).toBe("3 new episodes");
+    expect(due[0].body).toBe("Show A, Show B, Show C");
+    expect(due[0].covers).toEqual(["ep:100:2026-10-05", "ep:101:2026-10-05", "ep:102:2026-10-05"]);
+  });
+
+  it("gathers episodes whose time is unknown at the chosen hour, with those landing then", () => {
+    const tenAm = cairoInstant("2026-10-05", 600);
+    const untimed = { tmdbId: 7, show: "Untimed", season: 2, episode: 1, airs: "2026-10-05", platforms: [] };
+    const timed = { ...untimed, tmdbId: 8, show: "Timed", airsAt: tenAm / 1000 };
+    expect(dueEpisodes([untimed, timed], 600, tenAm + 60_000).map((o) => o.title)).toEqual(["2 new episodes"]);
   });
 });
 

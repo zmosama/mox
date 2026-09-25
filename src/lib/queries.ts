@@ -779,6 +779,8 @@ export type EpisodeAlert = {
   episode: number;
   /** The Cairo date it reaches a viewer here, as the calendar files it. */
   airs: string;
+  /** The instant it lands (unix seconds), when TVmaze published one; null when only the day is known. */
+  airsAt: number | null;
   platforms: string[];
 };
 
@@ -846,6 +848,7 @@ export function alerts(
       season: r.season,
       episode: r.episode,
       airs: r.airs,
+      airsAt: r.airsAt ?? null,
       platforms: forSeason(r.tmdbId!, r.season, avail.get(key(r.tmdbId!, "tv")) ?? []).map((p) => p.name),
     }));
 

@@ -13,6 +13,8 @@ nonisolated struct AlertsPayload: Codable, Sendable {
         let season: Int
         let episode: Int
         let airs: String
+        /// Unix seconds, when the exact arrival is known.
+        let airsAt: Double?
         let platforms: [String]
     }
 
@@ -127,38 +129,56 @@ final class Notifier {
         center.removePendingNotificationRequests(withIdentifiers: ids)
     }
 
-    /// One notification per show per day, at the time chosen in Settings, in
-    /// Cairo time like every date the server sends. A season dropped all at
-    /// once is one thing to go and watch, not eight.
+    /// When each episode is announced, as the website's sender does
+    /// (src/lib/push-plan.ts): an episode with a known air time when it lands —
+    /// at five in the morning if that is when it lands, people wait up for
+    /// these — and the rest at the time chosen in Settings, Cairo time. Shows
+    /// landing at the same minute share one notification, so ten shows at ten
+    /// o'clock are one ding; a season dropped at once is one line.
     private func schedule(_ episodes: [AlertsPayload.Episode], at minutes: Int) async {
         await clearEpisodes()
 
         var cal = Calendar(identifier: .gregorian)
         cal.timeZone = Day.zone
-        var batches: [(key: String, at: Date, episodes: [AlertsPayload.Episode])] = []
+
+        // Each show's episodes of a day, and the moment they are announced.
+        var shows: [(key: String, at: Date, episodes: [AlertsPayload.Episode])] = []
         for e in episodes {
-            guard let day = Day.date(e.airs),
-                  let at = cal.date(byAdding: .minute, value: minutes, to: cal.startOfDay(for: day)),
-                  at > .now else { continue }
+            let at: Date? = e.airsAt.map { Date(timeIntervalSince1970: $0) }
+                ?? Day.date(e.airs).flatMap { cal.date(byAdding: .minute, value: minutes, to: cal.startOfDay(for: $0)) }
+            guard let at else { continue }
             let key = "\(e.tmdbId):\(e.airs)"
-            if let i = batches.firstIndex(where: { $0.key == key }) {
-                batches[i].episodes.append(e)
+            if let i = shows.firstIndex(where: { $0.key == key }) {
+                shows[i].episodes.append(e)
+                shows[i].at = min(shows[i].at, at)
             } else {
-                batches.append((key, at, [e]))
+                shows.append((key, at, [e]))
             }
         }
 
-        for batch in batches.sorted(by: { $0.at < $1.at }).prefix(cap) {
-            let first = batch.episodes[0]
+        // Shows announced at the same minute share a notification.
+        let moments = Dictionary(grouping: shows.filter { $0.at > .now }) {
+            Date(timeIntervalSince1970: floor($0.at.timeIntervalSince1970 / 60) * 60)
+        }
+
+        for (at, group) in moments.sorted(by: { $0.key < $1.key }).prefix(cap) {
             let content = UNMutableNotificationContent()
-            content.title = first.show
-            content.body = Self.episodeLine(batch.episodes)
+            if group.count == 1, let first = group[0].episodes.first {
+                content.title = first.show
+                content.body = Self.episodeLine(group[0].episodes)
+                content.userInfo = ["kind": "tv", "id": first.tmdbId]
+            } else {
+                let names = group.compactMap { $0.episodes.first?.show }
+                content.title = "\(group.count) new episodes"
+                content.body = names.count > 4
+                    ? names.prefix(4).joined(separator: ", ") + " and \(names.count - 4) more"
+                    : names.joined(separator: ", ")
+            }
             content.sound = .default
             content.threadIdentifier = "episodes"
-            content.userInfo = ["kind": "tv", "id": first.tmdbId]
-            let when = cal.dateComponents([.timeZone, .year, .month, .day, .hour, .minute], from: batch.at)
+            let when = cal.dateComponents([.timeZone, .year, .month, .day, .hour, .minute], from: at)
             let request = UNNotificationRequest(
-                identifier: "episode:\(batch.key)",
+                identifier: "episode:\(Int(at.timeIntervalSince1970))",
                 content: content,
                 trigger: UNCalendarNotificationTrigger(dateMatching: when, repeats: false)
             )

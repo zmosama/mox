@@ -209,6 +209,12 @@ export const episodes = sqliteTable(
     episode: integer("episode").notNull(),
     airs: text("airs").notNull(),
     tmdbId: integer("tmdb_id"),
+    /**
+     * The instant it lands (unix seconds), when TVmaze published a real air
+     * time for it; null when only the day is known. Notifications use it to go
+     * off when an episode actually arrives.
+     */
+    airsAt: integer("airs_at"),
   },
   (t) => [
     primaryKey({ columns: [t.show, t.season, t.episode] }),
