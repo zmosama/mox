@@ -56,6 +56,18 @@ sends a mox link to someone as a recommendation: the phone's share sheet in the
 app and on a phone browser, a copied link on a desktop. The link opens the
 title on the website, and chat apps preview it with its name and backdrop.
 
+A title says when it comes out — a film's full date, or "Coming 16 Dec 2026";
+"Premieres 14 Oct" for a series not started — and its age rating. A series
+lists its **episodes**: pick a season from the menu and see each episode by
+name and date, tick the ones you have watched, and read where that season
+stands ("2 of 6 out · you've watched 0 · next Wed 30 Sep") and where it
+streams — which is not always where the show does: MobLand's first season is
+on Netflix here, its second on TOD.
+
+<p align="center">
+  <img src="brand/screens/app-episodes.png" alt="A series' episodes in the iPhone app, with the season menu and progress" width="300">
+</p>
+
 <p align="center">
   <img src="brand/screens/app-title.png" alt="A title in the iPhone app, with Follow, Watchlist, Seen, rating and Share" width="300">
   &nbsp;&nbsp;
@@ -69,7 +81,9 @@ connect your calendar and your day sits on top of it.
 ![Today](brand/screens/web-new.png)
 
 **My List** — the shows and people you follow, your watchlist, and the people
-who keep turning up in what you rated well.
+who keep turning up in what you rated well. The watchlist is in release order:
+what is already out, newest first, then what is coming, soonest first, each
+tagged with its date.
 
 **Universes** — franchise progress, rebuilt from TMDB every night, so a film
 announced next month appears on its own. On the website only, for now.
@@ -105,6 +119,25 @@ sit either side of it, and in what order, is yours to choose in Settings — up
 to four from Today, News, My List and F1, plus Calendar and Tasks in the app.
 The choice belongs to the account, so the website's bar follows the app's.
 
+**Age ratings** — tick the levels you want to see: All ages, 7+, PG, 13+, 18+
+(folded from the American certificates, the British ones when there are
+none). Anything outside them leaves search, Home, Today and the rest — except
+a show you follow or something you saved, which stays with a red badge
+carrying its rating. Unrated titles, and much Arabic and Asian work has no
+certificate at all, show unless you choose to hide them.
+
+**Notifications** — new episodes of the shows you follow, a watchlist title
+reaching one of your services, and F1 sessions a few minutes before they
+start. An episode is announced when it actually lands, when that is known —
+Lanterns at four in the morning, because people wait up for it — and at an
+hour you choose otherwise; shows landing at the same minute share one
+notification, so ten at ten o'clock are one. The app schedules its own on the
+phone; the website's are sent by the server, in any browser that turned them
+on (on an iPhone, once the site is on the home screen).
+
+**About** — in Settings: the wordmark, what mox is in two lines, and who made
+it ([mosama.me](https://mosama.me)).
+
 ## The idea
 
 Most "what to watch" tools are catalogues you search. mox is the opposite: it
@@ -138,8 +171,9 @@ safe to run by hand at any time.
 | --- | --- |
 | **services** | the streaming-service catalogue people pick from, in TMDB's own priority order |
 | **feeds** | `/new` — what reached a tracked service in the last 60 days, what is due in the next 90, what is trending this week |
-| **calendar** | upcoming episodes for every series the site knows, 60 days ahead, timed to when they actually arrive here |
+| **calendar** | upcoming episodes for every series the site knows, 60 days ahead, timed to when they actually arrive here — to the minute where TVmaze knows — and which service each current season is on |
 | **watchlist** | where every title on anybody's watchlist streams now, so an arrival is noticed the night it happens |
+| **ages** | age ratings for titles no other step looked at, a few hundred a night until every one is checked |
 | **universes** | franchise membership, from each universe's TMDB keyword, company or collection |
 | **store** | what has appeared on the digital shelves since the last sweep |
 | **prices** | what those arrivals cost to rent or buy |
@@ -260,6 +294,24 @@ wide light is painted once per layout, a pixel at a time, with a one-step dither
 at that strength a plain gradient spans a dozen 8-bit steps and shows each as a
 ring.
 
+It only moves while it can be seen. Scrolled past, on another tab or in the
+background, the ring stops — in the app its 30 fps timeline and the per-pixel
+shader behind it had kept the processor busy on every tab, all the time — and
+its energy goes only to the layers that read it, not to the whole page.
+
+### Which service, season by season
+
+TMDB lists where a *show* streams, one answer for every season, which is how
+MobLand came to read "Netflix" for a second season that streams on TOD. The
+calendar also reads each current season's own listing, in the same request as
+its episodes, and an episode takes its season's service when the season names
+one. An empty season listing is taken as "not known yet", never as "on
+nothing": TMDB's per-season data lags its show-level data.
+
+TOD's Egyptian listing has gaps of its own, so a title TOD carries in its other
+Arab markets counts as on TOD here too (`FALLBACK_REGIONS` in providers.ts) — a
+stated assumption, not something TMDB says.
+
 ## The stack
 
 - **Next.js 16** (App Router, React 19) — every page is server-rendered on demand
@@ -292,8 +344,14 @@ src/
     news-rules.ts   reading feeds and deciding which stories are about you
     news.ts         the News tab: your updates, then the press
     f1.ts           the F1 calendar, results and standings, and the shield
+    ratings.ts      age ratings: certificates folded into five levels
+    age-filter.ts   the one filter every list passes through
+    progress.ts     a series' episodes, season by season, and how far you are
+    push-plan.ts    when each notification is due, and what it says
+    push.ts         web notifications: keys, subscriptions, the sender
     queries.ts      every read the pages do, in one place
-  app/api/app/    what the iPhone app reads: home, today, library, discover, rate
+  app/api/app/    what the iPhone app reads: home, today, library, discover, rate, alerts
+  instrumentation.ts  starts the notification sender with the server
 ios/              the iPhone app (SwiftUI), MOX.xcodeproj
 scripts/
   refresh.mts     the nightly job
@@ -361,13 +419,15 @@ The app reads and writes the calendars and reminders already on the phone
 too, and the other way round. Calendar and Tasks are tabs you can add in
 Settings; they ask for access first.
 
-Notifications are made on the phone, not pushed: episodes of shows you follow
-are scheduled for the morning they reach you (10:00 Cairo by default), F1
-sessions a few minutes before they start, and a watchlist title reaching one of
-your services is spotted by comparing where it streams with what the phone saw
-last time. They refresh when the app opens and when iOS gives it a moment in
-the background, from `/api/app/alerts`. Push from the server needs a paid Apple
-developer account and can later wake the same refresh.
+The app's notifications are made on the phone, not pushed: episodes of shows
+you follow are scheduled for when they land (or the hour chosen in Settings,
+10:00 Cairo by default, when only the day is known), F1 sessions a few minutes
+before they start, and a watchlist title reaching one of your services is
+spotted by comparing where it streams with what the phone saw last time. They
+refresh when the app opens and when iOS gives it a moment in the background,
+from `/api/app/alerts`. Push from the server needs a paid Apple developer
+account; the website's sender (src/lib/push.ts) is the half of that already
+built.
 
 ### Environment
 
