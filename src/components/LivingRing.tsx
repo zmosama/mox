@@ -36,7 +36,11 @@ export function LivingRing({ size }: { size: number }) {
     if (!el || !ctx) return;
 
     const still = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    const root = document.documentElement;
+    /* The energy goes only to the elements that read it — the screen-wide
+       light's layers — not to <html>: a custom property set on the root is
+       inherited by every element on the page, so the browser restyled the
+       whole board thirty times a second to move one canvas's opacity. */
+    const readers = () => document.querySelectorAll<HTMLElement>("[data-mox-energy]");
     const scale = Math.min(window.devicePixelRatio || 1, 3);
     el.width = Math.round(side * scale);
     el.height = Math.round(side * scale);
@@ -62,13 +66,15 @@ export function LivingRing({ size }: { size: number }) {
     const image = size / 0.593; // the artwork's ring sits at 59% of its width
 
     const draw = (now: number) => {
+      if (!running) return;
       frame = requestAnimationFrame(draw);
       if (!ready || now - last < 33) return; // ~30fps is plenty for something this slow
       last = now;
 
       const t = still ? 0 : Date.now() / 1000;
       const e = still ? 0.5 : energy(t);
-      root.style.setProperty("--mox-energy", e.toFixed(3));
+      const value = e.toFixed(3);
+      readers().forEach((r) => r.style.setProperty("--mox-energy", value));
 
       ctx.setTransform(scale, 0, 0, scale, 0, 0);
       ctx.globalCompositeOperation = "source-over";
@@ -123,12 +129,28 @@ export function LivingRing({ size }: { size: number }) {
       ctx.arc(c, c, 0.64 * r, 0, Math.PI * 2);
       ctx.fill();
 
-      if (still) cancelAnimationFrame(frame);
+      if (still) stop();
     };
-    frame = requestAnimationFrame(draw);
-    return () => {
+    /* Only while it can be seen. Scrolled down the board, the ring kept
+       drawing at 30 fps for nobody; a background tab is paused by the browser
+       already, but an off-screen element on a visible page is not. */
+    let running = false;
+    const start = () => {
+      if (running) return;
+      running = true;
+      frame = requestAnimationFrame(draw);
+    };
+    const stop = () => {
+      running = false;
       cancelAnimationFrame(frame);
-      root.style.removeProperty("--mox-energy");
+    };
+    const seen = new IntersectionObserver(([entry]) => (entry.isIntersecting ? start() : stop()));
+    seen.observe(el);
+    start();
+    return () => {
+      seen.disconnect();
+      stop();
+      readers().forEach((r) => r.style.removeProperty("--mox-energy"));
     };
   }, [size, side]);
 

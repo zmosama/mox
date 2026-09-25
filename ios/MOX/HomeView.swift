@@ -26,8 +26,11 @@ enum Mood: String, CaseIterable, Identifiable {
 struct HomeView: View {
     @Environment(API.self) private var api
     @Environment(Router.self) private var router
+    @Environment(\.scenePhase) private var phase
 
     @State private var payload: HomePayload?
+    /// Whether the ring is on screen, for pausing its animation when it is not.
+    @State private var ringVisible = true
     @State private var loadError: String?
     @State private var query = ""
     @State private var mood: Mood?
@@ -88,7 +91,8 @@ struct HomeView: View {
 
             Spacer(minLength: 0)
 
-            LivingRing(size: asking ? 56 : 176)
+            LivingRing(size: asking ? 56 : 176, active: ringVisible && router.tab == .home && phase == .active)
+                .onScrollVisibilityChange(threshold: 0.05) { ringVisible = $0 }
 
             if !asking {
                 Text(greeting)

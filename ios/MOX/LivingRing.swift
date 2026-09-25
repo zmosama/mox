@@ -13,6 +13,11 @@ import SwiftUI
 struct LivingRing: View {
     /// Diameter of the ring itself, not of the image around it.
     let size: CGFloat
+    /// False when the ring cannot be seen — another tab, scrolled away, the app
+    /// in the background. The timeline then stops, and with it the per-pixel
+    /// shader behind it: a 30 fps animation nobody is looking at was keeping
+    /// the app at several percent of the processor on every tab, all the time.
+    var active: Bool = true
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     /// The image is cropped wide enough that its edges are pure black: the
@@ -20,7 +25,7 @@ struct LivingRing: View {
     private var imageWidth: CGFloat { size / 0.593 }
 
     var body: some View {
-        TimelineView(.animation(minimumInterval: 1 / 30, paused: reduceMotion)) { context in
+        TimelineView(.animation(minimumInterval: 1 / 30, paused: reduceMotion || !active)) { context in
             let t = reduceMotion ? 0 : context.date.timeIntervalSinceReferenceDate
             let e = reduceMotion ? 0.5 : energy(t)
             ZStack {

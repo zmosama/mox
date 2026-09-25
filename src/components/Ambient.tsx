@@ -147,6 +147,7 @@ export function Ambient({
       <canvas
         ref={canvas}
         aria-hidden
+        data-mox-energy=""
         className={cn(
           place,
           /* Over the ring image (z-5) where it is added with plus-lighter; under
@@ -160,7 +161,7 @@ export function Ambient({
         }}
       />
       {engine === "safari" ? (
-        <canvas ref={pulse} aria-hidden className={place} style={{ height, opacity: "var(--mox-energy, 0.5)" }} />
+        <canvas ref={pulse} aria-hidden data-mox-energy="" className={place} style={{ height, opacity: "var(--mox-energy, 0.5)" }} />
       ) : null}
     </>
   );
