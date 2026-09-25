@@ -193,6 +193,10 @@ final class API {
         revision += 1
     }
 
+    func season(_ tmdbId: Int, _ season: Int) async throws -> SeriesProgress {
+        try await get("/api/title/tv/\(tmdbId)/season/\(season)")
+    }
+
     func setEpisodeWatched(tmdbId: Int, season: Int, episode: Int, _ watched: Bool) async throws {
         try await post("/api/watched", ["tmdbId": tmdbId, "season": season, "episode": episode, "watched": watched])
         revision += 1

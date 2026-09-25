@@ -34,6 +34,8 @@ export type Progress = {
   season: number;
   seasonName: string;
   seasonCount: number;
+  /** Every season, for the picker: its number, name and size. */
+  seasons: { season: number; name: string; episodes: number }[];
   totalEpisodes: number;
   aired: number;
   watched: number;
@@ -92,6 +94,7 @@ export function buildProgress(
     season,
     seasonName: thisSeason?.name || `Season ${season}`,
     seasonCount: seasons.length,
+    seasons: seasons.map((s) => ({ season: s.season_number, name: s.name || `Season ${s.season_number}`, episodes: s.episode_count })),
     totalEpisodes: seasons.reduce((n, s) => n + s.episode_count, 0),
     aired,
     watched: [...watchedSet].filter((k) => !k.startsWith("0:")).length,
@@ -100,14 +103,19 @@ export function buildProgress(
   };
 }
 
-/** A series' progress for one viewer (or for nobody: then nothing is watched). */
+/**
+ * A series' progress for one viewer (or for nobody: then nothing is watched),
+ * shown at `season` — the one you picked — or the current one.
+ */
 export async function seriesProgress(
   tmdbId: number,
   show: SeriesShape,
   userId: number | null,
   today: string,
+  pick?: number,
 ): Promise<Progress | null> {
-  const season = currentSeason(show);
+  const known = (show.seasons ?? []).some((s) => s.season_number === pick && pick > 0);
+  const season = pick !== undefined && known ? pick : currentSeason(show);
   let episodes: { episode_number: number; name?: string; air_date?: string | null }[] = [];
   try {
     const body = await tmdb<{ episodes?: typeof episodes }>(`/tv/${tmdbId}/season/${season}`, {});

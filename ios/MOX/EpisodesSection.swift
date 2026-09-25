@@ -8,10 +8,17 @@ struct EpisodesSection: View {
     @State var progress: SeriesProgress
     let signIn: () -> Void
     @Environment(API.self) private var api
+    /// The season whose episodes are listed. The bar and the summary stay
+    /// about the whole show; only the list follows the pick.
+    @State private var season: Int
+    @State private var episodes: [EpisodeProgress]
+    @State private var loading = false
 
     init(tmdbId: Int, progress: SeriesProgress, signIn: @escaping () -> Void) {
         self.tmdbId = tmdbId
         _progress = State(initialValue: progress)
+        _season = State(initialValue: progress.season)
+        _episodes = State(initialValue: progress.episodes)
         self.signIn = signIn
     }
 
@@ -20,8 +27,24 @@ struct EpisodesSection: View {
             HStack(alignment: .firstTextBaseline) {
                 Text("Episodes").font(.sora(18, .semibold, relativeTo: .headline)).foregroundStyle(Theme.paper)
                 Spacer()
-                if progress.seasonCount > 1 {
-                    Text(progress.seasonName).font(.sora(12.5)).foregroundStyle(Theme.muted)
+                if let seasons = progress.seasons, seasons.count > 1 {
+                    Menu {
+                        Picker("Season", selection: Binding(get: { season }, set: { pick($0) })) {
+                            ForEach(seasons, id: \.season) { s in
+                                Text("\(s.name) · \(s.episodes) episodes").tag(s.season)
+                            }
+                        }
+                    } label: {
+                        HStack(spacing: 5) {
+                            Text(seasons.first { $0.season == season }?.name ?? "Season \(season)")
+                            Image(systemName: "chevron.up.chevron.down").font(.system(size: 10, weight: .semibold))
+                        }
+                        .font(.sora(13, .medium))
+                        .foregroundStyle(Theme.paper)
+                        .padding(.horizontal, 12)
+                        .frame(height: 32)
+                        .background(Theme.surface, in: .capsule)
+                    }
                 }
             }
 
@@ -42,14 +65,25 @@ struct EpisodesSection: View {
             Text(summary).font(.sora(13.5)).foregroundStyle(Theme.muted)
 
             VStack(spacing: 0) {
-                ForEach(progress.episodes, id: \.episode) { e in
+                ForEach(episodes, id: \.episode) { e in
                     row(e)
-                    if e.episode != progress.episodes.last?.episode {
+                    if e.episode != episodes.last?.episode {
                         Divider().overlay(.white.opacity(0.06))
                     }
                 }
             }
             .background(Theme.surface, in: .rect(cornerRadius: 16))
+            .opacity(loading ? 0.5 : 1)
+        }
+    }
+
+    private func pick(_ n: Int) {
+        guard n != season else { return }
+        season = n
+        loading = true
+        Task {
+            if let picked = try? await api.season(tmdbId, n), picked.season == n { episodes = picked.episodes }
+            loading = false
         }
     }
 
@@ -94,15 +128,15 @@ struct EpisodesSection: View {
 
     private func toggle(_ e: EpisodeProgress) {
         guard api.user != nil else { signIn(); return }
-        guard let i = progress.episodes.firstIndex(where: { $0.episode == e.episode }) else { return }
+        guard let i = episodes.firstIndex(where: { $0.episode == e.episode }) else { return }
         let now = !e.watched
-        progress.episodes[i].watched = now
+        episodes[i].watched = now
         progress.watched += now ? 1 : -1
         Task {
             do {
                 try await api.setEpisodeWatched(tmdbId: tmdbId, season: e.season, episode: e.episode, now)
             } catch {
-                progress.episodes[i].watched = !now
+                episodes[i].watched = !now
                 progress.watched += now ? -1 : 1
             }
         }

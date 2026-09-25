@@ -178,9 +178,16 @@ nonisolated struct SeriesProgress: Codable, Hashable, Sendable {
         let airs: String?
     }
 
+    struct SeasonInfo: Codable, Hashable, Sendable {
+        let season: Int
+        let name: String
+        let episodes: Int
+    }
+
     let season: Int
     let seasonName: String
     let seasonCount: Int
+    let seasons: [SeasonInfo]?
     let totalEpisodes: Int
     let aired: Int
     var watched: Int

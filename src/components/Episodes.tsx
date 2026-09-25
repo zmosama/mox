@@ -16,6 +16,7 @@ export type ProgressData = {
   season: number;
   seasonName: string;
   seasonCount: number;
+  seasons?: { season: number; name: string; episodes: number }[];
   totalEpisodes: number;
   aired: number;
   watched: number;
@@ -43,6 +44,21 @@ export function Episodes({
 }) {
   const [episodes, setEpisodes] = useState(progress.episodes);
   const [watched, setWatched] = useState(progress.watched);
+  const [season, setSeason] = useState(progress.season);
+  const [loading, setLoading] = useState(false);
+
+  /* Another season's episodes. The bar and the summary stay about the whole
+     show; only the list below changes. */
+  const pick = async (n: number) => {
+    setSeason(n);
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/title/tv/${tmdbId}/season/${n}`);
+      if (res.ok) setEpisodes(((await res.json()) as ProgressData).episodes);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const toggle = async (e: EpisodeData) => {
     const next = !e.watched;
@@ -76,9 +92,20 @@ export function Episodes({
     <section className="flex flex-col gap-3">
       <div className="flex items-baseline justify-between gap-3">
         <h3 className="text-[18px] font-semibold tracking-tight">Episodes</h3>
-        <span className="text-[12.5px] text-ink-dim">
-          {progress.seasonCount > 1 ? progress.seasonName : null}
-        </span>
+        {progress.seasons && progress.seasons.length > 1 ? (
+          <select
+            aria-label="Season"
+            value={season}
+            onChange={(e) => pick(Number(e.target.value))}
+            className="rounded-full border border-line-strong bg-surface px-3 py-1.5 text-[13px] font-medium text-ink outline-none"
+          >
+            {progress.seasons.map((s) => (
+              <option key={s.season} value={s.season}>
+                {s.name} · {s.episodes} ep
+              </option>
+            ))}
+          </select>
+        ) : null}
       </div>
 
       <div className="flex h-2 overflow-hidden rounded-full bg-white/[0.07]" aria-hidden>
@@ -87,7 +114,7 @@ export function Episodes({
       </div>
       <p className="text-[13.5px] text-ink-dim">{summary.filter(Boolean).join(" · ")}</p>
 
-      <ol className="overflow-hidden rounded-[16px] bg-surface">
+      <ol className={cn("overflow-hidden rounded-[16px] bg-surface transition-opacity", loading && "opacity-50")}>
         {episodes.map((e) => (
           <li key={e.episode} className={cn("flex items-center gap-3 border-b border-line px-3.5 py-2.5 last:border-0", !e.out && "opacity-50")}>
             <span className="numeric w-8 shrink-0 text-[12.5px] text-ink-faint">E{e.episode}</span>
