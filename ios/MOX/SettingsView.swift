@@ -353,10 +353,12 @@ struct AboutView: View {
                 .font(.sora(14))
                 .foregroundStyle(Theme.paper.opacity(0.85))
                 .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
             Text("Made for Egypt, in Cairo time. No ads, and no algorithm deciding for you — it ranks by what you told it.")
                 .font(.sora(12.5))
                 .foregroundStyle(Theme.muted)
                 .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
             Button {
                 if let url = URL(string: "https://mosama.me") { openURL(url) }
             } label: {

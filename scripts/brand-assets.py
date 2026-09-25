@@ -141,8 +141,9 @@ def main() -> None:
     bleed(512, src).save(PUBLIC / "icon-maskable.png")
     print("  public/icon-maskable.png    512  full bleed, for Android launchers")
 
-    wordmark().save(PUBLIC / "wordmark.png")
-    print("  public/wordmark.png         376x116  transparent, glow intact")
+    # public/wordmark.png is no longer cut from the board: it comes from the
+    # full-size artwork in brand/wordmark-source.webp, which is sharper than
+    # the board's 376-pixel copy. Writing the board's here would undo that.
 
     banner().save(ROOT / "brand" / "banner.png")
     print("  brand/banner.png            1280x400 for the repository page")
