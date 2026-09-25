@@ -193,6 +193,11 @@ final class API {
         revision += 1
     }
 
+    func setEpisodeWatched(tmdbId: Int, season: Int, episode: Int, _ watched: Bool) async throws {
+        try await post("/api/watched", ["tmdbId": tmdbId, "season": season, "episode": episode, "watched": watched])
+        revision += 1
+    }
+
     func setVerdict(_ ref: TitleRef, _ verdict: String?) async throws {
         try await post("/api/verdict", ["tmdbId": ref.tmdbId, "kind": ref.kind, "verdict": verdict ?? NSNull()])
         revision += 1

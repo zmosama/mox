@@ -557,14 +557,18 @@ export type FreshEpisode = CardTitle & {
 };
 
 /**
- * Episodes of shows you follow that landed today or yesterday and that you
+ * Episodes of shows you follow that landed in the last week and that you
  * have not ticked as watched — the answer to opening the app at all.
+ *
+ * A week, not a day: most series are weekly, and plenty of people watch
+ * Wednesday's episode on Friday. With "today or yesterday" an unwatched
+ * episode simply vanished on its third morning, as though it had been seen.
  *
  * One card per show, at its earliest unwatched episode: two episodes dropping
  * the same morning are one thing to go and watch, and the first is where you
  * would start.
  */
-export function forYou(userId: number, today = todayISO(), days = 1): FreshEpisode[] {
+export function forYou(userId: number, today = todayISO(), days = 7): FreshEpisode[] {
   const follows = followsFor(userId);
   if (!follows.size) return [];
 
@@ -625,7 +629,7 @@ export function forYou(userId: number, today = todayISO(), days = 1): FreshEpiso
       episodeLabel: episodeCode(r.season, r.episode),
     });
   }
-  // Today's first, then yesterday's.
+  // Newest first.
   return out.sort((a, b) => b.date.localeCompare(a.date));
 }
 
@@ -691,7 +695,33 @@ export function library(userId: number): { following: CardTitle[]; watchlist: Ca
     };
   };
   const present = (c: CardTitle | null): c is CardTitle => c !== null;
-  return { following: followed.map(card).filter(present), watchlist: wanted.map(card).filter(present) };
+
+  /* The watchlist in release order: what is already out first, newest first,
+     then what is coming, soonest first — each coming one tagged with its
+     date, so "when can I watch it" is on the poster. */
+  const today = todayISO();
+  const released = (r: { tmdbId: number; kind: MediaKind }) => titles.get(key(r.tmdbId, r.kind))?.releaseDate ?? null;
+  const out = wanted.filter((r) => (released(r) ?? "") !== "" && released(r)! <= today)
+    .sort((a, b) => released(b)!.localeCompare(released(a)!));
+  const coming = wanted.filter((r) => !out.includes(r))
+    .sort((a, b) => (released(a) ?? "9999").localeCompare(released(b) ?? "9999"));
+  const tagged = (r: { tmdbId: number; kind: MediaKind }) => {
+    const c = card(r);
+    const date = released(r);
+    return c && date && date > today ? { ...c, releaseLabel: releaseTag(date) } : c;
+  };
+
+  return {
+    following: followed.map(card).filter(present),
+    watchlist: [...out.map(card), ...coming.map(tagged)].filter(present),
+  };
+}
+
+/** "30 Sep", or "Sep 2027" when it is more than a year off. */
+function releaseTag(date: string) {
+  const d = new Date(`${date}T12:00:00Z`);
+  const far = Date.parse(date) - Date.now() > 330 * 86400_000;
+  return new Intl.DateTimeFormat("en-GB", far ? { month: "short", year: "numeric", timeZone: "UTC" } : { day: "numeric", month: "short", timeZone: "UTC" }).format(d);
 }
 
 // ---------------------------------------------------------------- alerts

@@ -6,6 +6,8 @@ import { includedOn, type WatchProviders } from "@/lib/providers";
 import { serviceLookup } from "@/lib/queries";
 import { posterPath, region, tmdb } from "@/lib/tmdb";
 import { profileUrl } from "@/lib/people";
+import { seriesProgress, type TmdbSeasonSummary } from "@/lib/progress";
+import { todayISO } from "@/lib/dates";
 import { MEDIA_KINDS, type MediaKind } from "@/db/schema";
 
 type TmdbTitle = {
@@ -18,6 +20,9 @@ type TmdbTitle = {
   runtime?: number;
   episode_run_time?: number[];
   number_of_seasons?: number;
+  seasons?: TmdbSeasonSummary[];
+  last_episode_to_air?: { season_number: number; episode_number: number; air_date?: string | null } | null;
+  next_episode_to_air?: { season_number: number; episode_number: number; air_date?: string | null } | null;
   genres?: { name: string }[];
   vote_average?: number;
   poster_path?: string | null;
@@ -112,6 +117,9 @@ export async function GET(
       )
     : false;
 
+  // A series says how far along it is, and how far along you are.
+  const progress = kind === "tv" ? await seriesProgress(tmdbId, d, user?.id ?? null, todayISO()) : null;
+
   return NextResponse.json(
     {
       tmdbId,
@@ -159,6 +167,7 @@ export async function GET(
       }),
       verdict,
       following,
+      progress,
     },
     // App state must never be reused from the browser's cache: a refresh once
     // redrew a film that had just been dismissed.

@@ -599,7 +599,7 @@ function Shelf({
   );
 }
 
-/** New episodes of shows you follow, today or yesterday, not yet watched. */
+/** New episodes of shows you follow from the last week, not yet watched. */
 function ForYou({
   items,
   today,
@@ -685,7 +685,8 @@ function FreshCard({
         </div>
         <h3 className="mt-1 truncate text-[24px] font-bold text-white">{item.title}</h3>
         <div className="numeric text-[13px] text-white/75">
-          {[item.episodeLabel, where?.name].filter(Boolean).join(" · ")}
+          {/* Spelled out, so the card reads as one episode rather than the whole show. */}
+          {[`Season ${item.season}`, `Episode ${item.episode}`, where?.name].filter(Boolean).join(" · ")}
         </div>
         <div className="mt-3 flex items-center gap-2.5">
           {where?.url ? (

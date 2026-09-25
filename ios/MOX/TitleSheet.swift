@@ -110,6 +110,10 @@ struct TitleSheet: View {
                     .lineSpacing(4)
                     .padding(.horizontal, 20)
             }
+            if d.kind == "tv", let progress = d.progress {
+                EpisodesSection(tmdbId: d.tmdbId, progress: progress) { signingIn = true }
+                    .padding(.horizontal, 20)
+            }
             // Faces that open each person's page; names only when the server is older.
             if let people = d.people, !people.isEmpty {
                 PeopleRow(title: "Cast & crew", people: people, size: 68) { person = PersonRef(id: $0) }
@@ -229,12 +233,29 @@ struct TitleSheet: View {
 
     private func meta(_ d: TitleDetail) -> String {
         var parts: [String] = []
-        if let y = d.year { parts.append(String(y)) }
-        if d.kind == "tv", let s = d.seasons { parts.append(s == 1 ? "1 season" : "\(s) seasons") }
+        if let when = Self.releaseFact(d) { parts.append(when) }
+        if d.kind == "tv", let s = d.seasons {
+            parts.append(s == 1 ? "1 season" : "\(s) seasons")
+            if let n = d.progress?.totalEpisodes, n > 0 { parts.append("\(n) episodes") }
+        }
         else if let r = d.runtime, r > 0 { parts.append("\(r / 60 > 0 ? "\(r / 60)h " : "")\(r % 60)m") }
         parts.append(contentsOf: d.genres.prefix(2))
         if let rating = d.rating { parts.append("★ \(String(format: "%.1f", rating))") }
         return parts.joined(separator: " · ")
+    }
+
+    /// When it comes out, said the useful way: a film's full date ("12 Nov
+    /// 2026", or "Coming 12 Nov 2026"), a series' year, or when it premieres.
+    static func releaseFact(_ d: TitleDetail) -> String? {
+        guard let s = d.releaseDate, let date = Day.date(s) else { return d.year.map(String.init) }
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "en_GB")
+        f.timeZone = Day.zone
+        f.dateFormat = "d MMM yyyy"
+        let full = f.string(from: date)
+        let future = s > Day.todayISO
+        if d.kind == "movie" { return future ? "Coming \(full)" : full }
+        return future ? "Premieres \(full)" : String(s.prefix(4))
     }
 
     private func set(_ value: String?) {

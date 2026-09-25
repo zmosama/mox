@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import type { Service } from "./ServiceBadge";
 import { PeopleRow, type PersonChipData } from "./People";
 import { PersonSheet } from "./PersonSheet";
+import { Episodes, shortDate, type ProgressData } from "./Episodes";
 import { isTopSheet, popSheet, pushSheet } from "./sheets";
 import { cn } from "@/lib/cn";
 import { backdropUrl } from "@/lib/images";
@@ -33,7 +34,25 @@ export type SheetTitle = {
   platforms: Service[];
   verdict: Verdict | null;
   following: boolean;
+  /** A series: how many episodes, how many out, how many you watched. */
+  progress?: ProgressData | null;
 };
+
+const cairoToday = () =>
+  new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Cairo", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
+
+/**
+ * When it comes out, said the useful way: a film's full date ("12 Nov 2026",
+ * or "Coming 12 Nov 2026"), a series' year, or when it premieres if it has
+ * not yet.
+ */
+function releaseFact(kind: MediaKind, releaseDate: string | null, year: number | null) {
+  if (!releaseDate) return year?.toString();
+  const full = `${shortDate(releaseDate).split(" ").slice(1).join(" ")} ${releaseDate.slice(0, 4)}`;
+  const future = releaseDate > cairoToday();
+  if (kind === "movie") return future ? `Coming ${full}` : full;
+  return future ? `Premieres ${full}` : releaseDate.slice(0, 4);
+}
 
 /**
  * The one place a title is acted on. Cards and rows open this rather than each
@@ -210,13 +229,14 @@ export function TitleSheet({
     router.push("/admin/login");
   };
 
-  /* The app's meta line: year, then seasons or running time, two genres and
-     the score. */
+  /* The app's meta line: when it comes out, then seasons and episodes or
+     running time, two genres and the score. */
   const facts = data
     ? [
-        data.year?.toString(),
+        releaseFact(data.kind, data.releaseDate, data.year),
         data.kind === "tv" && data.seasons
-          ? `${data.seasons} season${data.seasons > 1 ? "s" : ""}`
+          ? `${data.seasons} season${data.seasons > 1 ? "s" : ""}` +
+            (data.progress?.totalEpisodes ? ` · ${data.progress.totalEpisodes} episodes` : "")
           : data.runtime
             ? `${Math.floor(data.runtime / 60) ? `${Math.floor(data.runtime / 60)}h ` : ""}${data.runtime % 60}m`
             : null,
@@ -469,6 +489,9 @@ export function TitleSheet({
 
               {data.tagline ? <p className="text-[15px] font-medium italic text-love-soft">{data.tagline}</p> : null}
               {data.overview ? <p className="text-[15px] leading-relaxed text-ink/85">{data.overview}</p> : null}
+              {data.kind === "tv" && data.progress ? (
+                <Episodes key={data.tmdbId} tmdbId={data.tmdbId} progress={data.progress} signedIn={signedIn} />
+              ) : null}
               {data.people?.length ? (
                 <PeopleRow title="Cast & crew" people={data.people} onOpen={(p) => setPerson(p.id)} size={68} />
               ) : (

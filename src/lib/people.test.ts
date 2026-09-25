@@ -42,7 +42,7 @@ beforeAll(async () => {
 afterAll(() => rmSync(dir, { recursive: true, force: true }));
 
 describe("forYou", () => {
-  it("offers each followed show at its earliest unwatched episode from today or yesterday", () => {
+  it("offers each followed show at its earliest unwatched episode from the last week", () => {
     const got = queries.forYou(userId, "2026-09-23").map((e) => [e.tmdbId, e.episodeLabel]);
     expect(got).toEqual(
       expect.arrayContaining([

@@ -143,6 +143,7 @@ nonisolated struct TitleDetail: Codable, Sendable {
     let tagline: String?
     let overview: String?
     let year: Int?
+    let releaseDate: String?
     let runtime: Int?
     let seasons: Int?
     let genres: [String]
@@ -157,6 +158,34 @@ nonisolated struct TitleDetail: Codable, Sendable {
     let platforms: [Platform]
     let verdict: String?
     let following: Bool
+    /// A series: how many episodes, how many are out, how many you watched.
+    let progress: SeriesProgress?
+}
+
+nonisolated struct EpisodeProgress: Codable, Hashable, Sendable {
+    let season: Int
+    let episode: Int
+    let name: String?
+    let airs: String?
+    let out: Bool
+    var watched: Bool
+}
+
+nonisolated struct SeriesProgress: Codable, Hashable, Sendable {
+    struct Next: Codable, Hashable, Sendable {
+        let season: Int
+        let episode: Int
+        let airs: String?
+    }
+
+    let season: Int
+    let seasonName: String
+    let seasonCount: Int
+    let totalEpisodes: Int
+    let aired: Int
+    var watched: Int
+    var episodes: [EpisodeProgress]
+    let next: Next?
 }
 
 /// Something that can be opened in the title sheet.

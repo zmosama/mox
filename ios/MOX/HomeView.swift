@@ -373,7 +373,9 @@ struct FreshEpisodeCard: View {
                     .font(.sora(24, .bold, relativeTo: .title))
                     .foregroundStyle(.white)
                     .lineLimit(1)
-                Text([card.episodeLabel, card.platforms.first?.name].compactMap { $0 }.joined(separator: " · "))
+                // Spelled out, so the card reads as one episode rather than the whole show.
+                Text([card.season.map { "Season \($0)" }, card.episode.map { "Episode \($0)" }, card.platforms.first?.name]
+                    .compactMap { $0 }.joined(separator: " · "))
                     .font(.sora(13, relativeTo: .footnote))
                     .foregroundStyle(.white.opacity(0.75))
 
