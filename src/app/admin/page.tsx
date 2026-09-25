@@ -59,6 +59,22 @@ export default async function AdminHome() {
           </div>
         ) : null}
       </section>
+
+      {/* The wordmark's black is transparent, so it sits on the page with no box. */}
+      <section className="flex flex-col items-center gap-3 border-t border-line pt-8 text-center">
+        {/* eslint-disable-next-line @next/next/no-img-element -- a fixed brand asset */}
+        <img src="/wordmark.png" alt="MOX" className="w-[170px]" draggable={false} />
+        <p className="max-w-md text-[14px] leading-relaxed text-ink/85">
+          Your entertainment, organized: what reached the services you pay for, when your shows&apos; new
+          episodes land, and what&apos;s worth watching tonight — in one place.
+        </p>
+        <p className="max-w-md text-[12.5px] text-ink-dim">
+          Made for Egypt, in Cairo time. No ads, and no algorithm deciding for you — it ranks by what you told it.
+        </p>
+        <a href="https://mosama.me" target="_blank" rel="noopener noreferrer" className="text-[13px] text-love">
+          Developed by <span className="font-semibold">mosama.me</span>
+        </a>
+      </section>
     </div>
   );
 }

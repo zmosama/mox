@@ -104,7 +104,11 @@ struct SettingsView: View {
                 }
 
                 Section {
-                    LabeledContent("Version", value: Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "–")
+                    AboutView()
+                        .listRowBackground(Color.clear)
+                        .listRowInsets(EdgeInsets())
+                } header: {
+                    Text("About")
                 }
             }
             .scrollContentBackground(.hidden)
@@ -324,5 +328,45 @@ struct SettingsView: View {
                 signInError = error.localizedDescription
             }
         }
+    }
+}
+
+/// The wordmark, what MOX is in two lines, who made it, and the version.
+/// The wordmark's black is transparent, so it sits on the page with no box.
+struct AboutView: View {
+    @Environment(\.openURL) private var openURL
+
+    private var version: String {
+        let v = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "–"
+        let b = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String
+        return b.map { "\(v) (\($0))" } ?? v
+    }
+
+    var body: some View {
+        VStack(spacing: 14) {
+            Image("Wordmark")
+                .resizable()
+                .scaledToFit()
+                .frame(width: 170)
+                .accessibilityLabel("MOX")
+            Text("Your entertainment, organized: what reached the services you pay for, when your shows' new episodes land, and what's worth watching tonight — in one place.")
+                .font(.sora(14))
+                .foregroundStyle(Theme.paper.opacity(0.85))
+                .multilineTextAlignment(.center)
+            Text("Made for Egypt, in Cairo time. No ads, and no algorithm deciding for you — it ranks by what you told it.")
+                .font(.sora(12.5))
+                .foregroundStyle(Theme.muted)
+                .multilineTextAlignment(.center)
+            Button {
+                if let url = URL(string: "https://mosama.me") { openURL(url) }
+            } label: {
+                Text("Developed by **mosama.me**").font(.sora(13)).foregroundStyle(Theme.green)
+            }
+            .buttonStyle(.plain)
+            Text("Version \(version)").font(.sora(11.5)).foregroundStyle(Theme.faint)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 22)
+        .padding(.horizontal, 12)
     }
 }
