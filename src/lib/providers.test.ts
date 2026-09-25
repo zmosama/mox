@@ -35,6 +35,15 @@ describe("what a title is included on", () => {
     expect(includedOn(p, CATALOGUE, "EG")).toEqual(["Disney Plus"]);
   });
 
+  it("reads TOD from its other Arab markets when Egypt's listing has a gap", () => {
+    // MobLand's second season: on TOD in Qatar and Morocco, nothing under Egypt.
+    const tod = { providerId: 1750, name: "TOD", regions: null };
+    const p = providers({ QA: { flatrate: [{ provider_id: 1750, provider_name: "TOD" }] } });
+    expect(includedOn(p, [...CATALOGUE, tod], "EG")).toEqual(["TOD"]);
+    // A region of its own, set by hand, still wins over the built-in list.
+    expect(includedOn(p, [...CATALOGUE, { ...tod, regions: ["GB"] }], "EG")).toEqual([]);
+  });
+
   it("keeps the catalogue's spelling, not TMDB's, so the logo join still hits", () => {
     const p = providers({
       EG: { flatrate: [{ provider_id: 337, provider_name: "Disney+" }] },

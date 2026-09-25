@@ -193,6 +193,8 @@ nonisolated struct SeriesProgress: Codable, Hashable, Sendable {
     var watched: Int
     var episodes: [EpisodeProgress]
     let next: Next?
+    /// Where this season streams, when it names its own service.
+    let services: [String]?
 }
 
 /// Something that can be opened in the title sheet.

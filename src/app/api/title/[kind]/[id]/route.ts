@@ -118,7 +118,9 @@ export async function GET(
     : false;
 
   // A series says how far along it is, and how far along you are.
-  const progress = kind === "tv" ? await seriesProgress(tmdbId, d, user?.id ?? null, todayISO()) : null;
+  const progress = kind === "tv"
+    ? await seriesProgress(tmdbId, d, user?.id ?? null, todayISO(), undefined, chosen)
+    : null;
 
   return NextResponse.json(
     {

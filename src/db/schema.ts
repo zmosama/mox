@@ -420,3 +420,26 @@ export const newsItems = sqliteTable(
   },
   (t) => [index("news_published").on(t.publishedAt)],
 );
+
+/**
+ * Where one season of a series streams, when that differs from the show.
+ *
+ * TMDB's show-level listing is one answer for every season: MobLand reads
+ * "Netflix" here because its first season is on Netflix, while the second —
+ * the one with new episodes — is on TOD. Episodes take their service from
+ * their season's row when there is one, and from the show otherwise.
+ *
+ * `services` is a JSON list of catalogue names, never empty: TMDB's season
+ * listings lag the show's, so only a season that positively names a service
+ * is recorded, and every other season falls back to the show.
+ */
+export const seasonServices = sqliteTable(
+  "season_services",
+  {
+    tmdbId: integer("tmdb_id").notNull(),
+    season: integer("season").notNull(),
+    services: text("services").notNull(),
+    updatedAt: integer("updated_at").notNull().default(sql`(unixepoch())`),
+  },
+  (t) => [primaryKey({ columns: [t.tmdbId, t.season] })],
+);

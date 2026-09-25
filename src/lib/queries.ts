@@ -199,6 +199,49 @@ export function availabilityFor(ids: number[], userId: number | null) {
 }
 
 /**
+ * An episode's services: its season's own listing when the calendar has one,
+ * the show's otherwise.
+ *
+ * The show-level answer is one list for every season, which is how MobLand
+ * came to read "Netflix" for a second season that streams on TOD. The season's
+ * list is narrowed to the viewer's services the way `availabilityFor` narrows
+ * the show's, and keeps any hand-curated deep link the show row carries.
+ */
+export function seasonAware(userId: number | null, ids: number[]) {
+  const rows = ids.length
+    ? db.select().from(schema.seasonServices).where(inArray(schema.seasonServices.tmdbId, ids)).all()
+    : [];
+  const bySeason = new Map<string, string[]>();
+  for (const r of rows) {
+    try {
+      bySeason.set(`${r.tmdbId}:${r.season}`, JSON.parse(r.services) as string[]);
+    } catch {
+      // An unreadable row is no answer: the show's list stands in.
+    }
+  }
+
+  const picked = userId === null
+    ? null
+    : new Set(
+        db
+          .select({ name: schema.services.name })
+          .from(schema.userServices)
+          .innerJoin(schema.services, eq(schema.services.providerId, schema.userServices.providerId))
+          .where(eq(schema.userServices.userId, userId))
+          .all()
+          .map((r) => r.name),
+      );
+  const mine = picked && picked.size ? picked : null;
+
+  return (tmdbId: number, season: number, show: { name: string; deepLink: string | null }[]) => {
+    const names = bySeason.get(`${tmdbId}:${season}`);
+    if (!names) return show;
+    const links = new Map(show.map((p) => [p.name, p.deepLink]));
+    return names.filter((n) => !mine || mine.has(n)).map((name) => ({ name, deepLink: links.get(name) ?? null }));
+  };
+}
+
+/**
  * "EGP 29.99 rent · EGP 99.99 buy", or nothing at all.
  *
  * Silence rather than a placeholder when the price has not been read: a film
@@ -294,11 +337,12 @@ export function datedEpisodes(
   const ids = [...new Set(rows.map((r) => r.tmdbId).filter((x): x is number => x !== null))];
   const titles = titlesByIds(ids.map((tmdbId) => ({ tmdbId, kind: "tv" as const })));
   const avail = availabilityFor(ids, userId);
+  const forSeason = seasonAware(userId, ids);
   const lookup = serviceLookup();
   const verdicts = userId ? verdictsFor(userId) : new Map<string, Verdict>();
 
   // show + day -> the episodes of it that landed that day, in order.
-  const byDay = new Map<string, { tmdbId: number; airs: string; codes: string[] }>();
+  const byDay = new Map<string, { tmdbId: number; airs: string; season: number; codes: string[] }>();
 
   for (const r of rows) {
     if (r.tmdbId === null) continue;
@@ -310,17 +354,17 @@ export function datedEpisodes(
     if (verdicts.get(key(r.tmdbId, "tv")) === "hidden") continue;
 
     const slot = `${r.tmdbId}:${r.airs}`;
-    const entry = byDay.get(slot) ?? { tmdbId: r.tmdbId, airs: r.airs, codes: [] };
+    const entry = byDay.get(slot) ?? { tmdbId: r.tmdbId, airs: r.airs, season: r.season, codes: [] };
     entry.codes.push(episodeCode(r.season, r.episode));
     byDay.set(slot, entry);
   }
 
   const out: ReleaseItem[] = [];
-  for (const { tmdbId, airs, codes } of byDay.values()) {
+  for (const { tmdbId, airs, season, codes } of byDay.values()) {
     const t = titles.get(key(tmdbId, "tv"));
     if (!t) continue;
 
-    const platforms = (avail.get(key(tmdbId, "tv")) ?? []).map((p) =>
+    const platforms = forSeason(tmdbId, season, avail.get(key(tmdbId, "tv")) ?? []).map((p) =>
       toService(p.name, lookup, t.title, p.deepLink),
     );
     /* An episode with nowhere to watch it is not news. Unlike `datedFeed` this
@@ -523,6 +567,7 @@ export function calendar(userId: number | null, days = 14): CalendarEpisode[] {
   const ids = [...new Set(rows.map((r) => r.tmdbId).filter((x): x is number => x !== null))];
   const titles = titlesByIds(ids.map((tmdbId) => ({ tmdbId, kind: "tv" as const })));
   const avail = availabilityFor(ids, userId);
+  const forSeason = seasonAware(userId, ids);
   const lookup = serviceLookup();
   const follows = userId ? followsFor(userId) : new Set<number>();
   const verdicts = userId ? verdictsFor(userId) : new Map<string, Verdict>();
@@ -539,7 +584,7 @@ export function calendar(userId: number | null, days = 14): CalendarEpisode[] {
         airs: r.airs,
         poster: t?.poster ?? null,
         following: r.tmdbId ? follows.has(r.tmdbId) : false,
-        platforms: (r.tmdbId ? (avail.get(key(r.tmdbId, "tv")) ?? []) : []).map((p) =>
+        platforms: (r.tmdbId ? forSeason(r.tmdbId, r.season, avail.get(key(r.tmdbId, "tv")) ?? []) : []).map((p) =>
           toService(p.name, lookup, r.show, p.deepLink),
         ),
       };
@@ -604,6 +649,7 @@ export function forYou(userId: number, today = todayISO(), days = 7): FreshEpiso
   const ids = [...first.keys()];
   const titles = titlesByIds(ids.map((tmdbId) => ({ tmdbId, kind: "tv" as const })));
   const avail = availabilityFor(ids, userId);
+  const forSeason = seasonAware(userId, ids);
   const lookup = serviceLookup();
   const verdicts = verdictsFor(userId);
 
@@ -620,7 +666,7 @@ export function forYou(userId: number, today = todayISO(), days = 7): FreshEpiso
       overview: t?.overview ?? null,
       rating: t?.rating ?? null,
       verdict: verdicts.get(key(r.tmdbId!, "tv")) ?? null,
-      platforms: (avail.get(key(r.tmdbId!, "tv")) ?? []).map((p) =>
+      platforms: forSeason(r.tmdbId!, r.season, avail.get(key(r.tmdbId!, "tv")) ?? []).map((p) =>
         toService(p.name, lookup, t?.title ?? r.show, p.deepLink),
       ),
       date: r.airs,
@@ -788,6 +834,7 @@ export function alerts(
   const showIds = [...new Set(rows.map((r) => r.tmdbId!))];
   const titles = titlesByIds(showIds.map((tmdbId) => ({ tmdbId, kind: "tv" as const })));
   const avail = availabilityFor(showIds, userId);
+  const forSeason = seasonAware(userId, showIds);
 
   const episodes = rows
     .filter((r) => r.tmdbId !== null)
@@ -799,7 +846,7 @@ export function alerts(
       season: r.season,
       episode: r.episode,
       airs: r.airs,
-      platforms: (avail.get(key(r.tmdbId!, "tv")) ?? []).map((p) => p.name),
+      platforms: forSeason(r.tmdbId!, r.season, avail.get(key(r.tmdbId!, "tv")) ?? []).map((p) => p.name),
     }));
 
   const watchlist = library(userId).watchlist.map((c) => ({

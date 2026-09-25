@@ -9,7 +9,8 @@
  */
 import { and, eq, gt } from "drizzle-orm";
 import { db, schema } from "@/db";
-import { tmdb } from "./tmdb";
+import { region, tmdb } from "./tmdb";
+import { includedOn, type ServiceEntry, type WatchProviders } from "./providers";
 
 export type TmdbSeasonSummary = { season_number: number; episode_count: number; name?: string; air_date?: string | null };
 type TmdbEpisodeRef = { season_number: number; episode_number: number; air_date?: string | null };
@@ -41,6 +42,12 @@ export type Progress = {
   watched: number;
   episodes: EpisodeRow[];
   next: { season: number; episode: number; airs: string | null } | null;
+  /**
+   * Where this season streams, when TMDB names a service for it: MobLand's
+   * second season is on TOD though the show is listed on Netflix. Null when
+   * the season has no listing of its own and the show's stands.
+   */
+  services: string[] | null;
 };
 
 /**
@@ -100,6 +107,7 @@ export function buildProgress(
     watched: [...watchedSet].filter((k) => !k.startsWith("0:")).length,
     episodes: rows,
     next: upcoming ? { season, episode: upcoming.episode, airs: upcoming.airs } : null,
+    services: null,
   };
 }
 
@@ -113,13 +121,22 @@ export async function seriesProgress(
   userId: number | null,
   today: string,
   pick?: number,
+  chosen: ServiceEntry[] = [],
 ): Promise<Progress | null> {
   const known = (show.seasons ?? []).some((s) => s.season_number === pick && pick > 0);
   const season = pick !== undefined && known ? pick : currentSeason(show);
   let episodes: { episode_number: number; name?: string; air_date?: string | null }[] = [];
+  let services: string[] | null = null;
   try {
-    const body = await tmdb<{ episodes?: typeof episodes }>(`/tv/${tmdbId}/season/${season}`, {});
+    // The same request, and cache entry, as the nightly calendar's.
+    const body = await tmdb<{ episodes?: typeof episodes; "watch/providers"?: { results?: WatchProviders } }>(
+      `/tv/${tmdbId}/season/${season}`,
+      { append_to_response: "watch/providers" },
+    );
     episodes = body.episodes ?? [];
+    const named = includedOn(body["watch/providers"]?.results, chosen, region());
+    // Only a season that names a service speaks for itself; see season_services.
+    services = named.length ? named : null;
   } catch {
     return null;
   }
@@ -149,5 +166,5 @@ export async function seriesProgress(
           .map((w) => `${w.season}:${w.episode}`),
   );
 
-  return buildProgress(show, season, episodes, arrivals, watchedSet, today);
+  return { ...buildProgress(show, season, episodes, arrivals, watchedSet, today), services };
 }

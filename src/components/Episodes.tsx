@@ -22,6 +22,8 @@ export type ProgressData = {
   watched: number;
   episodes: EpisodeData[];
   next: { season: number; episode: number; airs: string | null } | null;
+  /** Where this season streams, when it names its own service. */
+  services?: string[] | null;
 };
 
 const day = new Intl.DateTimeFormat("en-GB", { timeZone: "UTC", weekday: "short", day: "numeric", month: "short" });
@@ -45,6 +47,7 @@ export function Episodes({
   const [episodes, setEpisodes] = useState(progress.episodes);
   const [season, setSeason] = useState(progress.season);
   const [loading, setLoading] = useState(false);
+  const [services, setServices] = useState(progress.services ?? null);
 
   /* Another season's episodes. The bar and the summary stay about the whole
      show; only the list below changes. */
@@ -53,7 +56,11 @@ export function Episodes({
     setLoading(true);
     try {
       const res = await fetch(`/api/title/tv/${tmdbId}/season/${n}`);
-      if (res.ok) setEpisodes(((await res.json()) as ProgressData).episodes);
+      if (res.ok) {
+        const picked = (await res.json()) as ProgressData;
+        setEpisodes(picked.episodes);
+        setServices(picked.services ?? null);
+      }
     } finally {
       setLoading(false);
     }
@@ -115,7 +122,11 @@ export function Episodes({
         <div className="bg-love" style={{ width: `${(Math.min(seen, out) / total) * 100}%` }} />
         <div className="bg-white/25" style={{ width: `${(Math.max(out - seen, 0) / total) * 100}%` }} />
       </div>
-      <p className="text-[13.5px] text-ink-dim">{summary.filter(Boolean).join(" · ")}</p>
+      <p className="text-[13.5px] text-ink-dim">
+        {summary.filter(Boolean).join(" · ")}
+        {/* The season's own service, which is not always the show's. */}
+        {services?.length ? <span className="text-love-soft"> · on {services.join(", ")}</span> : null}
+      </p>
 
       <ol className={cn("overflow-hidden rounded-[16px] bg-surface transition-opacity", loading && "opacity-50")}>
         {episodes.map((e) => (

@@ -50,6 +50,21 @@ export type ServiceEntry = {
 };
 
 /**
+ * Fallback regions kept in code, for services whose local listing is known to
+ * have gaps. Used when the catalogue row has none of its own.
+ *
+ * TOD is beIN's service across the Arab world, and TMDB's Egyptian listing of
+ * it is thin: MobLand's second season streams on TOD in Egypt, and TMDB lists
+ * it under Qatar and Morocco but not here. The catalogue is largely one
+ * catalogue region-wide, so a title TOD carries in its other Arab markets is
+ * taken to be on TOD here too. A known assumption, agreed with the owner, not
+ * a fact TMDB states.
+ */
+export const FALLBACK_REGIONS: Record<number, string[]> = {
+  1750: ["QA", "AE", "SA", "KW", "BH", "OM", "JO", "LB", "MA", "DZ", "TN", "IQ", "LY", "PS", "YE"], // TOD
+};
+
+/**
  * The names to record or badge, in the order the services were given — so the
  * caller's ordering (TMDB priority, or the viewer's own picks) is what shows.
  */
@@ -77,7 +92,8 @@ export function includedOn(
     }
     /* A service not sold locally (Disney Plus here) has no entry under our
        region at all, so it is read from the regions it does exist in. */
-    const elsewhere = (service.regions ?? []).some((r) =>
+    const fallback = service.regions?.length ? service.regions : (FALLBACK_REGIONS[service.providerId] ?? []);
+    const elsewhere = fallback.some((r) =>
       INCLUDED.some((bucket) =>
         (regions[r]?.[bucket] ?? []).some((p) => p.provider_id === service.providerId),
       ),

@@ -24,8 +24,9 @@ import { and, eq, gte, inArray, isNotNull, notInArray } from "drizzle-orm";
 import { airsInLocalPrime, arrivalOf, landsOn } from "../../src/lib/airing";
 import { addDaysISO } from "../../src/lib/dates";
 import {
-  catalogue, db, mapPool, s, saveTitle, fetchTitle, subscribed, type Fetched,
+  catalogue, db, HOME, mapPool, s, saveTitle, fetchTitle, subscribed, type Fetched,
 } from "./shared.mjs";
+import { includedOn, type WatchProviders } from "../../src/lib/providers";
 import { fetchSchedule } from "./tvmaze.mjs";
 import {
   EMPTY_SCHEDULE, episodeKey, type Schedule, type ShowSchedule,
@@ -55,8 +56,18 @@ async function upcomingEpisodes(
   to: string,
   shifted: boolean,
   known: ShowSchedule | null,
+  catalogueServices: ReturnType<typeof catalogue>,
 ) {
-  const season = await tmdb<{ episodes?: Episode[] }>(`/tv/${tmdbId}/season/${seasonNumber}`, {});
+  /* The season's own watch providers come in the same request: which service
+     has *these* episodes, which is not always the show's. */
+  const season = await tmdb<{ episodes?: Episode[]; "watch/providers"?: { results?: WatchProviders } }>(
+    `/tv/${tmdbId}/season/${seasonNumber}`,
+    { append_to_response: "watch/providers" },
+  );
+  const regions = season["watch/providers"]?.results ?? {};
+  // No region at all means TMDB has no answer for this season, which is not the
+  // same as "on nothing": that season is left to the show's own listing.
+  const services = Object.keys(regions).length ? includedOn(regions, catalogueServices, HOME) : null;
   const scanFrom = addDaysISO(from, -1);
   const out: Airing[] = [];
   let timed = 0;
@@ -78,11 +89,12 @@ async function upcomingEpisodes(
     if (airs < from || airs > to) continue;
     out.push({ season: e.season_number, episode: e.episode_number, airs });
   }
-  return { out, timed };
+  return { out, timed, season: seasonNumber, services };
 }
 
 type Refreshed = {
   tmdbId: number; show: string; airings: Airing[]; title: Fetched; timed: number;
+  seasons: { season: number; services: string[] | null }[];
 };
 
 export async function refreshCalendar(today: string, extraSeries: number[] = []) {
@@ -187,17 +199,18 @@ export async function refreshCalendar(today: string, extraSeries: number[] = [])
 
     const scanned = await Promise.all(
       seasons.map((n) =>
-        upcomingEpisodes(tmdbId, n, today, horizon, shifted, known).catch(() => null),
+        upcomingEpisodes(tmdbId, n, today, horizon, shifted, known, services).catch(() => null),
       ),
     );
     if (scanned.some((season) => season === null)) return null;
-    const found = scanned as { out: Airing[]; timed: number }[];
+    const found = scanned as { out: Airing[]; timed: number; season: number; services: string[] | null }[];
 
     return {
       tmdbId,
       show: named.get(tmdbId) ?? title.detail.name ?? title.detail.title ?? `#${tmdbId}`,
       airings: found.flatMap((f) => f.out),
       timed: found.reduce((n, f) => n + f.timed, 0),
+      seasons: found.map((f) => ({ season: f.season, services: f.services })),
       title,
     };
   });
@@ -259,6 +272,25 @@ export async function refreshCalendar(today: string, extraSeries: number[] = [])
       // Posters and service badges on the calendar come from `titles` and
       // `availability`, so a show new to the calendar has to bring them along.
       saveTitle(tx, show.title);
+
+      for (const { season, services: names } of show.seasons) {
+        const key = and(eq(s.seasonServices.tmdbId, show.tmdbId), eq(s.seasonServices.season, season));
+        /* Only a season that names a service overrides the show. TMDB's
+           per-season listings lag: Survivor's new season was listed on
+           nothing here while it was plainly on OSN+, so an empty answer is
+           taken as "not known yet", never as "on nothing". */
+        if (!names?.length) {
+          tx.delete(s.seasonServices).where(key).run();
+          continue;
+        }
+        tx.insert(s.seasonServices)
+          .values({ tmdbId: show.tmdbId, season, services: JSON.stringify(names) })
+          .onConflictDoUpdate({
+            target: [s.seasonServices.tmdbId, s.seasonServices.season],
+            set: { services: JSON.stringify(names), updatedAt: Math.floor(Date.now() / 1000) },
+          })
+          .run();
+      }
     }
   });
 

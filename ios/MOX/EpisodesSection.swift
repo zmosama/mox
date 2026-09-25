@@ -13,12 +13,14 @@ struct EpisodesSection: View {
     @State private var season: Int
     @State private var episodes: [EpisodeProgress]
     @State private var loading = false
+    @State private var services: [String]?
 
     init(tmdbId: Int, progress: SeriesProgress, signIn: @escaping () -> Void) {
         self.tmdbId = tmdbId
         _progress = State(initialValue: progress)
         _season = State(initialValue: progress.season)
         _episodes = State(initialValue: progress.episodes)
+        _services = State(initialValue: progress.services)
         self.signIn = signIn
     }
 
@@ -64,7 +66,11 @@ struct EpisodesSection: View {
             .background(.white.opacity(0.07))
             .clipShape(.capsule)
 
-            Text(summary).font(.sora(13.5)).foregroundStyle(Theme.muted)
+            // The season's own service, which is not always the show's.
+            let on = Text(services.map { $0.isEmpty ? "" : " · on \($0.joined(separator: ", "))" } ?? "")
+                .foregroundStyle(Theme.mint)
+            Text("\(Text(summary).foregroundStyle(Theme.muted))\(on)")
+                .font(.sora(13.5))
 
             VStack(spacing: 0) {
                 ForEach(episodes, id: \.episode) { e in
@@ -84,7 +90,10 @@ struct EpisodesSection: View {
         season = n
         loading = true
         Task {
-            if let picked = try? await api.season(tmdbId, n), picked.season == n { episodes = picked.episodes }
+            if let picked = try? await api.season(tmdbId, n), picked.season == n {
+                episodes = picked.episodes
+                services = picked.services
+            }
             loading = false
         }
     }
