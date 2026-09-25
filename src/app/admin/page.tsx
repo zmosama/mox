@@ -4,6 +4,7 @@ import { avatarUrl, currentUser } from "@/lib/auth";
 import { ProfilePhoto } from "@/components/ProfilePhoto";
 import { stats, tasteFor } from "@/lib/queries";
 import { Preferences } from "@/components/Preferences";
+import { WebNotifications } from "@/components/WebNotifications";
 import { readPrefs, TABS, TAB_SLOTS } from "@/lib/prefs";
 
 export const dynamic = "force-dynamic";
@@ -21,6 +22,8 @@ export default async function AdminHome() {
       <ProfilePhoto name={user.displayName ?? user.username} avatar={avatarUrl(user)} />
 
       <Preferences initial={readPrefs(user.id)} options={TABS.map((t) => ({ ...t }))} slots={TAB_SLOTS} />
+
+      <WebNotifications initial={readPrefs(user.id).notify} />
 
       <section>
         <h2 className="mb-3 text-base font-semibold">Your ratings</h2>

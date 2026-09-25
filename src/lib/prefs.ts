@@ -51,7 +51,25 @@ export type Prefs = {
   ages: AgeLevel[];
   /** Also hide titles with no certificate at all — shown by default. */
   hideUnrated: boolean;
+  /**
+   * Web notifications, sent by the server to every browser this account turned
+   * them on in. The iPhone app keeps its own switches: it schedules its
+   * notifications on the phone.
+   */
+  notify: Notify;
 };
+
+export type Notify = {
+  episodes: boolean;
+  watchlist: boolean;
+  f1: boolean;
+  /** When episode notifications go off, minutes after midnight Cairo time. */
+  episodesAt: number;
+  /** Minutes before an F1 session starts. */
+  f1Lead: number;
+};
+
+export const DEFAULT_NOTIFY: Notify = { episodes: false, watchlist: false, f1: false, episodesAt: 600, f1Lead: 15 };
 
 export const DEFAULT_PREFS: Prefs = {
   tabs: DEFAULT_TABS,
@@ -59,6 +77,7 @@ export const DEFAULT_PREFS: Prefs = {
   f1Shield: true,
   ages: [...AGE_LEVELS],
   hideUnrated: false,
+  notify: DEFAULT_NOTIFY,
 };
 
 /** What a client may send: any subset, each part checked on its own. */
@@ -69,6 +88,13 @@ export const PrefsPatch = z
     f1Shield: z.boolean(),
     ages: z.array(z.enum(AGE_LEVELS)).min(1),
     hideUnrated: z.boolean(),
+    notify: z.object({
+      episodes: z.boolean(),
+      watchlist: z.boolean(),
+      f1: z.boolean(),
+      episodesAt: z.number().int().min(0).max(24 * 60 - 1),
+      f1Lead: z.number().int().min(1).max(180),
+    }),
   })
   .partial();
 
@@ -94,6 +120,7 @@ export function parsePrefs(raw: string | null | undefined): Prefs {
     f1Shield: field("f1Shield"),
     ages: [...new Set(field("ages"))],
     hideUnrated: field("hideUnrated"),
+    notify: field("notify"),
   };
 }
 

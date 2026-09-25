@@ -450,3 +450,35 @@ export const seasonServices = sqliteTable(
   },
   (t) => [primaryKey({ columns: [t.tmdbId, t.season] })],
 );
+
+/**
+ * Browsers that asked for notifications: one row per browser, per account.
+ * The endpoint is the push service's address for that browser; the two keys
+ * encrypt what is sent to it. A row the push service says is gone (404/410)
+ * is deleted on the spot.
+ */
+export const pushSubscriptions = sqliteTable(
+  "push_subscriptions",
+  {
+    endpoint: text("endpoint").primaryKey(),
+    userId: integer("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    p256dh: text("p256dh").notNull(),
+    auth: text("auth").notNull(),
+    createdAt: integer("created_at").notNull().default(sql`(unixepoch())`),
+  },
+  (t) => [index("push_user").on(t.userId)],
+);
+
+/**
+ * What has already been announced to an account, so a notification goes out
+ * once however often the sender runs: "ep:247718:2026-10-02", "f1:16:race".
+ */
+export const pushSent = sqliteTable(
+  "push_sent",
+  {
+    userId: integer("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    key: text("key").notNull(),
+    sentAt: integer("sent_at").notNull().default(sql`(unixepoch())`),
+  },
+  (t) => [primaryKey({ columns: [t.userId, t.key] })],
+);
