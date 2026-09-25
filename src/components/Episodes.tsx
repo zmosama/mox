@@ -29,7 +29,7 @@ const day = new Intl.DateTimeFormat("en-GB", { timeZone: "UTC", weekday: "short"
 export const shortDate = (iso: string) => day.format(new Date(`${iso}T12:00:00Z`));
 
 /**
- * Where you are in a series: a bar of watched, out and still to come, one line
+ * Where you are in a season: a bar of watched, out and still to come, one line
  * saying it in words, and the current season episode by episode with a tick
  * for each you have seen.
  */
@@ -43,7 +43,6 @@ export function Episodes({
   signedIn: boolean;
 }) {
   const [episodes, setEpisodes] = useState(progress.episodes);
-  const [watched, setWatched] = useState(progress.watched);
   const [season, setSeason] = useState(progress.season);
   const [loading, setLoading] = useState(false);
 
@@ -63,7 +62,6 @@ export function Episodes({
   const toggle = async (e: EpisodeData) => {
     const next = !e.watched;
     setEpisodes((all) => all.map((x) => (x.episode === e.episode ? { ...x, watched: next } : x)));
-    setWatched((n) => n + (next ? 1 : -1));
     const res = await fetch("/api/watched", {
       method: "POST",
       headers: { "content-type": "application/json" },
@@ -71,21 +69,26 @@ export function Episodes({
     });
     if (!res.ok) {
       setEpisodes((all) => all.map((x) => (x.episode === e.episode ? { ...x, watched: !next } : x)));
-      setWatched((n) => n + (next ? -1 : 1));
     }
   };
 
-  const total = Math.max(progress.totalEpisodes, 1);
+  /* The bar and the line are about the season on show, counted from its
+     own episodes, so they change with the pick. */
+  const count = episodes.length;
+  const out = episodes.filter((e) => e.out).length;
+  const seen = episodes.filter((e) => e.watched).length;
+  const upcoming = episodes.find((e) => !e.out);
+  const total = Math.max(count, 1);
   const summary =
-    progress.aired === 0
+    out === 0
       ? [
-          progress.next?.airs ? `Starts ${shortDate(progress.next.airs)}` : "Not started yet",
-          `${progress.totalEpisodes} episode${progress.totalEpisodes === 1 ? "" : "s"}`,
+          upcoming?.airs ? `Starts ${shortDate(upcoming.airs)}` : "Not started yet",
+          `${count} episode${count === 1 ? "" : "s"}`,
         ]
       : [
-          `${progress.aired} of ${progress.totalEpisodes} out`,
-          signedIn ? `you've watched ${watched}` : null,
-          progress.next?.airs ? `next ${shortDate(progress.next.airs)}` : progress.aired >= progress.totalEpisodes ? "all out" : null,
+          out >= count ? `All ${count} out` : `${out} of ${count} out`,
+          signedIn ? `you've watched ${seen}` : null,
+          upcoming?.airs ? `next ${shortDate(upcoming.airs)}` : null,
         ];
 
   return (
@@ -109,8 +112,8 @@ export function Episodes({
       </div>
 
       <div className="flex h-2 overflow-hidden rounded-full bg-white/[0.07]" aria-hidden>
-        <div className="bg-love" style={{ width: `${(Math.min(watched, progress.aired) / total) * 100}%` }} />
-        <div className="bg-white/25" style={{ width: `${(Math.max(progress.aired - watched, 0) / total) * 100}%` }} />
+        <div className="bg-love" style={{ width: `${(Math.min(seen, out) / total) * 100}%` }} />
+        <div className="bg-white/25" style={{ width: `${(Math.max(out - seen, 0) / total) * 100}%` }} />
       </div>
       <p className="text-[13.5px] text-ink-dim">{summary.filter(Boolean).join(" · ")}</p>
 

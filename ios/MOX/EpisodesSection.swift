@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Where you are in a series: a bar of watched, out and still to come, one
+/// Where you are in a season: a bar of watched, out and still to come, one
 /// line saying it in words, and the current season episode by episode with a
 /// tick for each you have seen. The web's Episodes, the same.
 struct EpisodesSection: View {
@@ -48,13 +48,15 @@ struct EpisodesSection: View {
                 }
             }
 
+            // The bar and the line are about the season on show, counted from
+            // its own episodes, so they change with the pick.
             GeometryReader { geo in
-                let total = CGFloat(max(progress.totalEpisodes, 1))
-                let seen = CGFloat(min(progress.watched, progress.aired))
-                let out = CGFloat(max(progress.aired - progress.watched, 0))
+                let total = CGFloat(max(episodes.count, 1))
+                let out = episodes.filter(\.out).count
+                let seen = episodes.filter(\.watched).count
                 HStack(spacing: 0) {
-                    Theme.green.frame(width: geo.size.width * seen / total)
-                    Color.white.opacity(0.25).frame(width: geo.size.width * out / total)
+                    Theme.green.frame(width: geo.size.width * CGFloat(min(seen, out)) / total)
+                    Color.white.opacity(0.25).frame(width: geo.size.width * CGFloat(max(out - seen, 0)) / total)
                     Spacer(minLength: 0)
                 }
             }
@@ -88,15 +90,17 @@ struct EpisodesSection: View {
     }
 
     private var summary: String {
-        let p = progress
-        if p.aired == 0 {
-            let start = p.next?.airs.map { "Starts \(Self.day($0))" } ?? "Not started yet"
-            return "\(start) · \(p.totalEpisodes) episode\(p.totalEpisodes == 1 ? "" : "s")"
+        let count = episodes.count
+        let out = episodes.filter(\.out).count
+        let seen = episodes.filter(\.watched).count
+        let upcoming = episodes.first { !$0.out }
+        if out == 0 {
+            let start = upcoming?.airs.map { "Starts \(Self.day($0))" } ?? "Not started yet"
+            return "\(start) · \(count) episode\(count == 1 ? "" : "s")"
         }
-        var parts = ["\(p.aired) of \(p.totalEpisodes) out"]
-        if api.user != nil { parts.append("you've watched \(p.watched)") }
-        if let airs = p.next?.airs { parts.append("next \(Self.day(airs))") }
-        else if p.aired >= p.totalEpisodes { parts.append("all out") }
+        var parts = [out >= count ? "All \(count) out" : "\(out) of \(count) out"]
+        if api.user != nil { parts.append("you've watched \(seen)") }
+        if let airs = upcoming?.airs { parts.append("next \(Self.day(airs))") }
         return parts.joined(separator: " · ")
     }
 
@@ -131,13 +135,11 @@ struct EpisodesSection: View {
         guard let i = episodes.firstIndex(where: { $0.episode == e.episode }) else { return }
         let now = !e.watched
         episodes[i].watched = now
-        progress.watched += now ? 1 : -1
         Task {
             do {
                 try await api.setEpisodeWatched(tmdbId: tmdbId, season: e.season, episode: e.episode, now)
             } catch {
                 episodes[i].watched = !now
-                progress.watched += now ? -1 : 1
             }
         }
     }
