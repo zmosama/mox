@@ -17,7 +17,7 @@ export async function GET(_: Request, { params }: { params: Promise<{ kind: stri
   let show: SeriesShape;
   try {
     // The same request, and so the same cache entry, as the title page's.
-    show = await tmdb<SeriesShape>(`/tv/${tmdbId}`, { append_to_response: "credits,watch/providers,videos" });
+    show = await tmdb<SeriesShape>(`/tv/${tmdbId}`, { append_to_response: "credits,watch/providers,videos,content_ratings" });
   } catch (e) {
     return NextResponse.json({ error: (e as Error).message }, { status: 502 });
   }

@@ -1,3 +1,4 @@
+import { ageFilter } from "@/lib/age-filter";
 import { NextResponse } from "next/server";
 import { currentUser } from "@/lib/auth";
 import { availabilityFor, searchLocal, serviceLookup } from "@/lib/queries";
@@ -92,8 +93,12 @@ export async function GET(req: Request) {
       knownFor: (r.known_for ?? []).map((k) => k.title ?? k.name ?? "").filter(Boolean).slice(0, 3),
     }));
 
+  /* Straight from TMDB, so many results were never stored: their certificates
+     are looked up here rather than letting an unchecked 18+ through. */
+  const results = await ageFilter(user?.id ?? null)([...local, ...extra], { lookUp: true });
+
   return NextResponse.json(
-    { results: [...local, ...extra], people },
+    { results, people },
     { headers: { "cache-control": "no-store" } },
   );
 }

@@ -27,6 +27,10 @@ export type CardTitle = {
   arrived?: string;
   /** Why it is here for you: "Because you like Tom Hardy". */
   reason?: string;
+  /** Its age rating, "18+" or "PG"; null when unrated. */
+  age?: string | null;
+  /** Outside your age levels, shown only because you follow or saved it. */
+  ageWarn?: boolean;
 };
 
 const RING: Record<Verdict, string> = {
@@ -78,6 +82,12 @@ export function TitleCard({
         {tag ? (
           <span className="numeric absolute start-1.5 top-1.5 z-10 rounded-full bg-black/65 px-2 py-0.5 text-[10.5px] font-semibold text-love-soft">
             {tag}
+          </span>
+        ) : null}
+        {/* A rating outside your levels, on something you follow or saved. */}
+        {item.ageWarn && item.age ? (
+          <span className="numeric absolute end-1.5 top-1.5 z-10 rounded-full bg-against px-2 py-0.5 text-[10.5px] font-bold text-white">
+            {item.age}
           </span>
         ) : null}
       </button>

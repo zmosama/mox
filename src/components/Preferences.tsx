@@ -3,9 +3,16 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { cn } from "@/lib/cn";
+import { AGE_HINT, AGE_LABEL, AGE_LEVELS, type AgeLevel } from "@/lib/ratings";
 
 type TabOption = { id: string; label: string; interest: boolean; appOnly: boolean };
-type Prefs = { tabs: string[]; newsLangs: ("en" | "ar")[]; f1Shield: boolean };
+type Prefs = {
+  tabs: string[];
+  newsLangs: ("en" | "ar")[];
+  f1Shield: boolean;
+  ages: AgeLevel[];
+  hideUnrated: boolean;
+};
 
 /**
  * The account's preferences, shared with the app: which tabs sit either side
@@ -134,6 +141,50 @@ export function Preferences({
             );
           })}
         </div>
+      </section>
+
+      <section>
+        <h2 className="mb-1 text-base font-semibold">Age ratings</h2>
+        <p className="mb-3 text-[13px] text-ink-faint">
+          What to show in search, Home and Today. Shows you follow and titles you saved always stay, marked with their
+          rating.
+        </p>
+        <div className="flex flex-wrap gap-2">
+          {AGE_LEVELS.map((level) => {
+            const on = prefs.ages.includes(level);
+            return (
+              <button
+                key={level}
+                type="button"
+                aria-pressed={on}
+                // At least one level: a filter that allows nothing would empty the site.
+                disabled={on && prefs.ages.length === 1}
+                onClick={() => save({ ages: on ? prefs.ages.filter((x) => x !== level) : [...prefs.ages, level] })}
+                className={cn(
+                  "flex flex-col items-start rounded-[14px] px-3.5 py-2 text-start transition",
+                  on ? "bg-love/20 text-love" : "bg-surface text-ink-dim hover:bg-card",
+                )}
+              >
+                <span className="text-[13.5px] font-semibold">{AGE_LABEL[level]}</span>
+                <span className="text-[11px] opacity-75">{AGE_HINT[level]}</span>
+              </button>
+            );
+          })}
+        </div>
+        <label className="mt-3 flex cursor-pointer items-start gap-3 rounded-card border border-line bg-card px-3.5 py-3">
+          <input
+            type="checkbox"
+            checked={prefs.hideUnrated}
+            onChange={(e) => save({ hideUnrated: e.target.checked })}
+            className="mt-0.5 size-4 accent-[var(--color-love)]"
+          />
+          <span>
+            <span className="block text-[14px] font-medium">Hide unrated titles</span>
+            <span className="block text-[12.5px] text-ink-faint">
+              Titles with no rating at all — much Arabic and Asian work has none — are shown unless you turn this on.
+            </span>
+          </span>
+        </label>
       </section>
 
       <section>

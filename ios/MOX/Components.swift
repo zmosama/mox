@@ -99,6 +99,10 @@ struct PosterCard: View {
             RemoteImage(url: card.poster)
                 .frame(width: width, height: width * 1.5)
                 .clipShape(.rect(cornerRadius: 12))
+                .overlay(alignment: .topTrailing) {
+                    // A rating outside your levels, on something you follow or saved.
+                    if card.ageWarn == true, let age = card.age { AgeBadge(text: age).padding(6) }
+                }
                 .overlay(alignment: .topLeading) {
                     if let tag = card.episodeLabel ?? card.releaseLabel {
                         Text(tag)
@@ -255,5 +259,18 @@ struct WrapLayout: Layout {
         }
         if !current.indices.isEmpty { rows.append(current) }
         return rows
+    }
+}
+
+/// An age rating shown as a warning: red, so it reads before the poster does.
+struct AgeBadge: View {
+    let text: String
+
+    var body: some View {
+        Text(text)
+            .font(.sora(10.5, .bold, relativeTo: .caption2))
+            .padding(.horizontal, 7).padding(.vertical, 3)
+            .background(Color(hex: 0xFF5A52), in: .capsule)
+            .foregroundStyle(.white)
     }
 }

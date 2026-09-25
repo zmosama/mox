@@ -68,6 +68,25 @@ struct SettingsView: View {
                     } footer: {
                         Text("A race's result, and the standings it changed, stay covered until you say you've seen it.")
                     }
+
+                    Section {
+                        ForEach(AgeLevel.allCases) { level in
+                            Toggle(isOn: ageBinding(level, prefs)) {
+                                VStack(alignment: .leading, spacing: 1) {
+                                    Text(level.label)
+                                    Text(level.hint).font(.caption).foregroundStyle(Theme.muted)
+                                }
+                            }
+                        }
+                        Toggle("Hide unrated titles", isOn: Binding(
+                            get: { prefs.hideUnrated ?? false },
+                            set: { savePrefs(["hideUnrated": $0]) }
+                        ))
+                    } header: {
+                        Text("Age ratings")
+                    } footer: {
+                        Text("What to show in search, Home and Today. Shows you follow and titles you saved always stay, marked with their rating. Titles with no rating — much Arabic and Asian work — show unless you hide them.")
+                    }
                 }
 
                 notifications
@@ -138,6 +157,19 @@ struct SettingsView: View {
                 // At least one: a News tab reading no newsroom would only ever be empty.
                 guard !langs.isEmpty else { return }
                 savePrefs(["newsLangs": langs])
+            }
+        )
+    }
+
+    private func ageBinding(_ level: AgeLevel, _ prefs: Prefs) -> Binding<Bool> {
+        let current = prefs.ages ?? AgeLevel.allCases.map(\.rawValue)
+        return Binding(
+            get: { current.contains(level.rawValue) },
+            set: { on in
+                let next = on ? current + [level.rawValue] : current.filter { $0 != level.rawValue }
+                // At least one level: a filter that allows nothing would empty the app.
+                guard !next.isEmpty else { return }
+                savePrefs(["ages": next])
             }
         )
     }

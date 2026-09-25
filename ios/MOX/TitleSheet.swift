@@ -239,6 +239,7 @@ struct TitleSheet: View {
             if let n = d.progress?.totalEpisodes, n > 0 { parts.append("\(n) episodes") }
         }
         else if let r = d.runtime, r > 0 { parts.append("\(r / 60 > 0 ? "\(r / 60)h " : "")\(r % 60)m") }
+        if let age = d.age { parts.append(age) }
         parts.append(contentsOf: d.genres.prefix(2))
         if let rating = d.rating { parts.append("★ \(String(format: "%.1f", rating))") }
         return parts.joined(separator: " · ")

@@ -1,6 +1,6 @@
 import { MyList } from "@/components/MyList";
 import { currentUser } from "@/lib/auth";
-import { library } from "@/lib/queries";
+import { agedLibrary } from "@/lib/age-filter";
 import { followedPeople, peopleYouLove, within } from "@/lib/people";
 
 export const dynamic = "force-dynamic";
@@ -12,7 +12,7 @@ export default async function ListPage() {
   return (
     <MyList
       signedIn
-      {...library(user.id)}
+      {...(await agedLibrary(user.id))}
       people={followedPeople(user.id)}
       loved={await within(2500, peopleYouLove(user.id), [])}
     />

@@ -679,6 +679,12 @@ function FreshCard({
     >
       <Thumb src={item.backdrop ?? item.poster} className="absolute inset-0 size-full" />
       <div className="absolute inset-0 bg-gradient-to-b from-transparent via-black/35 to-black/90" />
+      {/* A rating outside your levels, on a show you follow. */}
+      {item.ageWarn && item.age ? (
+        <span className="numeric absolute end-3 top-3 rounded-full bg-against px-2.5 py-1 text-[11.5px] font-bold text-white">
+          {item.age}
+        </span>
+      ) : null}
       <div className="absolute inset-x-0 bottom-0 p-[18px]">
         <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-love-soft">
           New episode · {dayLabel(item.date, today)}

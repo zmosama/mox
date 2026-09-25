@@ -85,6 +85,13 @@ export const titles = sqliteTable(
     lang: text("lang"),
     runtime: integer("runtime"),
     collection: text("collection"),
+    /**
+     * The age level (see src/lib/ratings.ts): "all", "7", "pg", "13" or "18",
+     * null when TMDB has no certificate for it. `ageCheckedAt` says whether
+     * that null means "unrated" or "not looked up yet".
+     */
+    ageLevel: text("age_level"),
+    ageCheckedAt: integer("age_checked_at"),
     updatedAt: integer("updated_at").notNull().default(sql`(unixepoch())`),
   },
   (t) => [

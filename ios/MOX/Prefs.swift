@@ -42,6 +42,10 @@ nonisolated struct Prefs: Codable, Sendable, Equatable {
     var tabs: [String]
     var newsLangs: [String]
     var f1Shield: Bool
+    /// Age levels to show: "all", "7", "pg", "13", "18". All five means no filter.
+    var ages: [String]?
+    /// Also hide titles with no rating at all.
+    var hideUnrated: Bool?
 
     /// Known tabs only, in order — a tab added by a newer server is skipped
     /// rather than drawn as a button to nowhere.
@@ -50,4 +54,31 @@ nonisolated struct Prefs: Codable, Sendable, Equatable {
 
 nonisolated struct PrefsPayload: Codable, Sendable {
     let prefs: Prefs
+}
+
+/// The five age levels, the same as src/lib/ratings.ts.
+enum AgeLevel: String, CaseIterable, Identifiable {
+    case all, seven = "7", pg, thirteen = "13", eighteen = "18"
+
+    var id: String { rawValue }
+
+    var label: String {
+        switch self {
+        case .all: "All ages"
+        case .seven: "7+"
+        case .pg: "PG"
+        case .thirteen: "13+"
+        case .eighteen: "18+"
+        }
+    }
+
+    var hint: String {
+        switch self {
+        case .all: "G · TV-Y · TV-G"
+        case .seven: "TV-Y7"
+        case .pg: "PG · TV-PG"
+        case .thirteen: "PG-13 · TV-14"
+        case .eighteen: "R · NC-17 · TV-MA"
+        }
+    }
 }

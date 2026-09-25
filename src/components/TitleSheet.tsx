@@ -36,6 +36,8 @@ export type SheetTitle = {
   following: boolean;
   /** A series: how many episodes, how many out, how many you watched. */
   progress?: ProgressData | null;
+  /** Its age rating, "18+" or "PG"; null when unrated. */
+  age?: string | null;
 };
 
 const cairoToday = () =>
@@ -240,6 +242,7 @@ export function TitleSheet({
           : data.runtime
             ? `${Math.floor(data.runtime / 60) ? `${Math.floor(data.runtime / 60)}h ` : ""}${data.runtime % 60}m`
             : null,
+        data.age,
         ...data.genres.slice(0, 2),
         data.rating ? `★ ${data.rating}` : null,
       ].filter(Boolean)

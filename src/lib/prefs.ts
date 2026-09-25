@@ -9,6 +9,7 @@
 import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { db, schema } from "@/db";
+import { AGE_LEVELS, type AgeLevel } from "./ratings";
 
 /**
  * Every tab the glass bar can hold, besides the ring in the middle, which is
@@ -46,9 +47,19 @@ export type Prefs = {
   newsLangs: NewsLang[];
   /** Hide race results, and the standings they moved, until you mark the race watched. */
   f1Shield: boolean;
+  /** The age levels to show. All five means the filter is off. */
+  ages: AgeLevel[];
+  /** Also hide titles with no certificate at all — shown by default. */
+  hideUnrated: boolean;
 };
 
-export const DEFAULT_PREFS: Prefs = { tabs: DEFAULT_TABS, newsLangs: ["en", "ar"], f1Shield: true };
+export const DEFAULT_PREFS: Prefs = {
+  tabs: DEFAULT_TABS,
+  newsLangs: ["en", "ar"],
+  f1Shield: true,
+  ages: [...AGE_LEVELS],
+  hideUnrated: false,
+};
 
 /** What a client may send: any subset, each part checked on its own. */
 export const PrefsPatch = z
@@ -56,6 +67,8 @@ export const PrefsPatch = z
     tabs: z.array(z.enum(TAB_IDS)).min(1).max(TAB_SLOTS),
     newsLangs: z.array(z.enum(NEWS_LANGS)).min(1),
     f1Shield: z.boolean(),
+    ages: z.array(z.enum(AGE_LEVELS)).min(1),
+    hideUnrated: z.boolean(),
   })
   .partial();
 
@@ -79,6 +92,8 @@ export function parsePrefs(raw: string | null | undefined): Prefs {
     tabs: [...new Set(field("tabs"))],
     newsLangs: [...new Set(field("newsLangs"))],
     f1Shield: field("f1Shield"),
+    ages: [...new Set(field("ages"))],
+    hideUnrated: field("hideUnrated"),
   };
 }
 
@@ -92,6 +107,7 @@ export function writePrefs(userId: number, patch: z.infer<typeof PrefsPatch>): P
   const next = { ...readPrefs(userId), ...patch };
   next.tabs = [...new Set(next.tabs)];
   next.newsLangs = [...new Set(next.newsLangs)];
+  next.ages = [...new Set(next.ages)];
   db.update(schema.users).set({ prefs: JSON.stringify(next) }).where(eq(schema.users.id, userId)).run();
   return next;
 }

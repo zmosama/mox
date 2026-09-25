@@ -363,6 +363,10 @@ struct FreshEpisodeCard: View {
                 .overlay { RemoteImage(url: card.backdrop ?? card.poster) }
                 .clipped()
             LinearGradient(colors: [.clear, .black.opacity(0.35), .black.opacity(0.9)], startPoint: .top, endPoint: .bottom)
+                .overlay(alignment: .topTrailing) {
+                    // A rating outside your levels, on a show you follow.
+                    if card.ageWarn == true, let age = card.age { AgeBadge(text: age).padding(12) }
+                }
 
             VStack(alignment: .leading, spacing: 6) {
                 Text("NEW EPISODE · \(Day.label(card.date ?? today, today: today).uppercased())")

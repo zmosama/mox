@@ -6,6 +6,7 @@
  * transaction and none of them reach into another's tables, so a step that
  * fails leaves the rest of the site exactly as it was.
  */
+import { ageLevel, type CertSource } from "../../src/lib/ratings";
 import Database from "better-sqlite3";
 import { and, eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/better-sqlite3";
@@ -106,7 +107,7 @@ export type Detail = {
   /** How a series is found in TVmaze, which knows what time it airs. */
   external_ids?: { imdb_id?: string | null; tvdb_id?: number | null };
   "watch/providers"?: { results?: WatchProviders };
-};
+} & CertSource;
 
 export type Fetched = {
   tmdbId: number;
@@ -127,7 +128,10 @@ export async function fetchTitle(
        films have no use for it, and the disk cache is keyed on the query, so
        appending it for both would have thrown away every film ever cached. */
     const detail = await tmdb<Detail>(`/${kind}/${tmdbId}`, {
-      append_to_response: kind === "tv" ? "watch/providers,external_ids" : "watch/providers",
+      // Certificates ride along: they decide what an age filter shows.
+      append_to_response: kind === "tv"
+        ? "watch/providers,external_ids,content_ratings"
+        : "watch/providers,release_dates",
     });
     return {
       tmdbId,
@@ -166,6 +170,8 @@ export function saveTitle(tx: Tx, { tmdbId, kind, detail, platforms }: Fetched) 
     lang: detail.original_language ?? null,
     runtime: detail.runtime ?? detail.episode_run_time?.[0] ?? null,
     collection: detail.belongs_to_collection?.name ?? null,
+    ageLevel: ageLevel(kind, detail),
+    ageCheckedAt: Math.floor(Date.now() / 1000),
     updatedAt: Math.floor(Date.now() / 1000),
   };
 

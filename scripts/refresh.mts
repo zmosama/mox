@@ -24,6 +24,7 @@ import { refreshPrices } from "./refresh/prices.mjs";
 import { refreshStore } from "./refresh/store.mjs";
 import { refreshUniverses } from "./refresh/universes.mjs";
 import { refreshWatchlist } from "./refresh/watchlist.mjs";
+import { refreshAges } from "./refresh/ages.mjs";
 
 const TODAY = todayISO();
 const failed: string[] = [];
@@ -67,6 +68,9 @@ await step("calendar", async () => ({
 // What people are waiting for, so the app can say when it arrives.
 await step("watchlist", async () => ({ summary: await refreshWatchlist(), value: null }));
 
+// After every step that brings certificates along, so this only sweeps the rest.
+await step("ages", async () => ({ summary: await refreshAges(), value: null }));
+
 await step("universes", async () => ({ summary: await refreshUniverses(), value: null }));
 
 // The shops. Independent of the feeds: what is for sale answers a different
@@ -85,7 +89,7 @@ await step("cache", async () => {
 });
 
 if (failed.length) {
-  console.error(`\n${failed.length} of 8 steps failed: ${failed.join(", ")}`);
+  console.error(`\n${failed.length} of 9 steps failed: ${failed.join(", ")}`);
   process.exit(1);
 }
-console.log("\nall eight steps current");
+console.log("\nall nine steps current");

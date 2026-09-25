@@ -32,6 +32,10 @@ nonisolated struct Card: Codable, Hashable, Sendable, Identifiable {
     let `as`: String?
     /// Why it is here for you: "Because you like Tom Hardy".
     let reason: String?
+    /// Its age rating, "18+" or "PG"; nil when unrated.
+    let age: String?
+    /// Outside your age levels, shown only because you follow or saved it.
+    let ageWarn: Bool?
 
     var id: String { "\(kind)-\(tmdbId)-\(date ?? "")" }
     var isTV: Bool { kind == "tv" }
@@ -160,6 +164,8 @@ nonisolated struct TitleDetail: Codable, Sendable {
     let following: Bool
     /// A series: how many episodes, how many are out, how many you watched.
     let progress: SeriesProgress?
+    /// Its age rating, "18+" or "PG"; nil when unrated.
+    let age: String?
 }
 
 nonisolated struct EpisodeProgress: Codable, Hashable, Sendable {

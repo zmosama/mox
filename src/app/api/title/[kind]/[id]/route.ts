@@ -1,3 +1,4 @@
+import { AGE_LABEL, ageLevel, certAppend, type CertSource } from "@/lib/ratings";
 import { NextResponse } from "next/server";
 import { and, eq } from "drizzle-orm";
 import { db, schema } from "@/db";
@@ -33,7 +34,7 @@ type TmdbTitle = {
   };
   videos?: { results?: { site: string; key: string; type: string; official?: boolean }[] };
   "watch/providers"?: { results?: WatchProviders };
-};
+} & CertSource;
 
 export async function GET(
   _req: Request,
@@ -50,7 +51,7 @@ export async function GET(
   let d: TmdbTitle;
   try {
     d = await tmdb<TmdbTitle>(`/${kind}/${tmdbId}`, {
-      append_to_response: "credits,watch/providers,videos",
+      append_to_response: `credits,watch/providers,videos,${certAppend(kind)}`,
     });
   } catch (e) {
     return NextResponse.json({ error: (e as Error).message }, { status: 502 });
@@ -135,6 +136,8 @@ export async function GET(
       seasons: d.number_of_seasons ?? null,
       genres: (d.genres ?? []).map((g) => g.name),
       rating: d.vote_average ? Math.round(d.vote_average * 10) / 10 : null,
+      /** Its age rating, "18+" or "PG", or null when it has none. */
+      age: (() => { const l = ageLevel(kind, d); return l ? AGE_LABEL[l] : null; })(),
       poster: posterPath(d.poster_path),
       backdrop: posterPath(d.backdrop_path, "w780"),
       cast: (d.credits?.cast ?? []).slice(0, 6).map((c) => c.name),

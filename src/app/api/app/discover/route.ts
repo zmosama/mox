@@ -1,3 +1,4 @@
+import { ageFilter } from "@/lib/age-filter";
 import { NextResponse } from "next/server";
 import { eq } from "drizzle-orm";
 import { db, schema } from "@/db";
@@ -135,5 +136,6 @@ export async function GET(req: Request) {
     }),
   );
 
-  return NextResponse.json({ results }, { headers: { "cache-control": "no-store" } });
+  const aged = await ageFilter(user?.id ?? null)(results, { lookUp: true });
+  return NextResponse.json({ results: aged }, { headers: { "cache-control": "no-store" } });
 }

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { currentUser } from "@/lib/auth";
 import { personDetail } from "@/lib/people";
+import { ageFilter } from "@/lib/age-filter";
 import { clientAddress, takeRequest } from "@/lib/rate-limit";
 
 /** An actor or director, with everything they made and where it streams. */
@@ -19,7 +20,9 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
   }
   const user = await currentUser();
   try {
-    return NextResponse.json(await personDetail(id, user?.id ?? null), { headers: { "cache-control": "no-store" } });
+    const person = await personDetail(id, user?.id ?? null);
+    const credits = await ageFilter(user?.id ?? null)(person.credits);
+    return NextResponse.json({ ...person, credits }, { headers: { "cache-control": "no-store" } });
   } catch (e) {
     return NextResponse.json({ error: (e as Error).message }, { status: 502 });
   }
