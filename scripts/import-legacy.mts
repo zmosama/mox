@@ -231,24 +231,16 @@ db.transaction((tx) => {
   // Written straight in rather than read from a config file: the set is small,
   // it changes when a subscription changes, and it belongs with the data.
   const SERVICES = [
-    { providerId: 8, slug: "netflix", name: "Netflix",
-      searchUrl: "https://www.netflix.com/search?q={q}" },
-    { providerId: 119, slug: "prime_video", name: "Amazon Prime Video",
-      searchUrl: "https://www.primevideo.com/search/ref=atv_nb_sr?phrase={q}" },
-    { providerId: 1715, slug: "shahid_vip", name: "Shahid VIP",
-      searchUrl: "https://shahid.mbc.net/en/search?q={q}" },
-    { providerId: 629, slug: "osn_plus", name: "OSN+",
-      searchUrl: "https://osnplus.com/en-eg/search?q={q}" },
-    { providerId: 630, slug: "starzplay", name: "STARZPLAY",
-      searchUrl: "https://starzplay.com/en-eg/search?q={q}" },
-    { providerId: 1750, slug: "tod", name: "TOD",
-      searchUrl: "https://tod.tv/en/search?q={q}" },
-    { providerId: 350, slug: "apple_tv", name: "Apple TV",
-      searchUrl: "https://tv.apple.com/search?term={q}" },
+    { providerId: 8, slug: "netflix", name: "Netflix" },
+    { providerId: 119, slug: "prime_video", name: "Amazon Prime Video" },
+    { providerId: 1715, slug: "shahid_vip", name: "Shahid VIP" },
+    { providerId: 629, slug: "osn_plus", name: "OSN+" },
+    { providerId: 630, slug: "starzplay", name: "STARZPLAY" },
+    { providerId: 1750, slug: "tod", name: "TOD" },
+    { providerId: 350, slug: "apple_tv", name: "Apple TV" },
     // Not sold in Egypt, so TMDB lists no EG availability for it; read from
     // these regions instead or a followed show simply vanishes.
     { providerId: 337, slug: "disney_plus", name: "Disney Plus",
-      searchUrl: "https://www.disneyplus.com/search?q={q}",
       regions: ["GB", "DE", "TR", "US"] },
   ];
   for (const svc of SERVICES) {

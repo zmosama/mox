@@ -6,7 +6,7 @@
  * for. TMDB's own display_priority orders it, which puts the services in real
  * use at the top and the long tail of niche catalogues underneath.
  *
- * Existing rows keep their `search_url` and `regions`: those are hand-written
+ * Existing rows keep their `regions`: those are hand-written
  * and TMDB does not know them. A service not sold locally is not in TMDB's list
  * for our region at all, so anything already in the table stays whether or not
  * TMDB returns it — this only ever adds and updates.
@@ -34,12 +34,6 @@ const slugify = (name: string) =>
  * and its cards led nowhere. Only ever filled in when the column is empty, so a
  * hand-written URL is still the one that wins.
  */
-const KNOWN_SEARCH: Record<number, string> = {
-  2: "https://tv.apple.com/search?term={q}",      // Apple TV Store
-  3: "https://play.google.com/store/search?q={q}&c=movies",
-  10: "https://www.amazon.com/s?k={q}&i=instant-video",
-  192: "https://www.youtube.com/results?search_query={q}+movie",
-};
 
 export async function refreshServices() {
   const seen = new Map<number, Provider>();
@@ -69,7 +63,6 @@ export async function refreshServices() {
           slug: slugify(p.provider_name),
           name: p.provider_name,
           logo: p.logo_path ? `https://image.tmdb.org/t/p/w92${p.logo_path}` : null,
-          searchUrl: KNOWN_SEARCH[p.provider_id] ?? null,
           priority: p.display_priority,
         })
         .onConflictDoUpdate({
@@ -78,9 +71,6 @@ export async function refreshServices() {
             name: p.provider_name,
             logo: p.logo_path ? `https://image.tmdb.org/t/p/w92${p.logo_path}` : null,
             priority: p.display_priority,
-            /* Never overwrites one that is already there — `search_url` is
-               hand-written and TMDB knows nothing about it. */
-            searchUrl: sql`coalesce(${s.services.searchUrl}, ${KNOWN_SEARCH[p.provider_id] ?? null})`,
           },
         })
         .run();

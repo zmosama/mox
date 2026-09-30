@@ -1,3 +1,4 @@
+import { playUrl } from "@/lib/play-links";
 import { ageFilter } from "@/lib/age-filter";
 import { NextResponse } from "next/server";
 import { currentUser } from "@/lib/auth";
@@ -73,7 +74,7 @@ export async function GET(req: Request) {
           return {
             name: row.name,
             logo: svc?.logo ?? null,
-            url: row.deepLink ?? svc?.searchUrl?.replace("{q}", encodeURIComponent(title)) ?? null,
+            url: playUrl(svc?.providerId, title, row.deepLink),
           };
         }),
       };

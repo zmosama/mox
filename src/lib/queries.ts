@@ -6,6 +6,7 @@
  * nobody in particular, and signing in only swaps in that account's verdicts,
  * follows and taste.
  */
+import { playUrl } from "./play-links";
 import { and, desc, eq, gte, inArray, isNotNull, lte, sql } from "drizzle-orm";
 import { db, schema } from "@/db";
 import { TasteModel, type Feature, type RatedTitle, type Scorable } from "./taste";
@@ -23,7 +24,6 @@ export type ServiceRow = {
   providerId: number;
   name: string;
   logo: string | null;
-  searchUrl: string | null;
 };
 
 export function services(): ServiceRow[] {
@@ -32,7 +32,6 @@ export function services(): ServiceRow[] {
       providerId: schema.services.providerId,
       name: schema.services.name,
       logo: schema.services.logo,
-      searchUrl: schema.services.searchUrl,
     })
     .from(schema.services)
     .all();
@@ -53,8 +52,7 @@ function toService(
   deepLink: string | null,
 ): Service {
   const row = lookup.get(name);
-  const search = row?.searchUrl?.replace("{q}", encodeURIComponent(title)) ?? null;
-  return { name, logo: row?.logo ?? null, url: deepLink ?? search };
+  return { name, logo: row?.logo ?? null, url: playUrl(row?.providerId, title, deepLink) };
 }
 
 // ---------------------------------------------------------------- viewer

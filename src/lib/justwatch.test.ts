@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatPrice, parseArrivals, parseClickouts, parseOffers, priceFor } from "./justwatch";
+import { formatPrice, parseArrivals, parseOffers, priceFor } from "./justwatch";
 
 /** A clickout link the way JustWatch writes one: the offer is base64 in `cx`. */
 const offerLink = (offer: Record<string, unknown>) => {
@@ -81,38 +81,5 @@ describe("reading arrivals off a provider page", () => {
   it("keeps the first sighting of a slug listed twice", () => {
     const html = card("keeper", "Keeper") + card("keeper", "Keeper again");
     expect(parseArrivals(html)).toEqual([{ slug: "keeper", title: "Keeper" }]);
-  });
-});
-
-describe("clickout destinations", () => {
-  /** A real payload from TMDB's watch page: Shahid VIP, One Piece episode 1076. */
-  const payload =
-    "eyJzY2hlbWEiOiJpZ2x1OmNvbS5zbm93cGxvd2FuYWx5dGljcy5zbm93cGxvdy9jb250ZXh0cy9qc29uc2NoZW1hLzEtMC0wIiwiZGF0YSI6W3sic2NoZW1hIjoiaWdsdTpjb20uanVzdHdhdGNoL2NsaWNrb3V0X2NvbnRleHQvanNvbnNjaGVtYS8xLTMtMiIsImRhdGEiOnsicHJvdmlkZXIiOiJTaGFoaWQgVklQIiwibW9uZXRpemF0aW9uVHlwZSI6ImZsYXRyYXRlIiwicHJlc2VudGF0aW9uVHlwZSI6InNkIiwiY3VycmVuY3kiOiJFR1AiLCJwYXJ0bmVySWQiOjYsInByb3ZpZGVySWQiOjE3MTUsImNsaWNrb3V0VHlwZSI6Imp3LWNvbnRlbnQtcGFydG5lci1leHBvcnQtYXBpIn19XX0";
-  const shahid =
-    "https%3A%2F%2Fshahid.mbc.net%2Fen%2Fplayer%2Fepisodes%2FOne-Piece-season-1-episode-1076%2Fid-1023248";
-  const anchor = (cx: string, r: string) =>
-    `<a href="https://click.justwatch.com/a?cx=${cx}&r=${r}&uct_country=eg">`;
-
-  it("reads the service's own URL out of the link", () => {
-    const [offer] = parseClickouts(anchor(payload, shahid));
-    expect(offer.providerId).toBe(1715);
-    expect(offer.monetizationType).toBe("flatrate");
-    expect(offer.url).toBe(
-      "https://shahid.mbc.net/en/player/episodes/One-Piece-season-1-episode-1076/id-1023248",
-    );
-  });
-
-  it("keeps one link per service, not one per quality", () => {
-    // The same title is offered at hd and sd; both carry the same destination.
-    expect(parseClickouts(anchor(payload, shahid) + anchor(payload, shahid))).toHaveLength(1);
-  });
-
-  it("refuses a destination that is not a link to the service", () => {
-    expect(parseClickouts(anchor(payload, "javascript%3Aalert(1)"))).toEqual([]);
-    expect(parseClickouts(anchor(payload, "%2Fsearch%3Fq%3Done"))).toEqual([]);
-  });
-
-  it("ignores anything that is not a clickout", () => {
-    expect(parseClickouts('<a href="https://www.netflix.com/title/80107103">')).toEqual([]);
   });
 });

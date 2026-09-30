@@ -233,15 +233,6 @@ export const availability = sqliteTable(
     /** @deprecated Use `userServices`; application reads no longer consult this. */
     mine: integer("mine", { mode: "boolean" }).notNull().default(false),
     deepLink: text("deep_link"),
-    /**
-     * When JustWatch was last asked where this plays.
-     *
-     * Without it the nightly job re-asks about the same thousand titles that
-     * have no offer and never will — mostly old films the services dropped
-     * years ago — and a title released this week waits behind them. Recorded
-     * whether or not a link was found, so a fruitless answer counts.
-     */
-    linkedAt: integer("linked_at"),
     updatedAt: integer("updated_at").notNull().default(sql`(unixepoch())`),
     /**
      * When this title first turned up on this provider (unix seconds), kept
@@ -331,7 +322,6 @@ export const services = sqliteTable("services", {
   slug: text("slug").notNull(),
   name: text("name").notNull(),
   logo: text("logo"),
-  searchUrl: text("search_url"),
   /** Services not sold locally (Disney+ in Egypt) are read from these regions. */
   regions: text("regions", { mode: "json" }).$type<string[]>(),
   /** TMDB's own ordering for the region — the useful ones come first. */

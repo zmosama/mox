@@ -1,3 +1,4 @@
+import { playUrl } from "@/lib/play-links";
 import { ageFilter } from "@/lib/age-filter";
 import { NextResponse } from "next/server";
 import { eq } from "drizzle-orm";
@@ -129,7 +130,7 @@ export async function GET(req: Request) {
           return {
             name,
             logo: row?.logo ?? null,
-            url: row?.searchUrl?.replace("{q}", encodeURIComponent(title)) ?? null,
+            url: playUrl(row?.providerId, title),
           };
         }),
       };

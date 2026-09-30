@@ -8,6 +8,7 @@
  * that matter most, and everything already in the catalog is answered from
  * the local availability table.
  */
+import { playUrl } from "./play-links";
 import { and, desc, eq } from "drizzle-orm";
 import { db, schema } from "@/db";
 import type { CardTitle } from "@/components/TitleCard";
@@ -155,7 +156,7 @@ async function platformsFor(
       return {
         name,
         logo: row?.logo ?? null,
-        url: deepLink ?? row?.searchUrl?.replace("{q}", encodeURIComponent(title)) ?? null,
+        url: playUrl(row?.providerId, title, deepLink),
       };
     });
 
