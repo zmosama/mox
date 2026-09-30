@@ -18,7 +18,7 @@
  */
 import { and, desc, eq, inArray, isNull, lt, or, sql } from "drizzle-orm";
 import { db, HOME, mapPool, s } from "./shared.mjs";
-import { parseClickouts } from "../../src/lib/justwatch";
+import { parseClickouts, type Clickout } from "../../src/lib/justwatch";
 import type { MediaKind } from "../../src/db/schema";
 
 /**
@@ -42,15 +42,32 @@ const UA =
 
 type Target = { tmdbId: number; kind: MediaKind; releaseDate?: string | null };
 
-async function destinations(t: Target) {
+/**
+ * Where this plays, or null if the question could not be asked.
+ *
+ * The difference is the whole point. An empty array means the page answered and
+ * had no offer; null means the fetch failed. Treating those the same is what
+ * held the first run to 11% coverage: fetching hundreds of pages at once got
+ * throttled, every throttled title was recorded as having no offer, and the row
+ * was then left alone for a month — while the page, asked again by hand, had
+ * the offer all along.
+ */
+async function destinations(t: Target): Promise<Clickout[] | null> {
   const url = `https://www.themoviedb.org/${t.kind}/${t.tmdbId}/watch?locale=${HOME}`;
-  try {
-    const res = await fetch(url, { headers: { "user-agent": UA } });
-    if (!res.ok) return null;
-    return parseClickouts(await res.text());
-  } catch {
-    return null;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      const res = await fetch(url, { headers: { "user-agent": UA } });
+      if (res.status === 429 || res.status >= 500) {
+        await new Promise((r) => setTimeout(r, 2000 * (attempt + 1)));
+        continue;
+      }
+      if (!res.ok) return null;
+      return parseClickouts(await res.text());
+    } catch {
+      await new Promise((r) => setTimeout(r, 1000 * (attempt + 1)));
+    }
   }
+  return null;
 }
 
 export async function refreshLinks() {
@@ -102,27 +119,28 @@ export async function refreshLinks() {
       .map((r) => [r.providerId, r.name]),
   );
 
-  const found = await mapPool(waiting, 4, async (t) => {
-    const offers = await destinations(t);
-    return offers?.length ? { t, offers } : null;
-  });
+  /* Two at a time, not four. This is somebody else's page and a few hundred
+     requests an evening; being throttled costs more than the wait saves. */
+  const asked = await mapPool(waiting, 2, async (t) => ({ t, offers: await destinations(t) }));
 
   let written = 0;
   let titles = 0;
   const now = Math.floor(Date.now() / 1000);
 
   db.transaction((tx) => {
-    /* Every title asked about, whether or not it answered. A title with no
-       offer has been checked just as much as one with three. */
-    for (const t of waiting) {
+    /* Only the titles whose page actually answered. One that could not be
+       reached is left untouched, so tomorrow tries it again rather than
+       writing it off for a month. */
+    for (const { t, offers } of asked) {
+      if (offers === null) continue;
       tx.update(s.availability)
         .set({ linkedAt: now })
         .where(and(eq(s.availability.tmdbId, t.tmdbId), eq(s.availability.kind, t.kind)))
         .run();
     }
 
-    for (const hit of found) {
-      if (!hit) continue;
+    for (const hit of asked) {
+      if (!hit.offers?.length) continue;
       let any = false;
       for (const offer of hit.offers) {
         const provider = nameOf.get(offer.providerId);
