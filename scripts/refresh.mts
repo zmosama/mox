@@ -19,6 +19,7 @@ import { todayISO } from "../src/lib/dates";
 import { pruneCache } from "../src/lib/tmdb";
 import { refreshCalendar } from "./refresh/calendar.mjs";
 import { refreshFeeds } from "./refresh/feeds.mjs";
+import { refreshLinks } from "./refresh/links.mjs";
 import { refreshServices } from "./refresh/services.mjs";
 import { refreshPrices } from "./refresh/prices.mjs";
 import { refreshStore } from "./refresh/store.mjs";
@@ -80,6 +81,10 @@ await step("store", async () => ({ summary: await refreshStore(TODAY), value: nu
 // After the store: pricing asks about the films that step just decided are
 // recent arrivals, so it has to know which those are.
 await step("prices", async () => ({ summary: await refreshPrices(TODAY), value: null }));
+
+// After the store, because a title that arrived tonight should get its Play
+// link on the same run rather than waiting for tomorrow.
+await step("links", async () => ({ summary: await refreshLinks(), value: null }));
 
 // Last, and after everything that might have wanted a warm cache this run.
 await step("cache", async () => {
