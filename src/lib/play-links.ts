@@ -42,7 +42,7 @@ const RULES: Record<number, Rule> = {
   // TOD
   1750: {
     search: (q) => `https://www.tod.tv/en/search?q=${q}`,
-    verified: "logged out: the search box fills from q",
+    verified: "logged in (Mohammed): search?q=mobland",
   },
   // Apple TV, and the Apple TV Store
   350: {

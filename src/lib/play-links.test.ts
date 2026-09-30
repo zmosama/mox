@@ -11,6 +11,10 @@ describe("the Play button", () => {
     expect(playUrl(629, "Survivor")).toBe("https://osnplus.com/en-eg/search?query=Survivor");
   });
 
+  it("sends TOD q", () => {
+    expect(playUrl(1750, "mobland")).toBe("https://www.tod.tv/en/search?q=mobland");
+  });
+
   it("keeps Apple in the Egyptian store", () => {
     expect(playUrl(350, "Severance")).toBe("https://tv.apple.com/eg/search?term=Severance");
   });
