@@ -1,0 +1,13 @@
+# Anything the image must never carry: local state, secrets, build output that
+# would shadow the one the image builds, and the git history.
+node_modules
+.next
+.git
+data
+backup
+legacy
+output
+ios
+brand/screens
+.env*
+deploy/target.env
