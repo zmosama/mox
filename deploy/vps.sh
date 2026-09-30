@@ -3,22 +3,24 @@
 #
 #   ./deploy/vps.sh
 #
-# GitHub is the path: this pushes, then the server pulls, builds and swaps. The
-# server never receives anything that is not on main, so what is running can
-# always be identified by a commit.
+# The image is built HERE and shipped. The VPS has one core and 1.9GB of RAM
+# behind a swapfile, with a live site running on it — building there works, but
+# it takes the box to the edge of its memory to do it, and this was settled
+# before: the Mac builds, the server receives.
 #
-# Two things make it safe to run on a live site. The build happens while the old
-# container is still serving, so a build that fails changes nothing. And the
-# image being replaced is tagged first, so a new one that starts but does not
-# answer is put back within seconds.
+# It still pushes to GitHub first and refuses a dirty tree, so whatever is
+# running can always be named by a commit.
+#
+# Two things make it safe to run on a live site. Everything slow happens while
+# the old container is still serving, so a failure before the swap changes
+# nothing. And the image being replaced is tagged first, so a new one that
+# starts but does not answer is put back within seconds.
 #
 # The old deploy/deploy.sh targeted a Mac on the home network and has not been
 # production since the site moved here.
 set -euo pipefail
 
 HOST=${MOX_VPS:-mox}
-REPO=${MOX_REPO:-https://github.com/zmosama/mox.git}
-BUILD=${MOX_BUILD_DIR:-/srv/build/mox}
 APPS=${MOX_APPS_DIR:-/srv/apps}
 URL=${MOX_URL:-https://mox.mosama.me}
 
@@ -43,20 +45,21 @@ ssh "$HOST" "docker exec apps-mox-1 node -e \"
   db.exec(\\\"vacuum into '/data/predeploy.db'\\\");
 \" && ls -lh /srv/apps/mox/data/predeploy.db | awk '{print \"    \" \$5}'"
 
-say "fetching $REPO on the server"
-ssh "$HOST" "set -e
-  mkdir -p $(dirname "$BUILD")
-  if [ -d $BUILD/.git ]; then git -C $BUILD fetch --quiet origin main && git -C $BUILD reset --quiet --hard origin/main
-  else git clone --quiet $REPO $BUILD; fi
-  git -C $BUILD rev-parse --short HEAD | sed 's/^/    server is at /'"
+say "building here"
+if ! docker info >/dev/null 2>&1; then
+  echo "!! Docker is not running — start Docker Desktop and try again" >&2
+  exit 1
+fi
+# This Mac is arm64 and the droplet is x86_64, so the platform is not optional:
+# without it the image builds happily and then will not start over there.
+docker build --platform linux/amd64 -t local/mox:latest . | tail -3 | sed 's/^/    /'
 
 say "keeping the current image as the way back"
 ssh "$HOST" "docker tag local/mox:latest local/mox:rollback && echo '    tagged local/mox:rollback'"
 
-# The old container keeps serving throughout this. A build that runs out of
-# memory on a 2GB box fails here and changes nothing.
-say "building (the site stays up)"
-ssh "$HOST" "cd $BUILD && docker build --quiet -t local/mox:latest . | sed 's/^/    /'"
+# The old container keeps serving throughout the transfer.
+say "shipping it (about 200MB compressed, the site stays up)"
+docker save local/mox:latest | gzip | ssh "$HOST" "gunzip | docker load" | sed 's/^/    /'
 
 say "swapping the container"
 ssh "$HOST" "cd $APPS && docker compose up -d mox 2>&1 | sed 's/^/    /'"
