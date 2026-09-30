@@ -16,7 +16,7 @@
  * `toService` already prefers a deep link over the search URL, so filling these
  * in is the whole change: nothing in the pages needs to know.
  */
-import { and, eq, inArray, isNull, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import { db, HOME, mapPool, s } from "./shared.mjs";
 import { parseClickouts } from "../../src/lib/justwatch";
 import type { MediaKind } from "../../src/db/schema";
@@ -31,7 +31,7 @@ const PER_RUN = Number(process.env.MOX_LINKS_PER_RUN ?? 150);
 const UA =
   "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Safari/605.1.15";
 
-type Target = { tmdbId: number; kind: MediaKind };
+type Target = { tmdbId: number; kind: MediaKind; releaseDate?: string | null };
 
 async function destinations(t: Target) {
   const url = `https://www.themoviedb.org/${t.kind}/${t.tmdbId}/watch?locale=${HOME}`;
@@ -46,11 +46,25 @@ async function destinations(t: Target) {
 
 export async function refreshLinks() {
   /* Only what the viewer could actually tap: a title on a service somebody here
-     subscribes to, which has no destination recorded yet. */
+     subscribes to, which has no destination recorded yet.
+
+     Newest first, and that ordering matters more than it looks. Without it the
+     limit takes an arbitrary slice, so the title somebody is looking at right
+     now can sit behind a thousand films from 2011 and wait days for a link
+     while the old ones — most of which have no offers at all and never will —
+     are retried every single night. */
   const waiting = db
-    .selectDistinct({ tmdbId: s.availability.tmdbId, kind: s.availability.kind })
+    .selectDistinct({
+      tmdbId: s.availability.tmdbId,
+      kind: s.availability.kind,
+      releaseDate: s.titles.releaseDate,
+    })
     .from(s.availability)
     .innerJoin(s.services, eq(s.services.name, s.availability.provider))
+    .innerJoin(
+      s.titles,
+      and(eq(s.titles.tmdbId, s.availability.tmdbId), eq(s.titles.kind, s.availability.kind)),
+    )
     .where(
       and(
         isNull(s.availability.deepLink),
@@ -60,6 +74,7 @@ export async function refreshLinks() {
         ),
       ),
     )
+    .orderBy(desc(s.titles.releaseDate))
     .limit(PER_RUN)
     .all() as Target[];
 
