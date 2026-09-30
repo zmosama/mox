@@ -233,6 +233,15 @@ export const availability = sqliteTable(
     /** @deprecated Use `userServices`; application reads no longer consult this. */
     mine: integer("mine", { mode: "boolean" }).notNull().default(false),
     deepLink: text("deep_link"),
+    /**
+     * When JustWatch was last asked where this plays.
+     *
+     * Without it the nightly job re-asks about the same thousand titles that
+     * have no offer and never will — mostly old films the services dropped
+     * years ago — and a title released this week waits behind them. Recorded
+     * whether or not a link was found, so a fruitless answer counts.
+     */
+    linkedAt: integer("linked_at"),
     updatedAt: integer("updated_at").notNull().default(sql`(unixepoch())`),
     /**
      * When this title first turned up on this provider (unix seconds), kept

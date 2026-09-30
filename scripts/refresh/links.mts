@@ -16,17 +16,26 @@
  * `toService` already prefers a deep link over the search URL, so filling these
  * in is the whole change: nothing in the pages needs to know.
  */
-import { and, desc, eq, inArray, isNull, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull, lt, or, sql } from "drizzle-orm";
 import { db, HOME, mapPool, s } from "./shared.mjs";
 import { parseClickouts } from "../../src/lib/justwatch";
 import type { MediaKind } from "../../src/db/schema";
 
 /**
- * A night's worth. 1,200 titles is a lot of fetching to do at once and the
- * answer barely moves once found, so this fills in over a few nights and then
- * only ever sees what is new. Raise it for a one-off catch-up.
+ * A night's worth. Raise it for a one-off catch-up.
  */
 const PER_RUN = Number(process.env.MOX_LINKS_PER_RUN ?? 150);
+
+/**
+ * How long before a title with no offer is asked about again.
+ *
+ * Measured on the shelf as it stands: of twelve recent titles eight had an
+ * offer, against roughly one in fourteen taken at random. The old ones are not
+ * slow to answer — they answer "nothing", every night, for ever, and a film
+ * released this week queues behind them. A month is long enough to stop that
+ * and short enough that a title returning to a service is picked up.
+ */
+const RETRY_AFTER_DAYS = 30;
 
 const UA =
   "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Safari/605.1.15";
@@ -68,6 +77,10 @@ export async function refreshLinks() {
     .where(
       and(
         isNull(s.availability.deepLink),
+        or(
+          isNull(s.availability.linkedAt),
+          lt(s.availability.linkedAt, Math.floor(Date.now() / 1000) - RETRY_AFTER_DAYS * 86400),
+        ),
         inArray(
           s.services.providerId,
           db.selectDistinct({ id: s.userServices.providerId }).from(s.userServices),
@@ -96,8 +109,18 @@ export async function refreshLinks() {
 
   let written = 0;
   let titles = 0;
+  const now = Math.floor(Date.now() / 1000);
 
   db.transaction((tx) => {
+    /* Every title asked about, whether or not it answered. A title with no
+       offer has been checked just as much as one with three. */
+    for (const t of waiting) {
+      tx.update(s.availability)
+        .set({ linkedAt: now })
+        .where(and(eq(s.availability.tmdbId, t.tmdbId), eq(s.availability.kind, t.kind)))
+        .run();
+    }
+
     for (const hit of found) {
       if (!hit) continue;
       let any = false;

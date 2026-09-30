@@ -1,0 +1,1 @@
+ALTER TABLE `availability` ADD `linked_at` integer;
