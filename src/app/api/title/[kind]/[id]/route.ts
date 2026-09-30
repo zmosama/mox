@@ -3,8 +3,8 @@ import { NextResponse } from "next/server";
 import { and, eq } from "drizzle-orm";
 import { db, schema } from "@/db";
 import { currentUser } from "@/lib/auth";
-import { includedOn, type WatchProviders } from "@/lib/providers";
-import { serviceLookup } from "@/lib/queries";
+import { includedOn, soldOn, type WatchProviders } from "@/lib/providers";
+import { APPLE_TV_STORE, serviceLookup, storeOffer } from "@/lib/queries";
 import { posterPath, region, tmdb } from "@/lib/tmdb";
 import { profileUrl } from "@/lib/people";
 import { seriesProgress, type TmdbSeasonSummary } from "@/lib/progress";
@@ -170,6 +170,9 @@ export async function GET(
             null,
         };
       }),
+      /* Rent or buy on Apple TV Store, apart from `platforms` on purpose:
+         those are included in a subscription, this costs money per film. */
+      store: storeOffer(tmdbId, kind, title, soldOn(d["watch/providers"]?.results, region(), APPLE_TV_STORE)),
       verdict,
       following,
       progress,

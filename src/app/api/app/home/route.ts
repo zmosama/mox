@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { avatarUrl, currentUser } from "@/lib/auth";
 import { todayISO } from "@/lib/dates";
-import { calendar, feed, forYou, newInStore, withReasons } from "@/lib/queries";
+import { calendar, feed, forYou, withReasons } from "@/lib/queries";
 import { newFromPeople, within } from "@/lib/people";
 import { agedEpisodes, agedTitles, ageFilter } from "@/lib/age-filter";
 
@@ -28,7 +28,10 @@ export async function GET() {
       calendar: await agedEpisodes(aged, calendar(id, 14)),
       trending: await aged(withReasons(id, feed("trending", id, 24))),
       fromPeople: id ? await agedTitles(aged, await within(2500, newFromPeople(id, today), [])) : [],
-      inStore: await aged(newInStore(id, today)),
+      /* The store shelf is gone — rent and buy now show on the title itself.
+         Kept as an empty list because the shipped iPhone app decodes it as
+         required, and an empty rail simply isn't drawn. */
+      inStore: [],
     },
     { headers: { "cache-control": "no-store" } },
   );

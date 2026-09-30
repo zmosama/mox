@@ -2,15 +2,19 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>BGTaskSchedulerPermittedIdentifiers</key>
+	<array>
+		<string>me.mosama.mox.alerts</string>
+	</array>
+	<key>LSApplicationQueriesSchemes</key>
+	<array>
+		<string>nflx</string>
+	</array>
 	<key>NSAppTransportSecurity</key>
 	<dict>
 		<key>NSAllowsLocalNetworking</key>
 		<true/>
 	</dict>
-	<key>NSSpeechRecognitionUsageDescription</key>
-	<string>Ask MOX turns what you say into a search.</string>
-	<key>NSMicrophoneUsageDescription</key>
-	<string>Ask MOX listens while the mic button is on.</string>
 	<key>UIAppFonts</key>
 	<array>
 		<string>Sora-Regular.ttf</string>
@@ -18,17 +22,9 @@
 		<string>Sora-SemiBold.ttf</string>
 		<string>Sora-Bold.ttf</string>
 	</array>
-	<key>BGTaskSchedulerPermittedIdentifiers</key>
-	<array>
-		<string>me.mosama.mox.alerts</string>
-	</array>
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>fetch</string>
-	</array>
-	<key>LSApplicationQueriesSchemes</key>
-	<array>
-		<string>nflx</string>
 	</array>
 </dict>
 </plist>

@@ -411,89 +411,49 @@ export function newTimeline(userId: number | null, today = todayISO()): ReleaseI
   return [...released, ...extra];
 }
 
+/** Apple's store on TMDB and in `store_items`. */
+export const APPLE_TV_STORE = 2;
+
 /**
- * Films that have just appeared in a store the viewer uses.
+ * Whether a title can be rented or bought on Apple TV Store, and for how much.
  *
- * The store badge is built from `services` rather than read from
- * `availability`, because these titles are deliberately not in it: rent and buy
- * are excluded from `INCLUDED`, so nothing here claims a film is yours to watch
- * when it is only yours to buy. The section's own heading carries that.
+ * Shown on the title itself, under the services it is included on, and never
+ * among them: rent and buy stay out of `INCLUDED`, so a store row can't read
+ * as "yours to watch". Either source is enough — the nightly sweep of the
+ * store (which is also where the price comes from), or TMDB listing Apple
+ * under rent or buy for this region.
  */
-export function newInStore(userId: number | null, today = todayISO(), days = 30): CardTitle[] {
-  const from = addDaysISO(today, -days);
-
-  const mine = userId
-    ? new Set(
-        db
-          .select({ providerId: schema.userServices.providerId })
-          .from(schema.userServices)
-          .where(eq(schema.userServices.userId, userId))
-          .all()
-          .map((r) => r.providerId),
-      )
-    : null;
-
-  const rows = db
+export function storeOffer(
+  tmdbId: number,
+  kind: MediaKind,
+  title: string,
+  forSale: boolean,
+): (Service & { price: string | null }) | null {
+  const row = db
     .select({
-      tmdbId: schema.storeItems.tmdbId,
-      providerId: schema.storeItems.providerId,
-      firstSeen: schema.storeItems.firstSeen,
       rentCent: schema.storeItems.rentCent,
       buyCent: schema.storeItems.buyCent,
       currency: schema.storeItems.currency,
     })
     .from(schema.storeItems)
-    .where(and(gte(schema.storeItems.firstSeen, from), lte(schema.storeItems.firstSeen, today)))
-    .orderBy(desc(schema.storeItems.firstSeen))
-    .all();
+    .where(
+      and(
+        eq(schema.storeItems.providerId, APPLE_TV_STORE),
+        eq(schema.storeItems.tmdbId, tmdbId),
+        eq(schema.storeItems.kind, kind),
+      ),
+    )
+    .get();
+  if (!row && !forSale) return null;
 
-  const titles = titlesByIds(rows.map((r) => ({ tmdbId: r.tmdbId, kind: "movie" as const })));
-  const lookup = serviceLookup();
-  const byId = new Map(services().map((x) => [x.providerId, x]));
-  const verdicts = userId ? verdictsFor(userId) : new Map<string, Verdict>();
-
-  const out: CardTitle[] = [];
-  const seen = new Set<number>();
-
-  for (const r of rows) {
-    if (mine && mine.size && !mine.has(r.providerId)) continue;
-    if (seen.has(r.tmdbId)) continue;
-
-    const t = titles.get(key(r.tmdbId, "movie"));
-    const store = byId.get(r.providerId);
-    if (!t || !store) continue;
-
-    /* The feed's rule, not the calendar's: this is a shelf of things to
-       discover, so anything already judged drops out. Watchlisted is the
-       exception and the best row the section can print — a film you said you
-       wanted, now available to buy tonight. */
-    const verdict = verdicts.get(key(r.tmdbId, "movie")) ?? null;
-    if (verdict && verdict !== "watchlist") continue;
-
-    seen.add(r.tmdbId);
-    out.push({
-      tmdbId: t.tmdbId,
-      kind: "movie",
-      title: t.title,
-      year: t.year,
-      poster: t.poster,
-      rating: t.rating,
-      verdict,
-      platforms: [toService(store.name, lookup, t.title, null)],
-      price: priceLabel(r.rentCent, r.buyCent, r.currency),
-      arrived: r.firstSeen,
-    });
-  }
-
-  /* Newest first, and best within a day.
-     Sorting the whole month by score read as a leaderboard rather than a
-     shelf: the film that turned up this morning is the news, and a four-week
-     window sorted by rating buries it under whatever scored highest in
-     August. */
-  return out.sort(
-    (a, b) => (b.arrived ?? "").localeCompare(a.arrived ?? "") || (b.rating ?? 0) - (a.rating ?? 0),
-  );
+  const store = services().find((s) => s.providerId === APPLE_TV_STORE);
+  const name = store?.name ?? "Apple TV Store";
+  return {
+    ...toService(name, serviceLookup(), title, null),
+    price: row ? priceLabel(row.rentCent, row.buyCent, row.currency) ?? null : null,
+  };
 }
+
 
 export function feed(name: Feed, userId: number | null, limit = 60): CardTitle[] {
   const rows = db

@@ -238,7 +238,7 @@ db.transaction((tx) => {
     { providerId: 1715, slug: "shahid_vip", name: "Shahid VIP",
       searchUrl: "https://shahid.mbc.net/en/search?q={q}" },
     { providerId: 629, slug: "osn_plus", name: "OSN+",
-      searchUrl: "https://stream.osn.com/en/search?query={q}" },
+      searchUrl: "https://osnplus.com/en-eg/search?q={q}" },
     { providerId: 630, slug: "starzplay", name: "STARZPLAY",
       searchUrl: "https://starzplay.com/en-eg/search?q={q}" },
     { providerId: 1750, slug: "tod", name: "TOD",

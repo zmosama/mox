@@ -32,6 +32,8 @@ export type SheetTitle = {
   /** Directors first, then the cast, with faces — each opens their page. */
   people?: PersonChipData[];
   platforms: Service[];
+  /** Rent or buy on Apple TV Store — costs per film, so never among `platforms`. */
+  store?: (Service & { price: string | null }) | null;
   verdict: Verdict | null;
   following: boolean;
   /** A series: how many episodes, how many out, how many you watched. */
@@ -336,7 +338,13 @@ export function TitleSheet({
             <div className="flex flex-col gap-5 px-5 pb-10 pt-5">
               <section className="flex flex-col gap-2.5">
                 <h3 className="text-[13px] font-semibold text-ink-dim">
-                  {data.platforms.length ? "Watch on" : signedIn ? "Not on your services in Egypt" : "Not on a tracked service"}
+                  {data.platforms.length
+                    ? "Watch on"
+                    : data.store
+                      ? "Rent or buy"
+                      : signedIn
+                        ? "Not on your services in Egypt"
+                        : "Not on a tracked service"}
                 </h3>
                 {data.platforms.map((p) => (
                   <a
@@ -356,6 +364,28 @@ export function TitleSheet({
                     </svg>
                   </a>
                 ))}
+                {/* Its own row under the services, saying rent/buy and the
+                    price, so it never reads as included in a subscription. */}
+                {data.store ? (
+                  <a
+                    href={data.store.url ?? undefined}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-3 rounded-2xl bg-surface p-3 transition hover:bg-card"
+                  >
+                    {data.store.logo ? (
+                      // eslint-disable-next-line @next/next/no-img-element -- TMDB logo
+                      <img src={data.store.logo} alt="" className="size-[30px] rounded-[7px]" />
+                    ) : null}
+                    <span className="flex flex-1 flex-col">
+                      <span className="text-[16px] font-semibold">{data.store.name}</span>
+                      <span className="text-[13px] text-ink-dim">{data.store.price ?? "Rent or buy"}</span>
+                    </span>
+                    <svg viewBox="0 0 24 24" className="size-5 fill-ink-dim" aria-hidden>
+                      <path d="M7 4v16l13-8z" />
+                    </svg>
+                  </a>
+                ) : null}
               </section>
 
               {/* Always shown: hidden when signed out, they looked missing

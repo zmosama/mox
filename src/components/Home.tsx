@@ -47,7 +47,6 @@ export function Home({
   episodes,
   trending,
   fromPeople,
-  inStore,
   needsServices,
 }: {
   today: string;
@@ -59,7 +58,6 @@ export function Home({
   trending: CardTitle[];
   /** New work from the actors and directors you follow. */
   fromPeople: PersonNews[];
-  inStore: CardTitle[];
   needsServices: boolean;
 }) {
   const [query, setQuery] = useState("");
@@ -220,7 +218,6 @@ export function Home({
             episodes={episodes}
             trending={trending}
             fromPeople={fromPeople}
-            inStore={inStore}
             onOpen={setOpen}
           />
         </div>
@@ -506,7 +503,6 @@ function Board({
   episodes,
   trending,
   fromPeople,
-  inStore,
   onOpen,
 }: {
   today: string;
@@ -516,7 +512,6 @@ function Board({
   episodes: CalendarEpisode[];
   trending: CardTitle[];
   fromPeople: PersonNews[];
-  inStore: CardTitle[];
   onOpen: (r: Ref) => void;
 }) {
   return (
@@ -548,7 +543,6 @@ function Board({
       {trending.length ? (
         <Shelf title="Trending" detail="on your services" cards={trending} onOpen={onOpen} />
       ) : null}
-      {inStore.length ? <Shelf title="New in the store" cards={inStore} onOpen={onOpen} /> : null}
 
       {/* Universes stay on the website only, for now. */}
       <Link

@@ -1,7 +1,7 @@
 import { Home } from "@/components/Home";
 import { avatarUrl, currentUser } from "@/lib/auth";
 import { APP_TIME_ZONE, todayISO } from "@/lib/dates";
-import { calendar, feed, forYou, newInStore, withReasons } from "@/lib/queries";
+import { calendar, feed, forYou, withReasons } from "@/lib/queries";
 import { newFromPeople, within } from "@/lib/people";
 import { hasPickedServices } from "@/lib/services";
 import { agedEpisodes, agedTitles, ageFilter } from "@/lib/age-filter";
@@ -27,7 +27,6 @@ export default async function HomePage() {
       episodes={await agedEpisodes(aged, calendar(id, 14))}
       trending={await aged(withReasons(id, feed("trending", id, 24)))}
       fromPeople={id ? await agedTitles(aged, await within(2500, newFromPeople(id, today), [])) : []}
-      inStore={await aged(newInStore(id, today))}
       needsServices={Boolean(user) && !hasPickedServices(user!.id)}
     />
   );

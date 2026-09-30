@@ -42,6 +42,10 @@ export type WatchProvider = { provider_id: number; provider_name: string };
 /** TMDB's payload shape: region -> bucket -> providers. */
 export type WatchProviders = Record<string, Record<string, WatchProvider[]>>;
 
+/** Whether TMDB lists this store as renting or selling the title here. */
+export const soldOn = (providers: WatchProviders | undefined, homeRegion: string, providerId: number) =>
+  FOR_SALE.some((bucket) => providers?.[homeRegion]?.[bucket]?.some((p) => p.provider_id === providerId) ?? false);
+
 /** A service as this install knows it; `regions` is its fallback list. */
 export type ServiceEntry = {
   providerId: number;
