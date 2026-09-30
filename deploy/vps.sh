@@ -71,6 +71,13 @@ docker save local/mox:latest | gzip | ssh "$HOST" "gunzip | docker load" | sed '
 say "swapping the container"
 ssh "$HOST" "cd $APPS && docker compose up -d mox 2>&1 | sed 's/^/    /'"
 
+# After the swap, never before: the old container is still reading the old
+# schema while it serves, so a migration that drops a column it selects would
+# break the live site for the length of the transfer. Migrations are therefore
+# written to be safe for the new code against the old schema, and run here.
+say "migrating the database"
+ssh "$HOST" "docker exec apps-mox-1 npx drizzle-kit migrate 2>&1 | grep -E 'applied|error|Error' | sed 's/^/    /'"
+
 say "checking it answers"
 ok=0
 for i in 1 2 3 4 5 6 7 8 9 10; do
