@@ -52,7 +52,14 @@ if ! docker info >/dev/null 2>&1; then
 fi
 # This Mac is arm64 and the droplet is x86_64, so the platform is not optional:
 # without it the image builds happily and then will not start over there.
-docker build --platform linux/amd64 -t local/mox:latest . | tail -3 | sed 's/^/    /'
+# Not piped into anything. `set -o pipefail` covers a pipeline's exit status,
+# but Docker Desktop failing mid-build once printed its error, exited through a
+# `| tail`, and let the script carry on as if it had worked — which is how a
+# deploy ships nothing and says it succeeded.
+if ! docker build --platform linux/amd64 -t local/mox:latest . ; then
+  echo "!! the build failed — nothing was shipped, the site is untouched" >&2
+  exit 1
+fi
 
 say "keeping the current image as the way back"
 ssh "$HOST" "docker tag local/mox:latest local/mox:rollback && echo '    tagged local/mox:rollback'"
