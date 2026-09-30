@@ -53,22 +53,26 @@ const RULES: Record<number, Rule> = {
     search: (q) => `https://tv.apple.com/eg/search?term=${q}`,
     verified: "logged out; same store as Apple TV",
   },
-  // Disney+ search lives at /browse/search and only exists signed in — signed
-  // out every search path answers 404, which is why this once pointed at the
-  // front door. It takes no query in the URL, so it opens search, empty.
+  // Disney+ is the one service with no search URL at all: /browse/search takes
+  // no query, so it could only ever open empty. Instead this asks DuckDuckGo
+  // for its first result on disneyplus.com — `!ducky` redirects straight to it —
+  // which is the title's own page, better than any search would have been.
+  // Andor, Shōgun, Furious and Moana 2 all landed on the right Egyptian page;
+  // Moana 2 matters, because it did not fall back to the first film.
   337: {
-    search: () => "https://www.disneyplus.com/browse/search",
-    verified: "logged in (Mohammed): /browse/search, no query parameter",
+    search: (q) => `https://duckduckgo.com/?q=!ducky+site%3Adisneyplus.com+${q}`,
+    verified: "4 of 4 titles land on their own page (2026-10-01); depends on DuckDuckGo",
   },
-  // STARZPLAY — unverified: search is behind login and has no box signed out.
+  // STARZPLAY — /en/, not the /en-eg/ it had been sent.
   630: {
-    search: (q) => `https://starzplay.com/en-eg/search?q=${q}`,
-    verified: "UNVERIFIED",
+    search: (q) => `https://starzplay.com/en/search?q=${q}`,
+    verified: "logged in (Mohammed): /en/search?q=liones",
   },
-  // Amazon Prime Video — unverified.
+  // Amazon Prime Video — `phrase`. Its own links add ie= and ref_=, which are
+  // tracking and change nothing.
   119: {
-    search: (q) => `https://www.primevideo.com/search/ref=atv_nb_sr?phrase=${q}`,
-    verified: "UNVERIFIED",
+    search: (q) => `https://www.primevideo.com/search?phrase=${q}`,
+    verified: "logged in (Mohammed): /search?ie=UTF8&ref_=atv_nb_sug&phrase=crime+101",
   },
   // Stores and general catalogues, unchanged from what they were.
   3: {

@@ -11,6 +11,14 @@ describe("the Play button", () => {
     expect(playUrl(629, "Survivor")).toBe("https://osnplus.com/en-eg/search?query=Survivor");
   });
 
+  it("sends STARZPLAY to /en/, not /en-eg/", () => {
+    expect(playUrl(630, "Lioness")).toBe("https://starzplay.com/en/search?q=Lioness");
+  });
+
+  it("sends Prime Video phrase", () => {
+    expect(playUrl(119, "Crime 101")).toBe("https://www.primevideo.com/search?phrase=Crime%20101");
+  });
+
   it("sends TOD q", () => {
     expect(playUrl(1750, "mobland")).toBe("https://www.tod.tv/en/search?q=mobland");
   });
@@ -23,8 +31,10 @@ describe("the Play button", () => {
     expect(playUrl(8, "fast and furious")).toBe("https://www.netflix.com/search?q=fast%20and%20furious");
   });
 
-  it("opens Disney+ search, which takes no query", () => {
-    expect(playUrl(337, "Andor")).toBe("https://www.disneyplus.com/browse/search");
+  it("sends Disney+, which has no search URL, through DuckDuckGo to the title page", () => {
+    expect(playUrl(337, "Moana 2")).toBe(
+      "https://duckduckgo.com/?q=!ducky+site%3Adisneyplus.com+Moana%202",
+    );
   });
 
   it("encodes the title, so a colon or an Arabic name survives", () => {
