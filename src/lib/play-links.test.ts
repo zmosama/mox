@@ -15,8 +15,12 @@ describe("the Play button", () => {
     expect(playUrl(350, "Severance")).toBe("https://tv.apple.com/eg/search?term=Severance");
   });
 
-  it("sends Disney+ to its front door rather than a 404", () => {
-    expect(playUrl(337, "Andor")).toBe("https://www.disneyplus.com/en-eg");
+  it("sends Netflix q, spaces as %20", () => {
+    expect(playUrl(8, "fast and furious")).toBe("https://www.netflix.com/search?q=fast%20and%20furious");
+  });
+
+  it("opens Disney+ search, which takes no query", () => {
+    expect(playUrl(337, "Andor")).toBe("https://www.disneyplus.com/browse/search");
   });
 
   it("encodes the title, so a colon or an Arabic name survives", () => {

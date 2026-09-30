@@ -27,7 +27,7 @@ const RULES: Record<number, Rule> = {
   // Netflix
   8: {
     search: (q) => `https://www.netflix.com/search?q=${q}`,
-    verified: "logged out: login keeps the search in nextpage",
+    verified: "logged in (Mohammed): search?q=fast%20and%20furious",
   },
   // Shahid VIP
   1715: {
@@ -53,11 +53,12 @@ const RULES: Record<number, Rule> = {
     search: (q) => `https://tv.apple.com/eg/search?term=${q}`,
     verified: "logged out; same store as Apple TV",
   },
-  // Disney+ has no public search route: /search, /browse/search and
-  // /en-eg/search all answer 404 signed out. Its front door beats a 404.
+  // Disney+ search lives at /browse/search and only exists signed in — signed
+  // out every search path answers 404, which is why this once pointed at the
+  // front door. It takes no query in the URL, so it opens search, empty.
   337: {
-    search: () => "https://www.disneyplus.com/en-eg",
-    verified: "logged out: every search path 404s",
+    search: () => "https://www.disneyplus.com/browse/search",
+    verified: "logged in (Mohammed): /browse/search, no query parameter",
   },
   // STARZPLAY — unverified: search is behind login and has no box signed out.
   630: {
