@@ -82,7 +82,7 @@ export function UserAdmin({ users, isOwner, meId }: {
                 ) : null}
               </div>
               <div className="numeric mt-0.5 text-[11.5px] text-ink-faint">
-                @{u.username} · {u.rated} rated · {u.follows} followed
+                @{u.username} · {u.email ?? "no email"}{u.google ? " · Google" : ""} · {u.rated} rated · {u.follows} followed
               </div>
             </div>
 
@@ -145,7 +145,7 @@ export function UserAdmin({ users, isOwner, meId }: {
   );
 }
 
-type Changes = { username: string; displayName: string; password?: string };
+type Changes = { username: string; displayName: string; email: string; password?: string };
 
 /**
  * Edit one account in place.
@@ -166,6 +166,7 @@ function EditUser({
   const [username, setUsername] = useState(user.username);
   const [displayName, setDisplayName] = useState(user.displayName ?? "");
   const [password, setPassword] = useState("");
+  const [email, setEmail] = useState(user.email ?? "");
 
   const shortName = username.length > 0 && username.length < 3;
   const shortPass = password.length > 0 && password.length < 8;
@@ -176,7 +177,7 @@ function EditUser({
       className="grid gap-3 rounded-card border border-line-strong bg-bg p-3 sm:grid-cols-2"
       onSubmit={(e) => {
         e.preventDefault();
-        onSave({ username, displayName, ...(password ? { password } : {}) });
+        onSave({ username, displayName, email, ...(password ? { password } : {}) });
       }}
     >
       <EditField label="Name" value={displayName} onChange={setDisplayName} placeholder="Optional" />
@@ -185,6 +186,14 @@ function EditUser({
         value={username}
         onChange={(v) => setUsername(toHandle(v))}
         problem={shortName ? "3 characters at least." : null}
+      />
+      <EditField
+        label="Email"
+        type="email"
+        value={email}
+        onChange={setEmail}
+        placeholder="Their Google address"
+        hint="Google sign-in with this address opens this account."
       />
       <EditField
         label="New password"

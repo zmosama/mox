@@ -27,6 +27,8 @@ export type ManagedUser = {
   displayName: string | null;
   isAdmin: boolean;
   isOwner: boolean;
+  email: string | null;
+  google: boolean;
   createdAt: number;
   rated: number;
   follows: number;
@@ -41,6 +43,8 @@ export function listUsers(): ManagedUser[] {
       displayName: schema.users.displayName,
       isAdmin: schema.users.isAdmin,
       isOwner: schema.users.isOwner,
+      email: schema.users.email,
+      google: sql<boolean>`${schema.users.googleSub} is not null`.mapWith(Boolean),
       createdAt: schema.users.createdAt,
       rated: sql<number>`(
         select count(*) from ${schema.verdicts}
@@ -117,7 +121,7 @@ export async function createUser(
 export async function updateUser(
   actor: SessionUser,
   targetId: number,
-  changes: { username?: string; displayName?: string | null; password?: string },
+  changes: { username?: string; displayName?: string | null; password?: string; email?: string | null },
 ): Promise<Success<null> | Failure> {
   const denied = requireOwner(actor);
   if (denied) return denied;
@@ -142,6 +146,16 @@ export async function updateUser(
 
   if (changes.displayName !== undefined) {
     patch.displayName = changes.displayName?.trim() || null;
+  }
+
+  /* The owner may fill in anybody's email, which is how an account made with
+     a password before Google sign-in existed gets found by Google later. A
+     blank clears it. */
+  if (changes.email !== undefined) {
+    const next = changes.email?.trim() ? normaliseEmail(changes.email) : null;
+    if (next && !EMAIL_RE.test(next)) return fail("That does not look like an email address.");
+    if (next && emailTaken(next, targetId)) return fail("Another account already uses that email.", 409);
+    if (next !== target.email) patch.email = next;
   }
 
   if (changes.password) {

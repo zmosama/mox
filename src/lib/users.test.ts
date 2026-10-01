@@ -344,3 +344,21 @@ describe("your own account", () => {
     expect(users.accountOf(id)).toBeNull();
   });
 });
+
+describe("the owner fills in emails", () => {
+  it("sets, refuses a taken one, and clears", async () => {
+    const id = users.listUsers().find((u) => u.username === "tester_plain")!.id;
+    expect((await users.updateUser(owner, id, { email: "Plain@Example.com" })).ok).toBe(true);
+    expect(users.listUsers().find((u) => u.id === id)!.email).toBe("plain@example.com");
+    expect((await users.updateUser(owner, id, { email: "new@example.com" })).ok).toBe(false);
+    expect((await users.updateUser(owner, id, { email: "" })).ok).toBe(true);
+    expect(users.listUsers().find((u) => u.id === id)!.email).toBeNull();
+  });
+
+  it("then Google finds that account instead of making a new one", async () => {
+    const id = users.listUsers().find((u) => u.username === "tester_plain")!.id;
+    await users.updateUser(owner, id, { email: "plain@gmail.com" });
+    const g = await users.googleAccount({ sub: "g-plain", email: "plain@gmail.com" });
+    expect(g.value).toEqual({ id, created: false });
+  });
+});

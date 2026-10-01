@@ -30,7 +30,9 @@ async function send(url: string, method: string, body: unknown) {
 export function AccountSettings({ initial }: { initial: Account }) {
   const router = useRouter();
   const [account, setAccount] = useState(initial);
-  const [open, setOpen] = useState<"email" | "password" | "delete" | null>(null);
+  // No email yet: the form is already open, because without one Google
+  // sign-in cannot find this account and would make a new, empty one.
+  const [open, setOpen] = useState<"email" | "password" | "delete" | null>(initial.email ? null : "email");
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -71,6 +73,12 @@ export function AccountSettings({ initial }: { initial: Account }) {
   return (
     <section>
       <h2 className="mb-3 text-base font-semibold">Account</h2>
+      {!account.email ? (
+        <p className="mb-3 rounded-card border border-want/40 bg-want/10 px-4 py-3 text-[13px] text-ink">
+          Add your email — the one on your Google account — and &ldquo;Continue with Google&rdquo; will open
+          this account, with all your ratings.
+        </p>
+      ) : null}
       <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 text-[14px]">
         <dt className="text-ink-faint">Username</dt>
         <dd>{account.username}</dd>

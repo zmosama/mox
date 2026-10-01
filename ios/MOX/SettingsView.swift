@@ -15,6 +15,7 @@ struct SettingsView: View {
     @State private var photoError: String?
     @State private var savingPhoto = false
     @State private var prefs: Prefs?
+    @State private var accountInfo: Account?
 
     var body: some View {
         @Bindable var settings = settings
@@ -139,7 +140,10 @@ struct SettingsView: View {
                 }
             }
             .onAppear { aiKey = settings.aiKey }
-            .task(id: api.user?.id) { prefs = api.user == nil ? nil : try? await api.prefs() }
+            .task(id: api.user?.id) {
+                prefs = api.user == nil ? nil : try? await api.prefs()
+                accountInfo = api.user == nil ? nil : try? await api.account()
+            }
         }
     }
 
@@ -294,7 +298,20 @@ struct SettingsView: View {
                 NavigationLink {
                     AccountView()
                 } label: {
-                    Label("Email, password, account", systemImage: "person.crop.circle")
+                    if let accountInfo, accountInfo.email == nil {
+                        VStack(alignment: .leading, spacing: 3) {
+                            Label("Add your email", systemImage: "envelope.badge")
+                                .foregroundStyle(Theme.green)
+                            Text("Your Google address — then Continue with Google opens this account.")
+                                .font(.caption).foregroundStyle(Theme.muted)
+                        }
+                    } else {
+                        LabeledContent {
+                            Text(accountInfo?.email ?? "")
+                        } label: {
+                            Label("Email & password", systemImage: "person.crop.circle")
+                        }
+                    }
                 }
                 NavigationLink {
                     ServicesView()

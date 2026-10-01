@@ -11,6 +11,7 @@ const Body = z.object({
   username: z.string().optional(),
   displayName: z.string().max(60).optional(),
   password: z.string().optional(),
+  email: z.string().max(254).optional(),
 });
 
 /**
@@ -26,7 +27,7 @@ export async function POST(req: Request) {
   const parsed = Body.safeParse(await req.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ error: "Bad request" }, { status: 400 });
 
-  const { userId, action, username, displayName, password } = parsed.data;
+  const { userId, action, username, displayName, password, email } = parsed.data;
   const result =
     action === "grantAdmin"
       ? setAdmin(actor, userId, true)
@@ -35,7 +36,7 @@ export async function POST(req: Request) {
         : action === "delete"
           ? deleteUser(actor, userId)
           : action === "update"
-            ? await updateUser(actor, userId, { username, displayName, password })
+            ? await updateUser(actor, userId, { username, displayName, password, email })
             : revokeSessions(actor, userId);
 
   if (!result.ok) return NextResponse.json({ error: result.error }, { status: result.status });

@@ -92,7 +92,10 @@ function featuresOf(d: Detail): Feature[] {
   add("lang", d.original_language);
   const year = Number((d.release_date || d.first_air_date || "").slice(0, 4));
   if (year) add("decade", String(Math.floor(year / 10) * 10));
-  for (const g of d.genres ?? []) add("genre", g.name);
+  // Lowercase, as the legacy import wrote them: the model matches features by
+  // exact text, and "Action" beside "action" made every new title's genres
+  // strangers to everything rated — the first Picks were chosen blind to genre.
+  for (const g of d.genres ?? []) add("genre", g.name.toLowerCase());
   return [...new Map(out.map((f) => [`${f.feature}:${f.value}`, f])).values()];
 }
 

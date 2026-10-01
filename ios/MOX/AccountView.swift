@@ -173,7 +173,10 @@ struct AccountView: View {
     }
 
     private func load() async {
-        do { account = try await api.account() } catch { loadError = error.localizedDescription }
+        do {
+            account = try await api.account()
+            if account?.email == nil, editing == nil { editing = .email }
+        } catch { loadError = error.localizedDescription }
     }
 }
 
