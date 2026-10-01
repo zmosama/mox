@@ -64,13 +64,17 @@ struct RemoteImage: View {
 struct PlatformChip: View {
     let platform: Platform
     @Environment(\.openURL) private var openURL
+    @State private var finding = false
 
     var body: some View {
         Button {
-            if let s = platform.url, let url = URL(string: s) { openURL(url) }
+            finding = true
+            Task { await Player.open(platform, with: openURL); finding = false }
         } label: {
             HStack(spacing: 5) {
-                if let logo = platform.logo {
+                if finding {
+                    ProgressView().controlSize(.mini).frame(width: 16, height: 16)
+                } else if let logo = platform.logo {
                     RemoteImage(url: logo).frame(width: 16, height: 16).clipShape(.rect(cornerRadius: 4))
                 }
                 Text(platform.name)
@@ -83,7 +87,7 @@ struct PlatformChip: View {
             .foregroundStyle(Theme.paper)
         }
         .buttonStyle(.plain)
-        .disabled(platform.url == nil)
+        .disabled(platform.url == nil || finding)
     }
 }
 

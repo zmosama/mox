@@ -389,8 +389,9 @@ struct FreshEpisodeCard: View {
 
                 HStack(spacing: 10) {
                     Button {
-                        if let s = card.platforms.first?.url, let url = URL(string: s) { openURL(url) }
-                        else { router.title = card.ref }
+                        if let p = card.platforms.first, p.url != nil || p.find != nil {
+                            Task { await Player.open(p, with: openURL) }
+                        } else { router.title = card.ref }
                     } label: {
                         Label("Play", systemImage: "play.fill")
                             .font(.sora(15, .semibold))
