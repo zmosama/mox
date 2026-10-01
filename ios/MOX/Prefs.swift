@@ -4,7 +4,7 @@ import Foundation
 /// The same list as src/lib/prefs.ts on the server; the account's choice and
 /// order are stored there, so the website and the app agree.
 enum TabID: String, CaseIterable, Codable, Sendable, Identifiable {
-    case today, news, library, f1, calendar, tasks
+    case today, news, library, picks, f1, calendar, tasks
 
     var id: String { rawValue }
 
@@ -13,6 +13,7 @@ enum TabID: String, CaseIterable, Codable, Sendable, Identifiable {
         case .today: "Today"
         case .news: "News"
         case .library: "My List"
+        case .picks: "Picks"
         case .f1: "F1"
         case .calendar: "Calendar"
         case .tasks: "Tasks"
@@ -24,6 +25,7 @@ enum TabID: String, CaseIterable, Codable, Sendable, Identifiable {
         case .today: "sparkles.tv"
         case .news: "newspaper"
         case .library: "bookmark"
+        case .picks: "wand.and.stars"
         case .f1: "flag.checkered"
         case .calendar: "calendar"
         case .tasks: "checklist"

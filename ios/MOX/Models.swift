@@ -240,3 +240,7 @@ nonisolated struct WallItem: Codable, Hashable, Sendable, Identifiable {
 nonisolated struct WallPayload: Codable, Sendable {
     let items: [WallItem]
 }
+
+nonisolated struct PicksPayload: Codable, Sendable {
+    let picks: [Card]
+}

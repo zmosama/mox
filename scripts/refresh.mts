@@ -23,6 +23,7 @@ import { refreshServices } from "./refresh/services.mjs";
 import { refreshPrices } from "./refresh/prices.mjs";
 import { refreshStore } from "./refresh/store.mjs";
 import { refreshUniverses } from "./refresh/universes.mjs";
+import { refreshFeatures, refreshPicks } from "./refresh/taste.mjs";
 import { refreshWatchlist } from "./refresh/watchlist.mjs";
 import { refreshAges } from "./refresh/ages.mjs";
 
@@ -73,6 +74,12 @@ await step("ages", async () => ({ summary: await refreshAges(), value: null }));
 
 await step("universes", async () => ({ summary: await refreshUniverses(), value: null }));
 
+// After everything that adds titles: features for what has just become
+// watchable, then each person's picks scored against them. Once a night,
+// because building the taste model is far too slow to do on a request.
+await step("features", async () => ({ summary: await refreshFeatures(), value: null }));
+await step("picks", async () => ({ summary: await refreshPicks(TODAY), value: null }));
+
 // The shops. Independent of the feeds: what is for sale answers a different
 // question from what was released, and is recorded rather than filtered.
 await step("store", async () => ({ summary: await refreshStore(TODAY), value: null }));
@@ -89,7 +96,7 @@ await step("cache", async () => {
 });
 
 if (failed.length) {
-  console.error(`\n${failed.length} of 9 steps failed: ${failed.join(", ")}`);
+  console.error(`\n${failed.length} of 11 steps failed: ${failed.join(", ")}`);
   process.exit(1);
 }
-console.log("\nall nine steps current");
+console.log("\nall steps current");

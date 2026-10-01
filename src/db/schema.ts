@@ -487,3 +487,26 @@ export const pushSent = sqliteTable(
   },
   (t) => [primaryKey({ columns: [t.userId, t.key] })],
 );
+
+/**
+ * What the taste model recommends to each person, rebuilt once a night.
+ *
+ * The model reads every rating and every title's features, which takes the
+ * better part of a second, so it runs in the nightly refresh and never on a
+ * request. The Picks tab reads these rows and nothing else. Thirty per person,
+ * replaced whole each night: this table does not grow.
+ */
+export const picks = sqliteTable(
+  "picks",
+  {
+    userId: integer("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    tmdbId: integer("tmdb_id").notNull(),
+    kind: text("kind", { enum: MEDIA_KINDS }).notNull(),
+    rank: integer("rank").notNull(),
+    score: real("score").notNull(),
+    /** "Because you like Denis Villeneuve", or null when nothing single explains it. */
+    reason: text("reason"),
+    builtAt: text("built_at").notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.userId, t.tmdbId, t.kind] }), index("picks_user_rank").on(t.userId, t.rank)],
+);

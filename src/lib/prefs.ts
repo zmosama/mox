@@ -25,6 +25,8 @@ export const TABS = [
   { id: "today", label: "Today", interest: false, appOnly: false },
   { id: "news", label: "News", interest: false, appOnly: false },
   { id: "library", label: "My List", interest: false, appOnly: false },
+  // Recommendations, built each night by the taste model. The app only, for now.
+  { id: "picks", label: "Picks", interest: false, appOnly: true },
   { id: "f1", label: "F1", interest: true, appOnly: false },
   { id: "calendar", label: "Calendar", interest: false, appOnly: true },
   { id: "tasks", label: "Tasks", interest: false, appOnly: true },

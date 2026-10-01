@@ -77,6 +77,7 @@ final class API {
 
     func today() async throws -> TodayPayload { try await get("/api/app/today") }
     func library() async throws -> LibraryPayload { try await get("/api/app/library") }
+    func picks() async throws -> PicksPayload { try await get("/api/app/picks") }
     func alerts() async throws -> AlertsPayload { try await get("/api/app/alerts") }
     func news() async throws -> NewsPayload { try await get("/api/news") }
     func f1() async throws -> F1Board { try await get("/api/f1") }

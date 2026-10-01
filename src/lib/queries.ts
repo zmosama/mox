@@ -969,3 +969,45 @@ export function searchLocal(query: string, userId: number | null, limit = 40): C
     ),
   }));
 }
+
+// ---------------------------------------------------------------- picks
+
+/**
+ * The Picks tab: what the taste model recommends, as built last night.
+ *
+ * Read straight from `picks`, never computed here — building the model takes
+ * the better part of a second, and this is opened from a tab bar. Anything
+ * judged since last night is left out now rather than tomorrow, so marking a
+ * pick as seen takes it off the list at once.
+ */
+export function picksFor(userId: number): CardTitle[] {
+  const rows = db
+    .select()
+    .from(schema.picks)
+    .where(eq(schema.picks.userId, userId))
+    .orderBy(schema.picks.rank)
+    .all();
+  if (!rows.length) return [];
+
+  const judged = verdictsFor(userId);
+  const fresh = rows.filter((r) => !judged.has(key(r.tmdbId, r.kind)));
+  const titles = titlesByIds(fresh);
+  const avail = availabilityFor(fresh.map((r) => r.tmdbId), userId);
+  const lookup = serviceLookup();
+
+  return fresh.flatMap((r) => {
+    const t = titles.get(key(r.tmdbId, r.kind));
+    if (!t) return [];
+    return [{
+      tmdbId: t.tmdbId,
+      kind: t.kind,
+      title: t.title,
+      year: t.year,
+      poster: t.poster,
+      rating: t.rating,
+      verdict: null,
+      reason: r.reason ?? undefined,
+      platforms: (avail.get(key(t.tmdbId, t.kind)) ?? []).map((p) => toService(p.name, lookup, t.title, p.deepLink)),
+    }];
+  });
+}
