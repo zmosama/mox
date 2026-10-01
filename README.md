@@ -200,9 +200,13 @@ overnight — a library curated over years, renamed by a job meant to keep score
 fresh. Scores, posters and dates are refreshed; names are left alone, and only
 new titles take TMDB's.
 
-It writes nothing to `features`. That table is the taste model's input, and
-changing it changes what the board recommends — its own decision, not a side
-effect of keeping a timeline current.
+Two steps feed the taste model (`scripts/refresh/taste.mts`). **features**
+collects cast, crew, keywords and studios for the titles on a service somebody
+here subscribes to — up to 400 a night — and drops them when a title leaves
+every service unrated, so the table stays the size of the watchable catalogue.
+**picks** then builds each person's model once and stores their best thirty in
+`picks`, which the app's Picks tab reads as it is. Nothing is scored when the
+app opens.
 
 ## The parts worth explaining
 
@@ -390,6 +394,10 @@ npx tsx scripts/ensure-owner.mts
 That account becomes the install owner — the only one who can change roles or
 delete accounts, and the only one who cannot be demoted.
 
+Everyone else signs up from the site or the app — with Google, or a username,
+email and password — and manages their own email, password and account
+deletion from settings.
+
 Then fill it with something:
 
 ```bash
@@ -448,6 +456,10 @@ Optional:
 - `MOX_PUBLIC_URL` is the site's public address, used for the absolute links
   in shared-title previews. Defaults to `https://mox.mosama.me`; the app's
   Share button uses the same address (`AppSettings.publicSite`).
+- `GOOGLE_CLIENT_IDS` turns on "Continue with Google": the web client ID first,
+  then the iOS one, comma-separated. These are public IDs. There is no client
+  secret — the server checks Google's ID token and its audience — so none is
+  ever configured.
 - `MOX_OWNER` names the owner account for `scripts/check-owner.mts` and the
   legacy importer.
 
