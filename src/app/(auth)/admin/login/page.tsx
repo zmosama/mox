@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { LoginForm } from "@/components/LoginForm";
 import { currentUser } from "@/lib/auth";
+import { googleClientIds } from "@/lib/google";
 
 export const dynamic = "force-dynamic";
 
@@ -15,7 +16,11 @@ export default async function LoginPage() {
       <p className="mt-1.5 text-[13.5px] text-ink-faint">
         The site works signed out. Signing in loads your ratings and lets you add more.
       </p>
-      <LoginForm />
+      {/* The first ID is the web client's; the iOS one is only ever checked. */}
+      <LoginForm googleClientId={googleClientIds()[0] ?? null} />
+      <p className="mt-6 text-center text-[12px] text-ink-faint">
+        <a href="/privacy" className="hover:text-ink">Privacy</a> · <a href="/terms" className="hover:text-ink">Terms</a>
+      </p>
     </div>
   );
 }

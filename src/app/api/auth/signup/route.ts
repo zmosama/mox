@@ -8,6 +8,7 @@ const Body = z.object({
   username: z.string().min(1).max(64),
   password: z.string().min(1).max(256),
   displayName: z.string().max(60).optional(),
+  email: z.string().max(254).optional(),
 });
 
 /**
@@ -35,6 +36,7 @@ export async function POST(req: Request) {
     parsed.data.username,
     parsed.data.password,
     parsed.data.displayName,
+    parsed.data.email,
   );
   if (!created.ok) {
     return NextResponse.json({ error: created.error }, { status: created.status });

@@ -76,7 +76,10 @@ export async function signIn(username: string, password: string): Promise<Sessio
   const user = db
     .select()
     .from(schema.users)
-    .where(eq(schema.users.username, username.trim().toLowerCase()))
+    // An address finds the account by email; anything else, by username.
+    .where(username.includes("@")
+      ? eq(schema.users.email, username.trim().toLowerCase())
+      : eq(schema.users.username, username.trim().toLowerCase()))
     .get();
 
   // Hash even when the user is unknown, so a wrong username and a wrong
@@ -122,3 +125,18 @@ export const clearedCookie = (secure = false) => ({
   path: "/",
   maxAge: 0,
 });
+
+/** The session view of an account, for a sign-in that did not come by password. */
+export function userById(id: number): SessionUser | null {
+  return db
+    .select({
+      id: schema.users.id,
+      username: schema.users.username,
+      displayName: schema.users.displayName,
+      isAdmin: schema.users.isAdmin,
+      avatarAt: schema.users.avatarAt,
+    })
+    .from(schema.users)
+    .where(eq(schema.users.id, id))
+    .get() ?? null;
+}

@@ -180,6 +180,50 @@ final class API {
         revision += 1
     }
 
+    func signUp(name: String, email: String, username: String, password: String) async throws {
+        try await post("/api/auth/signup", ["displayName": name, "email": email, "username": username, "password": password])
+        await refreshUser()
+        revision += 1
+    }
+
+    /// Sign in, or make an account, with Google: the server decides which.
+    func signInWithGoogle() async throws {
+        let token = try await GoogleSignIn().idToken()
+        try await post("/api/auth/google", ["idToken": token])
+        await refreshUser()
+        revision += 1
+    }
+
+    func account() async throws -> Account {
+        let payload: AccountPayload = try await get("/api/account/me")
+        return payload.account
+    }
+
+    func changeEmail(_ email: String, password: String?) async throws {
+        var body: [String: Any] = ["email": email]
+        if let password, !password.isEmpty { body["password"] = password }
+        try await post("/api/account/email", body)
+    }
+
+    func changePassword(current: String?, next: String) async throws {
+        var body: [String: Any] = ["next": next]
+        if let current, !current.isEmpty { body["current"] = current }
+        try await post("/api/account/password", body)
+    }
+
+    /// Deletes the account and everything in it. Signed out afterwards.
+    func deleteAccount(password: String?) async throws {
+        var request = URLRequest(url: try url("/api/account/me"))
+        request.httpMethod = "DELETE"
+        request.setValue("application/json", forHTTPHeaderField: "content-type")
+        var body: [String: Any] = [:]
+        if let password, !password.isEmpty { body["password"] = password }
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+        let _: [String: AnyCodable] = try await send(request)
+        user = nil
+        revision += 1
+    }
+
     func signOut() async {
         _ = try? await post("/api/auth/logout", [:])
         user = nil

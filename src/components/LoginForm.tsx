@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { cn } from "@/lib/cn";
+import { GoogleButton } from "./GoogleButton";
 
 type Mode = "in" | "up";
 
@@ -13,7 +14,7 @@ type Mode = "in" | "up";
  * a second route would be a second place for the styling to drift. A new
  * account is always a plain user — the server decides that, not this form.
  */
-export function LoginForm() {
+export function LoginForm({ googleClientId }: { googleClientId?: string | null }) {
   const router = useRouter();
   const [mode, setMode] = useState<Mode>("in");
   const [error, setError] = useState<string | null>(null);
@@ -45,7 +46,9 @@ export function LoginForm() {
     const body = {
       username: String(form.get("username") ?? ""),
       password: String(form.get("password") ?? ""),
-      ...(mode === "up" ? { displayName: String(form.get("displayName") ?? "") } : {}),
+      ...(mode === "up"
+        ? { displayName: String(form.get("displayName") ?? ""), email: String(form.get("email") ?? "") }
+        : {}),
     };
 
     const res = await fetch(mode === "up" ? "/api/auth/signup" : "/api/auth/login", {
@@ -68,6 +71,17 @@ export function LoginForm() {
 
   return (
     <div className="mt-7">
+      {googleClientId ? (
+        <>
+          <GoogleButton clientId={googleClientId} onError={setError} onSignedIn={() => {
+            router.replace("/admin");
+            router.refresh();
+          }} />
+          <div className="my-5 flex items-center gap-3 text-[12px] text-ink-faint">
+            <span className="h-px flex-1 bg-line" /> or with a password <span className="h-px flex-1 bg-line" />
+          </div>
+        </>
+      ) : null}
       <div
         role="tablist"
         className="mb-5 grid grid-cols-2 gap-1 rounded-xl border border-line-strong bg-surface p-1"
@@ -122,8 +136,21 @@ export function LoginForm() {
           />
         ) : null}
 
+        {mode === "up" ? (
+          <Field
+            label="Email"
+            name="email"
+            type="email"
+            autoComplete="email"
+            autoCapitalize="none"
+            spellCheck={false}
+            required
+            hint="You can sign in with it, too."
+          />
+        ) : null}
+
         <Field
-          label="Username"
+          label={mode === "up" ? "Username" : "Username or email"}
           name="username"
           autoComplete="username"
           autoCapitalize="none"

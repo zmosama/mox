@@ -10,10 +10,6 @@ struct SettingsView: View {
     @Environment(\.openURL) private var openURL
     @Environment(\.dismiss) private var dismiss
 
-    @State private var username = ""
-    @State private var password = ""
-    @State private var signInError: String?
-    @State private var working = false
     @State private var aiKey = ""
     @State private var photo: PhotosPickerItem?
     @State private var photoError: String?
@@ -251,8 +247,8 @@ struct SettingsView: View {
 
     @ViewBuilder
     private var account: some View {
-        Section("Account") {
-            if let user = api.user {
+        if let user = api.user {
+            Section("Account") {
                 HStack(spacing: 14) {
                     Group {
                         if let url = api.absolute(user.avatar) {
@@ -295,7 +291,11 @@ struct SettingsView: View {
                 .padding(.vertical, 4)
                 .onChange(of: photo) { uploadPhoto() }
 
-                LabeledContent("Signed in as", value: user.name)
+                NavigationLink {
+                    AccountView()
+                } label: {
+                    Label("Email, password, account", systemImage: "person.crop.circle")
+                }
                 NavigationLink {
                     ServicesView()
                 } label: {
@@ -309,22 +309,9 @@ struct SettingsView: View {
                 Button("Sign out", role: .destructive) {
                     Task { await api.signOut(); notifier.clearAll() }
                 }
-            } else {
-                TextField("Username", text: $username)
-                    .textContentType(.username)
-                    .textInputAutocapitalization(.never)
-                    .autocorrectionDisabled()
-                SecureField("Password", text: $password)
-                    .textContentType(.password)
-                    .onSubmit(signIn)
-                if let signInError {
-                    Text(signInError).foregroundStyle(.red).font(.footnote)
-                }
-                Button(action: signIn) {
-                    if working { ProgressView() } else { Text("Sign in") }
-                }
-                .disabled(username.isEmpty || password.isEmpty || working)
             }
+        } else {
+            SignInSection()
         }
     }
 
@@ -343,21 +330,6 @@ struct SettingsView: View {
                 try await api.setAvatar(data)
             } catch {
                 photoError = error.localizedDescription
-            }
-        }
-    }
-
-    private func signIn() {
-        guard !username.isEmpty, !password.isEmpty else { return }
-        working = true
-        Task {
-            defer { working = false }
-            do {
-                try await api.signIn(username: username, password: password)
-                password = ""
-                signInError = nil
-            } catch {
-                signInError = error.localizedDescription
             }
         }
     }

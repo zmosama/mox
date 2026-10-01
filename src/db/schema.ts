@@ -28,6 +28,19 @@ export const users = sqliteTable("users", {
   passwordHash: text("password_hash").notNull(),
   displayName: text("display_name"),
   /**
+   * Lower-cased, unique where present. Optional because accounts made before
+   * October 2026 had none; required for every new one.
+   */
+  email: text("email").unique(),
+  /** Google's `sub` for this account once it has signed in with Google. */
+  googleSub: text("google_sub").unique(),
+  /**
+   * False for an account that only ever signed in with Google: it has a random
+   * hash nobody knows, so "current password" cannot be asked of it. Setting a
+   * password turns it true.
+   */
+  passwordSet: integer("password_set", { mode: "boolean" }).notNull().default(true),
+  /**
    * Admins reach the backend. Only the owner can grant this — an admin cannot
    * promote anyone, so one compromised account can never widen into more.
    */

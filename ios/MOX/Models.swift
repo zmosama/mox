@@ -65,6 +65,17 @@ nonisolated struct User: Codable, Hashable, Sendable {
     var name: String { displayName ?? username }
 }
 
+nonisolated struct Account: Codable, Sendable {
+    let username: String
+    let displayName: String?
+    let email: String?
+    let hasPassword: Bool
+    let google: Bool
+    let isOwner: Bool
+}
+
+nonisolated struct AccountPayload: Codable, Sendable { let account: Account }
+
 nonisolated struct HomePayload: Codable, Sendable {
     let today: String
     let user: User?

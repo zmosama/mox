@@ -5,6 +5,8 @@ import { ProfilePhoto } from "@/components/ProfilePhoto";
 import { stats, tasteFor } from "@/lib/queries";
 import { Preferences } from "@/components/Preferences";
 import { WebNotifications } from "@/components/WebNotifications";
+import { AccountSettings } from "@/components/AccountSettings";
+import { accountOf } from "@/lib/users";
 import { readPrefs, TABS, TAB_SLOTS } from "@/lib/prefs";
 
 export const dynamic = "force-dynamic";
@@ -16,10 +18,13 @@ export default async function AdminHome() {
   const taste = tasteFor(user.id);
   const traits = taste?.strongest("keyword", 4, 8) ?? [];
   const people = taste?.strongest("person", 4, 6) ?? [];
+  const account = accountOf(user.id);
 
   return (
     <div className="flex flex-col gap-8">
       <ProfilePhoto name={user.displayName ?? user.username} avatar={avatarUrl(user)} />
+
+      {account ? <AccountSettings initial={account} /> : null}
 
       <Preferences initial={readPrefs(user.id)} options={TABS.map((t) => ({ ...t }))} slots={TAB_SLOTS} />
 

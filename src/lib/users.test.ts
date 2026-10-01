@@ -285,3 +285,62 @@ describe("what an account sees before it has picked services", () => {
     expect(narrowed.size).toBeLessThan(everything.size);
   });
 });
+
+describe("your own account", () => {
+  const accountId = (name: string) => users.listUsers().find((u) => u.username === name)!.id;
+
+  it("takes an email at sign-up, once per address", async () => {
+    expect((await users.createUser("tester_mail", "a-long-enough-password", null, "Me@Example.com")).ok).toBe(true);
+    expect(users.accountOf(accountId("tester_mail"))!.email).toBe("me@example.com");
+    expect((await users.createUser("tester_mail2", "a-long-enough-password", null, "me@example.COM")).ok).toBe(false);
+    expect((await users.createUser("tester_mail3", "a-long-enough-password", null, "not-an-email")).ok).toBe(false);
+  });
+
+  it("changes the password only with the current one", async () => {
+    const id = accountId("tester_mail");
+    expect((await users.changePassword(id, "wrong-password", "another-long-one", undefined)).ok).toBe(false);
+    expect((await users.changePassword(id, "a-long-enough-password", "another-long-one", undefined)).ok).toBe(true);
+    expect((await users.changePassword(id, "another-long-one", "short", undefined)).ok).toBe(false);
+  });
+
+  it("changes the email only with the password, and not to a taken one", async () => {
+    const id = accountId("tester_mail");
+    expect((await users.changeEmail(id, "new@example.com", "wrong-password")).ok).toBe(false);
+    expect((await users.changeEmail(id, "new@example.com", "another-long-one")).ok).toBe(true);
+    await users.createUser("tester_other", "a-long-enough-password", null, "other@example.com");
+    expect((await users.changeEmail(id, "other@example.com", "another-long-one")).ok).toBe(false);
+  });
+
+  it("signs in with Google: new account, then the same one, then links by email", async () => {
+    const first = await users.googleAccount({ sub: "g-1", email: "Fresh.Person@gmail.com", name: "Fresh" });
+    expect(first.value.created).toBe(true);
+    const made = users.accountOf(first.value.id)!;
+    expect(made.username).toBe("fresh.person");
+    expect(made.hasPassword).toBe(false);
+
+    const again = await users.googleAccount({ sub: "g-1", email: "fresh.person@gmail.com" });
+    expect(again.value).toEqual({ id: first.value.id, created: false });
+
+    const linked = await users.googleAccount({ sub: "g-2", email: "other@example.com" });
+    expect(linked.value).toEqual({ id: accountId("tester_other"), created: false });
+
+    // Same local part, different address: a second, distinct username.
+    const twin = await users.googleAccount({ sub: "g-3", email: "fresh.person@example.org" });
+    expect(users.accountOf(twin.value.id)!.username).toBe("fresh.person2");
+  });
+
+  it("lets a Google-made account set a password without knowing one", async () => {
+    const id = accountId("fresh.person");
+    expect((await users.changePassword(id, undefined, "now-i-have-one", undefined)).ok).toBe(true);
+    expect(users.accountOf(id)!.hasPassword).toBe(true);
+    expect((await users.changePassword(id, undefined, "and-another-one", undefined)).ok).toBe(false);
+  });
+
+  it("deletes your own account, but never the owner's", async () => {
+    expect((await users.deleteOwnAccount(owner.id, "owner-password")).ok).toBe(false);
+    const id = accountId("tester_other");
+    expect((await users.deleteOwnAccount(id, "wrong-password")).ok).toBe(false);
+    expect((await users.deleteOwnAccount(id, "a-long-enough-password")).ok).toBe(true);
+    expect(users.accountOf(id)).toBeNull();
+  });
+});

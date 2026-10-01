@@ -12,9 +12,10 @@
  * nobody — including the owner — can demote or delete it, so the install can
  * never be left with no one who can administer it.
  */
-import { eq, ne, sql } from "drizzle-orm";
+import { randomBytes } from "node:crypto";
+import { and, eq, ne, sql } from "drizzle-orm";
 import { db, schema } from "@/db";
-import { hashPassword } from "./hash";
+import { hashPassword, verifyPassword } from "./hash";
 import type { SessionUser } from "./auth";
 
 export const USERNAME_RE = /^[a-z0-9][a-z0-9._-]{2,31}$/;
@@ -70,8 +71,12 @@ export async function createUser(
   username: string,
   password: string,
   displayName?: string | null,
+  email?: string | null,
 ): Promise<Success<{ id: number; username: string }> | Failure> {
   const name = username.trim().toLowerCase();
+  const address = email?.trim() ? normaliseEmail(email) : null;
+  if (address && !EMAIL_RE.test(address)) return fail("That does not look like an email address.");
+  if (address && emailTaken(address)) return fail("Another account already uses that email.", 409);
 
   if (!USERNAME_RE.test(name)) {
     return fail(
@@ -92,6 +97,7 @@ export async function createUser(
       username: name,
       passwordHash: await hashPassword(password),
       displayName: displayName?.trim() || null,
+      email: address,
       isAdmin: false,
       isOwner: false,
     })
@@ -217,3 +223,149 @@ export const hasOtherUsers = () =>
     db.select({ id: schema.users.id }).from(schema.users)
       .where(ne(schema.users.isOwner, true)).get(),
   );
+
+// ---------------------------------------------------------------- your own account
+
+export const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const normaliseEmail = (e: string) => e.trim().toLowerCase();
+
+/** Somebody else already has this address. Checked before any write. */
+function emailTaken(email: string, exceptUserId?: number) {
+  const row = db.select({ id: schema.users.id }).from(schema.users)
+    .where(eq(schema.users.email, email)).get();
+  return row !== undefined && row.id !== exceptUserId;
+}
+
+/** Your own details, for the account screen. Never the hash. */
+export function accountOf(userId: number) {
+  const u = db.select().from(schema.users).where(eq(schema.users.id, userId)).get();
+  if (!u) return null;
+  return {
+    username: u.username,
+    displayName: u.displayName,
+    email: u.email,
+    hasPassword: u.passwordSet,
+    google: u.googleSub !== null,
+    isOwner: u.isOwner,
+  };
+}
+
+/**
+ * Asks for the current password before anything sensitive changes, unless the
+ * account has never had one — an account made by Google sign-in carries a random
+ * hash nobody knows, and asking for it would lock its owner out.
+ */
+async function confirmPassword(userId: number, current: string | undefined): Promise<Failure | null> {
+  const u = db.select().from(schema.users).where(eq(schema.users.id, userId)).get();
+  if (!u) return fail("No such account.", 404);
+  if (!u.passwordSet) return null;
+  if (!current || !(await verifyPassword(current, u.passwordHash))) {
+    return fail("Your current password is not right.", 403);
+  }
+  return null;
+}
+
+/**
+ * Change your own password. Every other session is signed out — someone who
+ * learnt the old password should not stay signed in — and `keepSession`, the
+ * one making the change, stays.
+ */
+export async function changePassword(
+  userId: number,
+  current: string | undefined,
+  next: string,
+  keepSession: string | undefined,
+): Promise<Success<null> | Failure> {
+  const denied = await confirmPassword(userId, current);
+  if (denied) return denied;
+  if (next.length < MIN_PASSWORD) return fail(`Password must be at least ${MIN_PASSWORD} characters.`);
+  const passwordHash = await hashPassword(next);
+
+  db.transaction((tx) => {
+    tx.update(schema.users)
+      .set({ passwordHash, passwordSet: true })
+      .where(eq(schema.users.id, userId)).run();
+    tx.delete(schema.sessions)
+      .where(keepSession
+        ? and(eq(schema.sessions.userId, userId), ne(schema.sessions.id, keepSession))
+        : eq(schema.sessions.userId, userId))
+      .run();
+  });
+  return { ok: true, value: null };
+}
+
+export async function changeEmail(
+  userId: number,
+  email: string,
+  current: string | undefined,
+): Promise<Success<{ email: string }> | Failure> {
+  const denied = await confirmPassword(userId, current);
+  if (denied) return denied;
+  const next = normaliseEmail(email);
+  if (!EMAIL_RE.test(next)) return fail("That does not look like an email address.");
+  if (emailTaken(next, userId)) return fail("Another account already uses that email.", 409);
+  db.update(schema.users).set({ email: next }).where(eq(schema.users.id, userId)).run();
+  return { ok: true, value: { email: next } };
+}
+
+/**
+ * Delete your own account and everything tied to it — ratings, follows,
+ * watchlist, sessions, picks — through the foreign keys' cascades. The owner
+ * cannot: an install with no owner has nobody able to manage it.
+ */
+export async function deleteOwnAccount(userId: number, current: string | undefined): Promise<Success<null> | Failure> {
+  const u = db.select().from(schema.users).where(eq(schema.users.id, userId)).get();
+  if (!u) return fail("No such account.", 404);
+  if (u.isOwner) return fail("The owner account cannot be deleted.", 409);
+  const denied = await confirmPassword(userId, current);
+  if (denied) return denied;
+  db.delete(schema.users).where(eq(schema.users.id, userId)).run();
+  return { ok: true, value: null };
+}
+
+/**
+ * Sign in with a verified Google profile.
+ *
+ * Three cases, in order: this Google account is already linked; an existing
+ * account has the same email, and is linked now — which is how an account made
+ * with a password before Google sign-in existed reaches the same ratings; or a
+ * new account is made, with a username from the email and no password.
+ */
+export async function googleAccount(profile: {
+  sub: string;
+  email: string;
+  name?: string | null;
+}): Promise<Success<{ id: number; created: boolean }>> {
+  const email = normaliseEmail(profile.email);
+
+  const linked = db.select({ id: schema.users.id }).from(schema.users)
+    .where(eq(schema.users.googleSub, profile.sub)).get();
+  if (linked) return { ok: true, value: { id: linked.id, created: false } };
+
+  const byEmail = db.select({ id: schema.users.id }).from(schema.users)
+    .where(eq(schema.users.email, email)).get();
+  if (byEmail) {
+    db.update(schema.users).set({ googleSub: profile.sub }).where(eq(schema.users.id, byEmail.id)).run();
+    return { ok: true, value: { id: byEmail.id, created: false } };
+  }
+
+  // A username from the address, made valid and unique: "mohammed.osama" -> "mohammed.osama2".
+  const base = (email.split("@")[0].toLowerCase().replace(/[^a-z0-9._-]/g, "").replace(/^[^a-z0-9]+/, "") || "user")
+    .padEnd(3, "0").slice(0, 28);
+  let username = base;
+  for (let n = 2; db.select({ id: schema.users.id }).from(schema.users)
+    .where(eq(schema.users.username, username)).get(); n++) username = `${base}${n}`;
+
+  const row = db.insert(schema.users).values({
+    username,
+    // Random and never shown: there is no password, and `passwordSet` says so.
+    passwordHash: await hashPassword(randomBytes(32).toString("base64url")),
+    passwordSet: false,
+    displayName: profile.name?.trim() || null,
+    email,
+    googleSub: profile.sub,
+    isAdmin: false,
+    isOwner: false,
+  }).returning({ id: schema.users.id }).get();
+  return { ok: true, value: { id: row.id, created: true } };
+}
