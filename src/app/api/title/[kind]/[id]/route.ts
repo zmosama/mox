@@ -1,4 +1,4 @@
-import { playUrl } from "@/lib/play-links";
+import { findFor, playUrl } from "@/lib/play-links";
 import { AGE_LABEL, ageLevel, certAppend, type CertSource } from "@/lib/ratings";
 import { NextResponse } from "next/server";
 import { and, eq } from "drizzle-orm";
@@ -166,6 +166,9 @@ export async function GET(
           name,
           logo: row?.logo ?? null,
           url: playUrl(row?.providerId, title, deepLink.get(name)),
+          find: deepLink.get(name)
+            ? null
+            : findFor(row?.providerId, title, kind, releaseDate ? Number(releaseDate.slice(0, 4)) : null),
         };
       }),
       /* Rent or buy on Apple TV Store, apart from `platforms` on purpose:

@@ -1,4 +1,4 @@
-import { playUrl } from "@/lib/play-links";
+import { findFor, playUrl } from "@/lib/play-links";
 import { ageFilter } from "@/lib/age-filter";
 import { NextResponse } from "next/server";
 import { eq } from "drizzle-orm";
@@ -131,6 +131,7 @@ export async function GET(req: Request) {
             name,
             logo: row?.logo ?? null,
             url: playUrl(row?.providerId, title),
+            find: findFor(row?.providerId, title, r.kind, date ? Number(date.slice(0, 4)) : null),
           };
         }),
       };

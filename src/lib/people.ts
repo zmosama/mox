@@ -8,7 +8,7 @@
  * that matter most, and everything already in the catalog is answered from
  * the local availability table.
  */
-import { playUrl } from "./play-links";
+import { findFor, playUrl } from "./play-links";
 import { and, desc, eq } from "drizzle-orm";
 import { db, schema } from "@/db";
 import type { CardTitle } from "@/components/TitleCard";
@@ -150,20 +150,25 @@ async function platformsFor(
   const chosen = chosenServices(userId);
   const out = new Map<string, CardTitle["platforms"]>();
 
-  const toPlatforms = (names: { name: string; deepLink?: string | null }[], title: string) =>
+  const toPlatforms = (
+    names: { name: string; deepLink?: string | null }[],
+    title: string,
+    kind: MediaKind,
+  ) =>
     names.map(({ name, deepLink }) => {
       const row = lookup.get(name);
       return {
         name,
         logo: row?.logo ?? null,
         url: playUrl(row?.providerId, title, deepLink),
+        find: deepLink ? null : findFor(row?.providerId, title, kind),
       };
     });
 
   const unknown: typeof credits = [];
   for (const c of credits) {
     const rows = local.get(`${c.tmdbId}:${c.kind}`);
-    if (rows?.length) out.set(`${c.kind}:${c.tmdbId}`, toPlatforms(rows, c.title));
+    if (rows?.length) out.set(`${c.kind}:${c.tmdbId}`, toPlatforms(rows, c.title, c.kind));
     else unknown.push(c);
   }
 
@@ -173,7 +178,7 @@ async function platformsFor(
       try {
         const wp = await tmdb<{ results?: WatchProviders }>(`/${c.kind}/${c.tmdbId}/watch/providers`);
         const names = includedOn(wp.results, chosen, region());
-        if (names.length) out.set(`${c.kind}:${c.tmdbId}`, toPlatforms(names.map((name) => ({ name })), c.title));
+        if (names.length) out.set(`${c.kind}:${c.tmdbId}`, toPlatforms(names.map((name) => ({ name })), c.title, c.kind));
       } catch {
         // a missing badge is better than a missing page
       }

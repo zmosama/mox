@@ -6,7 +6,7 @@
  * nobody in particular, and signing in only swaps in that account's verdicts,
  * follows and taste.
  */
-import { playUrl } from "./play-links";
+import { findFor, playUrl } from "./play-links";
 import { and, desc, eq, gte, inArray, isNotNull, lte, sql } from "drizzle-orm";
 import { db, schema } from "@/db";
 import { TasteModel, type Feature, type RatedTitle, type Scorable } from "./taste";
@@ -50,9 +50,17 @@ function toService(
   lookup: Map<string, ServiceRow>,
   title: string,
   deepLink: string | null,
+  kind?: MediaKind,
+  year?: number | null,
 ): Service {
   const row = lookup.get(name);
-  return { name, logo: row?.logo ?? null, url: playUrl(row?.providerId, title, deepLink) };
+  return {
+    name,
+    logo: row?.logo ?? null,
+    url: playUrl(row?.providerId, title, deepLink),
+    // A link chosen by hand is already exact; only look for one otherwise.
+    find: deepLink || !kind ? null : findFor(row?.providerId, title, kind, year),
+  };
 }
 
 // ---------------------------------------------------------------- viewer
@@ -281,7 +289,7 @@ export function datedFeed(name: Feed, userId: number | null, limit = 200): Relea
     const verdict = verdicts.get(key(r.tmdbId, r.kind)) ?? null;
     if (verdict && verdict !== "watchlist") continue;
     const platforms = (avail.get(key(r.tmdbId, r.kind)) ?? []).map((p) =>
-      toService(p.name, lookup, t.title, p.deepLink),
+      toService(p.name, lookup, t.title, p.deepLink, t.kind, t.year),
     );
     if (userId !== null && platforms.length === 0) continue;
     out.push({
@@ -363,7 +371,7 @@ export function datedEpisodes(
     if (!t) continue;
 
     const platforms = forSeason(tmdbId, season, avail.get(key(tmdbId, "tv")) ?? []).map((p) =>
-      toService(p.name, lookup, t.title, p.deepLink),
+      toService(p.name, lookup, t.title, p.deepLink, t.kind, t.year),
     );
     /* An episode with nowhere to watch it is not news. Unlike `datedFeed` this
        holds for signed-out visitors too: the whole point of the row is that the
@@ -479,7 +487,7 @@ export function feed(name: Feed, userId: number | null, limit = 60): CardTitle[]
     // because that decision was "yes, later".
     if (verdict && verdict !== "watchlist") continue;
     const platforms = (avail.get(key(r.tmdbId, r.kind)) ?? []).map((p) =>
-      toService(p.name, lookup, t.title, p.deepLink),
+      toService(p.name, lookup, t.title, p.deepLink, t.kind, t.year),
     );
     if (userId !== null && platforms.length === 0) continue;
 
@@ -543,7 +551,7 @@ export function calendar(userId: number | null, days = 14): CalendarEpisode[] {
         poster: t?.poster ?? null,
         following: r.tmdbId ? follows.has(r.tmdbId) : false,
         platforms: (r.tmdbId ? forSeason(r.tmdbId, r.season, avail.get(key(r.tmdbId, "tv")) ?? []) : []).map((p) =>
-          toService(p.name, lookup, r.show, p.deepLink),
+          toService(p.name, lookup, r.show, p.deepLink, "tv"),
         ),
       };
     });
@@ -625,7 +633,7 @@ export function forYou(userId: number, today = todayISO(), days = 7): FreshEpiso
       rating: t?.rating ?? null,
       verdict: verdicts.get(key(r.tmdbId!, "tv")) ?? null,
       platforms: forSeason(r.tmdbId!, r.season, avail.get(key(r.tmdbId!, "tv")) ?? []).map((p) =>
-        toService(p.name, lookup, t?.title ?? r.show, p.deepLink),
+        toService(p.name, lookup, t?.title ?? r.show, p.deepLink, "tv"),
       ),
       date: r.airs,
       season: r.season,
@@ -694,7 +702,7 @@ export function library(userId: number): { following: CardTitle[]; watchlist: Ca
       rating: t.rating,
       verdict: null,
       platforms: (avail.get(key(t.tmdbId, t.kind)) ?? []).map((p) =>
-        toService(p.name, lookup, t.title, p.deepLink),
+        toService(p.name, lookup, t.title, p.deepLink, t.kind, t.year),
       ),
     };
   };
@@ -932,7 +940,7 @@ export function universeTitles(slug: string, userId: number | null) {
         verdict: verdicts.get(key(t.tmdbId, t.kind)) ?? null,
         upcoming: (t.releaseDate ?? "") > today,
         platforms: (avail.get(key(t.tmdbId, t.kind)) ?? []).map((p) =>
-          toService(p.name, lookup, t.title, p.deepLink),
+          toService(p.name, lookup, t.title, p.deepLink, t.kind, t.year),
         ),
       };
     })
@@ -965,7 +973,7 @@ export function searchLocal(query: string, userId: number | null, limit = 40): C
     rating: t.rating,
     verdict: verdicts.get(key(t.tmdbId, t.kind)) ?? null,
     platforms: (avail.get(key(t.tmdbId, t.kind)) ?? []).map((p) =>
-      toService(p.name, lookup, t.title, p.deepLink),
+      toService(p.name, lookup, t.title, p.deepLink, t.kind, t.year),
     ),
   }));
 }

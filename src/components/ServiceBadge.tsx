@@ -1,5 +1,7 @@
 "use client";
 
+import type { Find } from "@/lib/play-links";
+
 import { cn } from "@/lib/cn";
 
 export type Service = {
@@ -7,6 +9,11 @@ export type Service = {
   logo: string | null;
   /** Where to send you on that service. Null when we have no link for it. */
   url: string | null;
+  /**
+   * How the iPhone app finds the title's own page before falling back to `url`.
+   * The web ignores it: a browser cannot follow the lookup without showing it.
+   */
+  find?: Find | null;
 };
 
 /**
