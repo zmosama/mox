@@ -1,4 +1,4 @@
-import { findFor, playUrl } from "@/lib/play-links";
+import { playUrl } from "@/lib/play-links";
 import { ageFilter } from "@/lib/age-filter";
 import { NextResponse } from "next/server";
 import { currentUser } from "@/lib/auth";
@@ -75,9 +75,6 @@ export async function GET(req: Request) {
             name: row.name,
             logo: svc?.logo ?? null,
             url: playUrl(svc?.providerId, title, row.deepLink),
-            find: row.deepLink
-              ? null
-              : findFor(svc?.providerId, title, kind, date.slice(0, 4) ? Number(date.slice(0, 4)) : null),
           };
         }),
       };
