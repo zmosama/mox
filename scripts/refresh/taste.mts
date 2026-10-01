@@ -45,6 +45,40 @@ const MIN_FILM_MINUTES = 70;
 /** So one franchise or one favourite actor cannot take over the list. */
 const PER_COLLECTION = 2;
 const PER_REASON = 3;
+/**
+ * Nor cartoons. Disney+ alone carries hundreds, and liking Pixar puts all of
+ * them in reach: the second run's thirty had twelve, Ice Age and The Rescuers
+ * among them, for someone whose ratings are mostly action.
+ */
+const FAMILY_MAX = 5;
+/**
+ * Arabic work is rated by few people on TMDB, so the vote floor that keeps out
+ * obscure filler would keep out almost all of it too.
+ */
+const MIN_VOTES_BY_LANG: Record<string, number> = { ar: 3 };
+/**
+ * Keywords that describe a mood or a stock character rather than a film.
+ * "villain" sits on nearly every cartoon and was the strongest term in half
+ * the first list; TMDB's mood tags ("amused", "wistful") are the same problem.
+ * Taken out for picking only — the taste page keeps the model as it is.
+ */
+const PICK_NOISE = new Set([
+  "villain", "hero", "cartoon", "amused", "wistful", "admiring", "awestruck", "playful",
+  "hopeful", "joyful", "comforting", "sympathetic", "inspirational", "whimsical",
+  "exhilarated", "dramatic", "bold", "provocative", "celebratory", "defiant",
+  "appreciative", "nostalgic", "adoring", "witty", "lighthearted", "complicated",
+  "sentimental", "enthusiastic", "familiar", "tense", "thrilling", "dark",
+]);
+
+/** Newer first, gently: a 1961 cartoon should not outrank this year's film. */
+function ageFactor(releaseDate: string | null) {
+  const y = Number(releaseDate?.slice(0, 4) ?? 0);
+  return y >= 2015 ? 1 : y >= 2005 ? 0.85 : y >= 1995 ? 0.7 : 0.5;
+}
+/** And better first: TMDB's rating, from 0.5 at 6.25 up to 1.25 at 8.1 and above. */
+function qualityFactor(rating: number | null) {
+  return Math.min(1.25, Math.max(0.5, ((rating ?? 6.5) - 5) / 2.5));
+}
 
 /** Services anybody subscribes to; everything, if nobody has chosen yet. */
 function watchableServices(): string[] {
@@ -167,6 +201,7 @@ export async function refreshPicks(today: string) {
     .all();
   const features = new Map<string, Feature[]>();
   for (const r of featureRows) {
+    if (r.feature === "keyword" && PICK_NOISE.has(r.value)) continue;
     const k = key(r.tmdbId, r.kind);
     (features.get(k) ?? features.set(k, []).get(k)!).push({ feature: r.feature, value: r.value });
   }
@@ -222,13 +257,26 @@ export async function refreshPicks(today: string) {
       .filter((t) => onServices.has(key(t.tmdbId, t.kind)))
       .filter((t) => !verdicts.has(key(t.tmdbId, t.kind)))
       .filter((t) => !(t.kind === "tv" && followed.has(t.tmdbId)))
-      .filter((t) => (t.votes ?? 0) >= MIN_VOTES)
-      .map((t) => {
-        const f = features.get(key(t.tmdbId, t.kind)) ?? [];
+      .map((t) => ({ t, f: features.get(key(t.tmdbId, t.kind)) ?? [] }))
+      .filter(({ t, f }) => {
+        const lang = f.find((x) => x.feature === "lang")?.value ?? "";
+        return (t.votes ?? 0) >= (MIN_VOTES_BY_LANG[lang] ?? MIN_VOTES);
+      })
+      // Children's television is not for this list, whatever the cast.
+      .filter(({ f }) => !f.some((x) => x.feature === "genre" && x.value === "kids"))
+      .map(({ t, f }) => {
         const best = f
           .filter((x) => x.feature === "person" && rank.has(x.value))
           .sort((a, b) => rank.get(a.value)! - rank.get(b.value)!)[0];
-        return { t, score: model.score({ tmdbId: t.tmdbId, features: f }), reason: best ? `Because you like ${best.value}` : null };
+        const family = f.some((x) => x.feature === "genre" && (x.value === "animation" || x.value === "family"));
+        const fit = model.score({ tmdbId: t.tmdbId, features: f });
+        return {
+          t,
+          family,
+          // Ranked by fit, then by age and quality; only a positive fit counts at all.
+          score: fit > 0 ? fit * ageFactor(t.releaseDate) * qualityFactor(t.rating) : fit,
+          reason: best ? `Because you like ${best.value}` : null,
+        };
       })
       .filter((x) => x.score > 0)
       .filter(({ t }) => t.rating == null || t.rating >= MIN_RATING)
@@ -237,12 +285,15 @@ export async function refreshPicks(today: string) {
 
     const perCollection = new Map<string, number>();
     const perReason = new Map<string, number>();
+    let families = 0;
     const chosen: typeof scored = [];
     for (const x of scored) {
       if (chosen.length >= PICKS) break;
       const c = x.t.collection;
       if (c && (perCollection.get(c) ?? 0) >= PER_COLLECTION) continue;
       if (x.reason && (perReason.get(x.reason) ?? 0) >= PER_REASON) continue;
+      if (x.family && families >= FAMILY_MAX) continue;
+      if (x.family) families++;
       if (c) perCollection.set(c, (perCollection.get(c) ?? 0) + 1);
       if (x.reason) perReason.set(x.reason, (perReason.get(x.reason) ?? 0) + 1);
       chosen.push(x);
