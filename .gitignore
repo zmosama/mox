@@ -61,3 +61,6 @@ next-env.d.ts
 
 # Xcode build output for the iPhone app
 /ios/build/
+
+# Simulator build output
+/ios/build-sim/
