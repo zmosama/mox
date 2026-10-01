@@ -6,19 +6,7 @@ import Foundation
 nonisolated struct Platform: Codable, Hashable, Sendable {
     let name: String
     let logo: String?
-    /// A verified search on the service. Always works; the fallback.
     let url: String?
-    /// How to find the title's own page instead. See Player.swift.
-    let find: Find?
-}
-
-/// `Find` in src/lib/play-links.ts.
-nonisolated struct Find: Codable, Hashable, Sendable {
-    let url: String
-    let host: String
-    let accept: String
-    /// [pattern, replacement] pairs.
-    let rewrite: [[String]]
 }
 
 nonisolated struct Card: Codable, Hashable, Sendable, Identifiable {

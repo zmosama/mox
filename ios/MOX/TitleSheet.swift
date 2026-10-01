@@ -5,8 +5,6 @@ struct TitleSheet: View {
     let ref: TitleRef
     @Environment(API.self) private var api
     @Environment(\.openURL) private var openURL
-    /// The service whose title page is being looked up, for the spinner.
-    @State private var finding: String?
     @Environment(\.dismiss) private var dismiss
 
     @State private var detail: TitleDetail?
@@ -74,8 +72,7 @@ struct TitleSheet: View {
                     .foregroundStyle(Theme.muted)
                 ForEach(d.platforms, id: \.name) { p in
                     Button {
-                        finding = p.name
-                        Task { await Player.open(p, with: openURL); finding = nil }
+                        if let s = p.url, let url = URL(string: s) { openURL(url) }
                     } label: {
                         HStack(spacing: 12) {
                             if let logo = p.logo {
@@ -83,8 +80,7 @@ struct TitleSheet: View {
                             }
                             Text(p.name).font(.sora(16, .semibold)).foregroundStyle(Theme.paper)
                             Spacer()
-                            if finding == p.name { ProgressView().tint(Theme.green) }
-                            else { Image(systemName: "play.fill").foregroundStyle(Theme.green) }
+                            Image(systemName: "play.fill").foregroundStyle(Theme.green)
                         }
                         .padding(12)
                         .background(Theme.raised, in: .rect(cornerRadius: 16))
