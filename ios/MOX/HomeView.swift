@@ -37,6 +37,9 @@ struct HomeView: View {
     @State private var results: [Card] = []
     @State private var people: [PersonChip] = []
     @State private var looking = false
+    /// Search comes ten at a time: the page that follows, nil at the end.
+    @State private var nextPage: Int?
+    @State private var loadingMore = false
     @FocusState private var fieldFocused: Bool
     @State private var showMoods = false
     @State private var dictation = Dictation()
@@ -249,6 +252,12 @@ struct HomeView: View {
                 Button { router.title = card.ref } label: { ResultRow(card: card) }
                     .buttonStyle(.plain)
             }
+            if mood == nil && nextPage != nil {
+                ProgressView()
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 20)
+                    .onAppear { Task { await searchMore() } }
+            }
         }
     }
 
@@ -326,13 +335,14 @@ struct HomeView: View {
 
     private func search() async {
         guard mood == nil else { return }
-        guard trimmed.count >= 2 else { results = []; people = []; return }
+        guard trimmed.count >= 2 else { results = []; people = []; nextPage = nil; return }
         try? await Task.sleep(for: .milliseconds(300))
         guard !Task.isCancelled else { return }
         looking = true
         defer { looking = false }
         if let found = try? await api.search(trimmed), !Task.isCancelled {
             results = found.titles
+            nextPage = found.next
             people = found.people.map {
                 PersonChip(id: $0.id, name: $0.name, profile: $0.profile,
                            role: $0.knownFor.first ?? ($0.department == "Directing" ? "Director" : nil))
@@ -340,10 +350,23 @@ struct HomeView: View {
         }
     }
 
+    /// The next ten, when the list is scrolled to its end.
+    private func searchMore() async {
+        guard mood == nil, let page = nextPage, !loadingMore else { return }
+        loadingMore = true
+        defer { loadingMore = false }
+        let asked = trimmed
+        guard let found = try? await api.search(asked, page: page), asked == trimmed else { return }
+        let seen = Set(results.map(\.id))
+        results += found.titles.filter { !seen.contains($0.id) }
+        nextPage = found.next
+    }
+
     private func discover() async {
         guard let mood else { if trimmed.isEmpty { results = []; people = [] }; return }
         results = []
         people = []
+        nextPage = nil
         looking = true
         defer { looking = false }
         if let found = try? await api.discover(mood: mood.rawValue), !Task.isCancelled { results = found }

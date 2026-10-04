@@ -314,6 +314,11 @@ struct SettingsView: View {
                     }
                 }
                 NavigationLink {
+                    FriendsSettingsView()
+                } label: {
+                    Label("Friends", systemImage: "person.2")
+                }
+                NavigationLink {
                     ServicesView()
                 } label: {
                     Label("Your services", systemImage: "play.tv")

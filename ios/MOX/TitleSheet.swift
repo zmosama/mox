@@ -100,6 +100,9 @@ struct TitleSheet: View {
                     .padding(.horizontal, 20)
             }
 
+            if let friends = d.friends, !friends.isEmpty {
+                FriendsOnTitle(friends: friends).padding(.horizontal, 20)
+            }
             if let tagline = d.tagline {
                 Text(tagline).font(.sora(15, .medium)).italic().foregroundStyle(Theme.mint).padding(.horizontal, 20)
             }

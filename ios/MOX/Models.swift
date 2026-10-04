@@ -36,6 +36,8 @@ nonisolated struct Card: Codable, Hashable, Sendable, Identifiable {
     let age: String?
     /// Outside your age levels, shown only because you follow or saved it.
     let ageWarn: Bool?
+    /// What your friends made of it, newest first.
+    let friends: [FriendMark]?
 
     var id: String { "\(kind)-\(tmdbId)-\(date ?? "")" }
     var isTV: Bool { kind == "tv" }
@@ -95,6 +97,8 @@ nonisolated struct TodayPayload: Codable, Sendable {
 nonisolated struct ResultsPayload: Codable, Sendable {
     let results: [Card]
     let people: [PersonHit]?
+    /// Search pages ten at a time: the page to ask for next, nil at the end.
+    let next: Int?
 }
 
 /// An actor or director as search finds them.
@@ -172,6 +176,8 @@ nonisolated struct TitleDetail: Codable, Sendable {
     let people: [PersonChip]?
     let platforms: [Platform]
     let verdict: String?
+    /// What your friends made of it.
+    let friends: [FriendMark]?
     let following: Bool
     /// A series: how many episodes, how many are out, how many you watched.
     let progress: SeriesProgress?
@@ -254,4 +260,77 @@ nonisolated struct WallPayload: Codable, Sendable {
 
 nonisolated struct PicksPayload: Codable, Sendable {
     let picks: [Card]
+}
+
+// MARK: - Studios
+
+nonisolated struct Studio: Codable, Hashable, Sendable, Identifiable {
+    let slug: String
+    let name: String
+    let logo: String
+    /// "movie", "tv" or both, the first being the one it opens on.
+    let kinds: [String]
+
+    var id: String { slug }
+}
+
+nonisolated struct StudiosPayload: Codable, Sendable {
+    let studios: [Studio]
+}
+
+nonisolated struct StudioPage: Codable, Sendable {
+    let results: [Card]
+    let next: Int?
+}
+
+// MARK: - Friends
+
+nonisolated struct Friend: Codable, Hashable, Sendable, Identifiable {
+    let id: Int
+    let name: String
+    let username: String
+    let avatar: String?
+}
+
+/// One friend's verdict on one title.
+nonisolated struct FriendMark: Codable, Hashable, Sendable {
+    let id: Int
+    let name: String
+    let avatar: String?
+    let verdict: String
+
+    /// "loves it", "didn't like it" — after their name. Same words as the website.
+    var verb: String {
+        switch verdict {
+        case "love": "loves it"
+        case "like": "likes it"
+        case "dislike": "didn't like it"
+        case "watchlist": "wants to watch it"
+        case "seen": "has seen it"
+        default: "isn't interested"
+        }
+    }
+}
+
+nonisolated struct FriendsPayload: Codable, Sendable {
+    let friends: [Friend]
+}
+
+nonisolated struct FriendAdded: Codable, Sendable {
+    let friend: Friend
+    let friends: [Friend]
+}
+
+nonisolated struct FriendActivity: Codable, Hashable, Sendable, Identifiable {
+    let friend: FriendMark
+    let at: Int
+    let title: Card
+
+    var id: String { "\(friend.id)-\(title.kind)-\(title.tmdbId)" }
+}
+
+nonisolated struct FriendActivityPayload: Codable, Sendable {
+    let friends: [Friend]?
+    let items: [FriendActivity]
+    let next: Int?
 }

@@ -103,6 +103,10 @@ struct PosterCard: View {
                     // A rating outside your levels, on something you follow or saved.
                     if card.ageWarn == true, let age = card.age { AgeBadge(text: age).padding(6) }
                 }
+                .overlay(alignment: .bottomTrailing) {
+                    // Friends who rated it: their faces, latest first.
+                    if let friends = card.friends, !friends.isEmpty { FriendFaces(friends: friends, size: 22).padding(6) }
+                }
                 .overlay(alignment: .topLeading) {
                     if let tag = card.episodeLabel ?? card.releaseLabel {
                         Text(tag)
@@ -177,6 +181,7 @@ struct ResultRow: View {
                 } else {
                     FlowChips(platforms: card.platforms)
                 }
+                if let friends = card.friends, !friends.isEmpty { FriendsLine(friends: friends) }
             }
             Spacer(minLength: 0)
         }

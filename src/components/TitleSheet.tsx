@@ -1,6 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { FriendsOnTitle } from "./Friends";
+import type { FriendMark } from "@/lib/friends";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import type { Service } from "./ServiceBadge";
@@ -35,6 +37,8 @@ export type SheetTitle = {
   /** Rent or buy on Apple TV Store — costs per film, so never among `platforms`. */
   store?: (Service & { price: string | null }) | null;
   verdict: Verdict | null;
+  /** What your friends made of it. */
+  friends?: FriendMark[];
   following: boolean;
   /** A series: how many episodes, how many out, how many you watched. */
   progress?: ProgressData | null;
@@ -520,6 +524,7 @@ export function TitleSheet({
                 ) : null}
               </div>
 
+              <FriendsOnTitle friends={data.friends} />
               {data.tagline ? <p className="text-[15px] font-medium italic text-love-soft">{data.tagline}</p> : null}
               {data.overview ? <p className="text-[15px] leading-relaxed text-ink/85">{data.overview}</p> : null}
               {data.kind === "tv" && data.progress ? (

@@ -523,3 +523,21 @@ export const picks = sqliteTable(
   },
   (t) => [primaryKey({ columns: [t.userId, t.tmdbId, t.kind] }), index("picks_user_rank").on(t.userId, t.rank)],
 );
+
+/**
+ * Friends: other people on this MOX whose ratings you see, and who see yours.
+ *
+ * Always both ways — adding someone writes a row for each side and removing
+ * either side deletes both — because the whole point is that they see what you
+ * think of a title and you see what they do. Nothing here is private enough to
+ * ask permission for: ratings of films, between people who know each other.
+ */
+export const friends = sqliteTable(
+  "friends",
+  {
+    userId: integer("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    friendId: integer("friend_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    addedAt: integer("added_at").notNull().default(sql`(unixepoch())`),
+  },
+  (t) => [primaryKey({ columns: [t.userId, t.friendId] })],
+);

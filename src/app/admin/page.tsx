@@ -7,6 +7,8 @@ import { Preferences } from "@/components/Preferences";
 import { WebNotifications } from "@/components/WebNotifications";
 import { AccountSettings } from "@/components/AccountSettings";
 import { accountOf } from "@/lib/users";
+import { FriendsSettings } from "@/components/FriendsSettings";
+import { friendsOf } from "@/lib/friends";
 import { readPrefs, TABS, TAB_SLOTS } from "@/lib/prefs";
 
 export const dynamic = "force-dynamic";
@@ -25,6 +27,8 @@ export default async function AdminHome() {
       <ProfilePhoto name={user.displayName ?? user.username} avatar={avatarUrl(user)} />
 
       {account ? <AccountSettings initial={account} /> : null}
+
+      <FriendsSettings initial={friendsOf(user.id)} username={user.username} />
 
       <Preferences initial={readPrefs(user.id)} options={TABS.map((t) => ({ ...t }))} slots={TAB_SLOTS} />
 

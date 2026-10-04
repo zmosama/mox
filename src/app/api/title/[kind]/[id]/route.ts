@@ -8,6 +8,7 @@ import { includedOn, soldOn, type WatchProviders } from "@/lib/providers";
 import { APPLE_TV_STORE, serviceLookup, storeOffer } from "@/lib/queries";
 import { posterPath, region, tmdb } from "@/lib/tmdb";
 import { profileUrl } from "@/lib/people";
+import { friendMarks } from "@/lib/friends";
 import { seriesProgress, type TmdbSeasonSummary } from "@/lib/progress";
 import { todayISO } from "@/lib/dates";
 import { MEDIA_KINDS, type MediaKind } from "@/db/schema";
@@ -172,6 +173,8 @@ export async function GET(
          those are included in a subscription, this costs money per film. */
       store: storeOffer(tmdbId, kind, title, soldOn(d["watch/providers"]?.results, region(), APPLE_TV_STORE)),
       verdict,
+      /** What your friends made of it, newest first. */
+      friends: friendMarks(user?.id ?? null, [{ tmdbId, kind }]).get(`${tmdbId}:${kind}`) ?? [],
       following,
       progress,
     },

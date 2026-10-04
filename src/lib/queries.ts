@@ -15,6 +15,7 @@ import type { ReleaseItem } from "@/components/NewReleases";
 import type { Service } from "@/components/ServiceBadge";
 import type { CardTitle } from "@/components/TitleCard";
 import { addDaysISO, episodeCode, todayISO } from "./dates";
+import { friendMarks } from "./friends";
 
 const key = (tmdbId: number, kind: MediaKind) => `${tmdbId}:${kind}`;
 
@@ -942,31 +943,34 @@ export function universeTitles(slug: string, userId: number | null) {
 
 // ---------------------------------------------------------------- search
 
-export function searchLocal(query: string, userId: number | null, limit = 40): CardTitle[] {
-  const q = `%${query.trim().toLowerCase()}%`;
-  const rows = db
-    .select()
-    .from(schema.titles)
-    .where(sql`lower(${schema.titles.title}) like ${q}`)
-    .orderBy(desc(schema.titles.votes))
-    .limit(limit)
-    .all();
+/** A title as TMDB lists it in search and discover, before it is a card. */
+export type Hit = {
+  tmdbId: number;
+  kind: MediaKind;
+  title: string;
+  year: number | null;
+  poster: string | null;
+  rating: number | null;
+};
 
-  const avail = availabilityFor(rows.map((r) => r.tmdbId), userId);
+/**
+ * Cards for titles that may never have been stored: search, the studios and
+ * friends' ratings all list straight from TMDB. Where it streams, your own
+ * verdict and your friends' come from here.
+ */
+export function cardsFor(hits: Hit[], userId: number | null): CardTitle[] {
+  const avail = availabilityFor(hits.map((h) => h.tmdbId), userId);
   const lookup = serviceLookup();
   const verdicts = userId ? verdictsFor(userId) : new Map<string, Verdict>();
+  const friends = friendMarks(userId, hits);
 
-  return rows.map((t) => ({
-    tmdbId: t.tmdbId,
-    kind: t.kind,
-    title: t.title,
-    year: t.year,
-    poster: t.poster,
-    rating: t.rating,
-    verdict: verdicts.get(key(t.tmdbId, t.kind)) ?? null,
-    platforms: (avail.get(key(t.tmdbId, t.kind)) ?? []).map((p) =>
-      toService(p.name, lookup, t.title, p.deepLink),
+  return hits.map((h) => ({
+    ...h,
+    verdict: verdicts.get(key(h.tmdbId, h.kind)) ?? null,
+    platforms: (avail.get(key(h.tmdbId, h.kind)) ?? []).map((p) =>
+      toService(p.name, lookup, h.title, p.deepLink),
     ),
+    friends: friends.get(key(h.tmdbId, h.kind)),
   }));
 }
 

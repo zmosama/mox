@@ -7,6 +7,8 @@ import { Ambient } from "./Ambient";
 import { useEngine } from "./engine";
 import { LivingRing } from "./LivingRing";
 import { PeopleRow, type PersonChipData } from "./People";
+import { FriendsLine } from "./Friends";
+import { usePaged } from "./usePaged";
 import { PersonSheet } from "./PersonSheet";
 import { Rail, RailItem } from "./Rail";
 import { Tabs } from "./Tabs";
@@ -34,6 +36,7 @@ const MOODS = [
 type Mood = (typeof MOODS)[number][0];
 
 type Ref = { tmdbId: number; kind: MediaKind };
+type SearchPerson = { id: number; name: string; profile: string | null; department: string | null; knownFor: string[] };
 
 /**
  * Home, as in the iPhone app: the ring and the question fill the first screen,
@@ -63,7 +66,8 @@ export function Home({
   const [query, setQuery] = useState("");
   const [mood, setMood] = useState<Mood | null>(null);
   const [showMoods, setShowMoods] = useState(false);
-  const [answer, setAnswer] = useState<{ key: string; items: CardTitle[]; people: PersonChipData[] } | null>(null);
+  const [moodAnswer, setMoodAnswer] = useState<{ mood: Mood; items: CardTitle[] } | null>(null);
+  const [searched, setSearched] = useState("");
   const [open, setOpen] = useState<Ref | null>(null);
   const [person, setPerson] = useState<number | null>(null);
   const ring = useRef<HTMLDivElement>(null);
@@ -74,42 +78,50 @@ export function Home({
   const q = query.trim();
   const asking = q.length >= 2 || mood !== null;
   const ringSize = asking ? 56 : wide ? 232 : 176;
-  const key = mood ? `mood:${mood}` : `q:${q}`;
-  const results = asking && answer?.key === key ? answer.items : null;
-  const people = asking && answer?.key === key ? answer.people : [];
-  const looking = asking && answer?.key !== key;
+
+  // Asked for once typing pauses, not on every letter.
+  useEffect(() => {
+    const timer = setTimeout(() => setSearched(q.length >= 2 && !mood ? q : ""), 300);
+    return () => clearTimeout(timer);
+  }, [q, mood]);
+
+  /* Ten at a time, and the next ten when the list is scrolled to its end:
+     a broad word like "disney" used to fetch and check everything at once. */
+  const { sentinel: searchEnd, ...search } = usePaged<CardTitle, PersonChipData[]>(
+    searched ? `/api/search?q=${encodeURIComponent(searched)}` : null,
+    (body) => ({
+      items: (body.results as CardTitle[]) ?? [],
+      next: (body.next as number | null) ?? null,
+      extra: ((body.people as SearchPerson[] | undefined) ?? []).map((p) => ({
+        id: p.id,
+        name: p.name,
+        profile: p.profile,
+        role: p.knownFor[0] ?? (p.department === "Directing" ? "Director" : null),
+      })),
+    }),
+  );
 
   useEffect(() => {
-    if (!asking) return;
-    const url = mood
-      ? `/api/app/discover?mood=${mood}`
-      : `/api/search?q=${encodeURIComponent(q)}`;
-    const timer = setTimeout(
-      async () => {
-        try {
-          const res = await fetch(url);
-          const body = (await res.json()) as {
-            results: CardTitle[];
-            people?: { id: number; name: string; profile: string | null; department: string | null; knownFor: string[] }[];
-          };
-          setAnswer({
-            key,
-            items: body.results ?? [],
-            people: (body.people ?? []).map((p) => ({
-              id: p.id,
-              name: p.name,
-              profile: p.profile,
-              role: p.knownFor[0] ?? (p.department === "Directing" ? "Director" : null),
-            })),
-          });
-        } catch {
-          setAnswer({ key, items: [], people: [] });
-        }
-      },
-      mood ? 0 : 300,
-    );
-    return () => clearTimeout(timer);
-  }, [asking, key, mood, q]);
+    if (!mood) return;
+    let live = true;
+    (async () => {
+      try {
+        const body = (await (await fetch(`/api/app/discover?mood=${mood}`)).json()) as { results: CardTitle[] };
+        if (live) setMoodAnswer({ mood, items: body.results ?? [] });
+      } catch {
+        if (live) setMoodAnswer({ mood, items: [] });
+      }
+    })();
+    return () => {
+      live = false;
+    };
+  }, [mood]);
+
+  const results = mood
+    ? moodAnswer?.mood === mood ? moodAnswer.items : null
+    : searched === q && !search.pending ? search.items : null;
+  const people = !mood && searched === q ? (search.extra ?? []) : [];
+  const looking = asking && results === null;
 
   const greeting =
     hour < 5 ? "Good evening" : hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
@@ -205,6 +217,8 @@ export function Home({
           query={q}
           results={results}
           people={people}
+          more={!mood && search.more}
+          sentinel={mood ? null : searchEnd}
           onOpen={setOpen}
           onOpenPerson={setPerson}
         />
@@ -396,6 +410,8 @@ function Answers({
   query,
   results,
   people,
+  more,
+  sentinel,
   onOpen,
   onOpenPerson,
 }: {
@@ -403,6 +419,8 @@ function Answers({
   query: string;
   results: CardTitle[] | null;
   people: PersonChipData[];
+  more: boolean;
+  sentinel: ((el: HTMLDivElement | null) => void) | null;
   onOpen: (r: Ref) => void;
   onOpenPerson: (id: number) => void;
 }) {
@@ -431,6 +449,12 @@ function Answers({
           </li>
         ))}
       </ul>
+      {sentinel ? <div ref={sentinel} aria-hidden className="h-px" /> : null}
+      {more ? (
+        <div className="flex justify-center py-6">
+          <span aria-label="Loading more" className="size-5 animate-spin rounded-full border-2 border-ink-dim border-t-transparent" />
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -459,6 +483,7 @@ function ResultRow({ card, onOpen }: { card: CardTitle; onOpen: (r: Ref) => void
         ) : (
           <div className="mt-2 text-[12px] text-ink-faint">Not on your services</div>
         )}
+        <FriendsLine friends={card.friends} className="mt-2" />
       </div>
     </div>
   );

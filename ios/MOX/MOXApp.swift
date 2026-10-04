@@ -117,6 +117,8 @@ struct RootView: View {
         case .news: NewsView()
         case .library: LibraryView()
         case .picks: PicksView()
+        case .studios: StudiosView()
+        case .friends: FriendsView()
         case .f1: F1View()
         case .calendar: CalendarTabView()
         case .tasks: TasksView()

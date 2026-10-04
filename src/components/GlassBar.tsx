@@ -21,6 +21,18 @@ const WEB_TABS: Record<string, { href: string; label: string; icon: string }> = 
     label: "My List",
     icon: "M6 3h12a1 1 0 0 1 1 1v17l-7-4.2L5 21V4a1 1 0 0 1 1-1z",
   },
+  studios: {
+    href: "/studios",
+    label: "Studios",
+    // A clapperboard.
+    icon: "M4 9h16v10a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V9zm-.6-4.2 14.5-2.6a1 1 0 0 1 1.2.8l.5 2.6L5 8.2a1 1 0 0 1-.8-.8l-.3-1.6a1 1 0 0 1 .8-1.2zM7.2 4.3 9.6 7l2-.4-2.4-2.7-2 .4zm5 -.9 2.4 2.7 2-.4-2.4-2.7-2 .4z",
+  },
+  friends: {
+    href: "/friends",
+    label: "Friends",
+    // Two people.
+    icon: "M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zm7.5-.5a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM9 13c-3.9 0-7 2.2-7 5v2h14v-2c0-2.8-3.1-5-7-5zm7.5-.5c-.8 0-1.6.1-2.3.4 1.4 1.1 2.3 2.5 2.3 4.1v3H22v-2.5c0-2.8-2.5-5-5.5-5z",
+  },
   f1: {
     href: "/f1",
     label: "F1",

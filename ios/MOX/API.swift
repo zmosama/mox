@@ -106,9 +106,54 @@ final class API {
     }
     func title(_ ref: TitleRef) async throws -> TitleDetail { try await get("/api/title/\(ref.kind)/\(ref.tmdbId)") }
 
-    func search(_ query: String) async throws -> (titles: [Card], people: [PersonHit]) {
-        let payload: ResultsPayload = try await get("/api/search", ["q": query])
-        return (payload.results, payload.people ?? [])
+    /// Ten titles a page; people come with the first.
+    func search(_ query: String, page: Int = 1) async throws -> (titles: [Card], people: [PersonHit], next: Int?) {
+        let payload: ResultsPayload = try await get("/api/search", ["q": query, "page": String(page)])
+        return (payload.results, payload.people ?? [], payload.next)
+    }
+
+    func studios() async throws -> [Studio] {
+        let payload: StudiosPayload = try await get("/api/studios")
+        return payload.studios
+    }
+
+    /// One studio's films or series, ten a page. Sort: "popular", "top" or "newest".
+    func studio(_ slug: String, kind: String, sort: String, page: Int) async throws -> StudioPage {
+        try await get("/api/studios/\(slug)", ["kind": kind, "sort": sort, "page": String(page)])
+    }
+
+    func friends() async throws -> [Friend] {
+        let payload: FriendsPayload = try await get("/api/friends")
+        return payload.friends
+    }
+
+    /// By their username or email. Both of you see each other's ratings from now on.
+    func addFriend(_ who: String) async throws -> FriendAdded {
+        var request = URLRequest(url: try url("/api/friends"))
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "content-type")
+        request.httpBody = try JSONSerialization.data(withJSONObject: ["who": who])
+        let added: FriendAdded = try await send(request)
+        revision += 1
+        return added
+    }
+
+    func removeFriend(_ id: Int) async throws -> [Friend] {
+        var request = URLRequest(url: try url("/api/friends"))
+        request.httpMethod = "DELETE"
+        request.setValue("application/json", forHTTPHeaderField: "content-type")
+        request.httpBody = try JSONSerialization.data(withJSONObject: ["id": id])
+        let payload: FriendsPayload = try await send(request)
+        revision += 1
+        return payload.friends
+    }
+
+    /// What friends rated lately: all of them or one, every verdict or one.
+    func friendActivity(friend: Int?, verdict: String?, page: Int) async throws -> FriendActivityPayload {
+        var query = ["page": String(page)]
+        if let friend { query["friend"] = String(friend) }
+        if let verdict { query["verdict"] = verdict }
+        return try await get("/api/friends/activity", query)
     }
 
     func person(_ id: Int) async throws -> PersonDetail { try await get("/api/person/\(id)") }

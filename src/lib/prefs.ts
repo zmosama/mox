@@ -27,6 +27,10 @@ export const TABS = [
   { id: "library", label: "My List", interest: false, appOnly: false },
   // Recommendations, built each night by the taste model. The app only, for now.
   { id: "picks", label: "Picks", interest: false, appOnly: true },
+  // Disney, A24, HBO… and what each made, by popularity, rating or date.
+  { id: "studios", label: "Studios", interest: false, appOnly: false },
+  // What your friends on MOX rated lately.
+  { id: "friends", label: "Friends", interest: false, appOnly: false },
   { id: "f1", label: "F1", interest: true, appOnly: false },
   { id: "calendar", label: "Calendar", interest: false, appOnly: true },
   { id: "tasks", label: "Tasks", interest: false, appOnly: true },

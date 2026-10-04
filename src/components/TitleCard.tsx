@@ -1,8 +1,10 @@
 "use client";
 
 import { Poster } from "./Poster";
+import { FriendFace } from "./Friends";
 import { cn } from "@/lib/cn";
 import type { MediaKind, Verdict } from "@/db/schema";
+import type { FriendMark } from "@/lib/friends";
 
 export type CardTitle = {
   tmdbId: number;
@@ -31,6 +33,8 @@ export type CardTitle = {
   age?: string | null;
   /** Outside your age levels, shown only because you follow or saved it. */
   ageWarn?: boolean;
+  /** What your friends made of it, newest first. */
+  friends?: FriendMark[];
 };
 
 const RING: Record<Verdict, string> = {
@@ -82,6 +86,14 @@ export function TitleCard({
         {tag ? (
           <span className="numeric absolute start-1.5 top-1.5 z-10 rounded-full bg-black/65 px-2 py-0.5 text-[10.5px] font-semibold text-love-soft">
             {tag}
+          </span>
+        ) : null}
+        {/* Friends who rated it: their faces, latest first. */}
+        {item.friends?.length ? (
+          <span className="absolute bottom-1.5 end-1.5 z-10 flex -space-x-1.5">
+            {item.friends.slice(0, 3).map((f) => (
+              <FriendFace key={f.id} friend={f} size={22} className="ring-black/70" />
+            ))}
           </span>
         ) : null}
         {/* A rating outside your levels, on something you follow or saved. */}

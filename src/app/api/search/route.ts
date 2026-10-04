@@ -1,89 +1,56 @@
-import { playUrl } from "@/lib/play-links";
 import { ageFilter } from "@/lib/age-filter";
 import { NextResponse } from "next/server";
 import { currentUser } from "@/lib/auth";
-import { availabilityFor, searchLocal, serviceLookup } from "@/lib/queries";
-import { posterPath, tmdb } from "@/lib/tmdb";
+import { cardsFor } from "@/lib/queries";
+import { tmdb } from "@/lib/tmdb";
 import { profileUrl } from "@/lib/people";
+import { pageParam, slice, tmdbPage, toHit, type TmdbListItem } from "@/lib/paging";
 import type { MediaKind } from "@/db/schema";
 
 type MultiResult = {
-  results?: {
-    id: number;
-    media_type?: string;
+  total_pages?: number;
+  results?: (TmdbListItem & {
     profile_path?: string | null;
     known_for_department?: string;
     known_for?: { title?: string; name?: string }[];
-    title?: string;
-    name?: string;
-    release_date?: string;
-    first_air_date?: string;
-    poster_path?: string | null;
-    vote_average?: number;
-    vote_count?: number;
-  }[];
+  })[];
 };
 
 /**
- * Searches the catalog and TMDB together.
+ * Search, ten titles at a time: `?q=…&page=n`, and `next` names the page to
+ * ask for when the list is scrolled to its end.
  *
- * Searching only what has already been imported meant a show could sit on your
- * calendar and still be unfindable here, which reads as a broken connection
- * rather than a small catalog.
+ * TMDB's order is the order, so pages never repeat or skip a title; the
+ * catalogue only adds where it streams and what you and your friends thought.
+ * People come with the first page only.
  */
 export async function GET(req: Request) {
-  const query = new URL(req.url).searchParams.get("q")?.trim() ?? "";
-  if (query.length < 2) return NextResponse.json({ results: [] });
+  const params = new URL(req.url).searchParams;
+  const query = params.get("q")?.trim() ?? "";
+  const page = pageParam(params.get("page"));
+  if (query.length < 2) return NextResponse.json({ results: [], people: [], next: null });
 
   const user = await currentUser();
-  const local = searchLocal(query, user?.id ?? null, 24);
-  const known = new Set(local.map((l) => `${l.tmdbId}:${l.kind}`));
-
   let remote: MultiResult = {};
   try {
-    remote = await tmdb<MultiResult>("/search/multi", { query, include_adult: "false" });
+    remote = await tmdb<MultiResult>("/search/multi", {
+      query,
+      include_adult: "false",
+      page: tmdbPage(page).tmdbPage,
+    });
   } catch {
-    // TMDB being unreachable should still return what we have locally
+    return NextResponse.json({ results: [], people: [], next: null }, { status: 502 });
   }
 
-  const candidates = (remote.results ?? [])
+  const titles = (remote.results ?? [])
     .filter((r) => r.media_type === "movie" || r.media_type === "tv")
-    .filter((r) => !known.has(`${r.id}:${r.media_type}`))
-    .slice(0, 24);
-  const lookup = serviceLookup();
-  const availability = availabilityFor(
-    candidates.map((r) => r.id),
-    user?.id ?? null,
-  );
-  const extra = candidates.map((r) => {
-      const kind = r.media_type as MediaKind;
-      const date = r.release_date ?? r.first_air_date ?? "";
-      const title = r.title ?? r.name ?? "Untitled";
-      const rows = availability.get(`${r.id}:${kind}`) ?? [];
-
-      return {
-        tmdbId: r.id,
-        kind,
-        title,
-        year: date.slice(0, 4) ? Number(date.slice(0, 4)) : null,
-        poster: posterPath(r.poster_path),
-        rating: r.vote_average ? Math.round(r.vote_average * 10) / 10 : null,
-        verdict: null,
-        platforms: rows.map((row) => {
-          const svc = lookup.get(row.name);
-          return {
-            name: row.name,
-            logo: svc?.logo ?? null,
-            url: playUrl(svc?.providerId, title, row.deepLink),
-          };
-        }),
-      };
-    });
+    .map((r) => toHit(r, r.media_type as MediaKind));
+  const { items, next } = slice(titles, page, remote.total_pages ?? 1);
 
   /* People too: an actor or director is as good a way into a film as its
      title. Only ones with a face and some known work — TMDB also has every
      extra who ever had a line. */
-  const people = (remote.results ?? [])
+  const people = page !== 1 ? [] : (remote.results ?? [])
     .filter((r) => r.media_type === "person" && r.profile_path && r.known_for?.length)
     .slice(0, 8)
     .map((r) => ({
@@ -95,11 +62,12 @@ export async function GET(req: Request) {
     }));
 
   /* Straight from TMDB, so many results were never stored: their certificates
-     are looked up here rather than letting an unchecked 18+ through. */
-  const results = await ageFilter(user?.id ?? null)([...local, ...extra], { lookUp: true });
+     are looked up here — ten at most — rather than letting an unchecked 18+
+     through. */
+  const results = await ageFilter(user?.id ?? null)(cardsFor(items, user?.id ?? null), { lookUp: true });
 
   return NextResponse.json(
-    { results, people },
+    { results, people, next },
     { headers: { "cache-control": "no-store" } },
   );
 }
