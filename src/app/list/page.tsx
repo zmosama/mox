@@ -5,6 +5,8 @@ import { followedPeople, peopleYouLove, within } from "@/lib/people";
 
 export const dynamic = "force-dynamic";
 
+const SITE = process.env.MOX_PUBLIC_URL ?? "https://mox.mosama.me";
+
 /** Shows and people you follow, your watchlist, and the people you keep rating well. */
 export default async function ListPage() {
   const user = await currentUser();
@@ -12,6 +14,7 @@ export default async function ListPage() {
   return (
     <MyList
       signedIn
+      shareUrl={`${SITE}/u/${user.username}`}
       {...(await agedLibrary(user.id))}
       people={followedPeople(user.id)}
       loved={await within(2500, peopleYouLove(user.id), [])}

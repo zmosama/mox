@@ -11,11 +11,28 @@ struct LibraryView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 28) {
-                Text("My List")
-                    .font(.sora(28, .bold, relativeTo: .title))
-                    .foregroundStyle(Theme.paper)
-                    .padding(.horizontal, 20)
-                    .padding(.top, 12)
+                HStack {
+                    Text("My List")
+                        .font(.sora(28, .bold, relativeTo: .title))
+                        .foregroundStyle(Theme.paper)
+                    Spacer()
+                    // A link anyone can open, with or without the app or an account.
+                    if let user = api.user {
+                        ShareLink(
+                            item: AppSettings.publicSite.appending(path: "u/\(user.username)"),
+                            subject: Text("My list on mox"),
+                            message: Text("What I'm following and want to watch")
+                        ) {
+                            Label("Share", systemImage: "square.and.arrow.up")
+                                .font(.sora(13, .medium))
+                                .padding(.horizontal, 14).padding(.vertical, 8)
+                                .glassEffect(.regular.interactive(), in: .capsule)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .padding(.horizontal, 20)
+                .padding(.top, 12)
 
                 if api.user == nil {
                     SignInPrompt(text: "Sign in to see the shows you follow and your watchlist.") { router.settings = true }
