@@ -99,6 +99,7 @@ struct TodayView: View {
             }
         }
         .pickerStyle(.segmented)
+        .pickerWidth()
         .padding(.horizontal, 20)
     }
 

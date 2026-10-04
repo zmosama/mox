@@ -193,6 +193,7 @@ struct F1View: View {
                 Text("Teams").tag("teams")
             }
             .pickerStyle(.segmented)
+            .pickerWidth()
             .padding(.horizontal, 20)
             if let standings = b.standings {
                 if let latest = b.latest, standings.afterRound < latest.round {
@@ -388,6 +389,7 @@ struct F1ResultsTable: View {
                         ForEach(tabs, id: \.0) { Text($0.1).tag($0.0) }
                     }
                     .pickerStyle(.segmented)
+                    .pickerWidth()
                     .padding(12)
                 }
                 let current = tabs.contains(where: { $0.0 == tab }) ? tab : tabs[0].0

@@ -49,6 +49,8 @@ struct HomeView: View {
 
     /// Height of the visible scroll area, so the first screen can fill it.
     @State private var viewport: CGFloat = 800
+    @Environment(\.horizontalSizeClass) private var sizeClass
+    private var wide: Bool { sizeClass == .regular }
 
     var body: some View {
         ScrollView {
@@ -94,16 +96,16 @@ struct HomeView: View {
 
             Spacer(minLength: 0)
 
-            LivingRing(size: asking ? 56 : 176, active: ringVisible && router.tab == .home && phase == .active)
+            LivingRing(size: asking ? 56 : (wide ? 240 : 176), active: ringVisible && router.tab == .home && phase == .active)
                 .onScrollVisibilityChange(threshold: 0.05) { ringVisible = $0 }
 
             if !asking {
                 Text(greeting)
-                    .font(.sora(28, .medium, relativeTo: .title))
+                    .font(.sora(wide ? 36 : 28, .medium, relativeTo: .title))
                     .foregroundStyle(Theme.paper)
                     .padding(.top, 12)
                 Text("What are we watching tonight?")
-                    .font(.sora(17, relativeTo: .body))
+                    .font(.sora(wide ? 20 : 17, relativeTo: .body))
                     .foregroundStyle(Theme.paper.opacity(0.72))
                     .padding(.top, 10)
             }
@@ -202,6 +204,7 @@ struct HomeView: View {
         .frame(height: 56)
         .glassEffect(.regular.interactive(), in: .capsule)
         .padding(.horizontal, 20)
+        .readableWidth(760)
     }
 
     private var moodChips: some View {
@@ -248,9 +251,12 @@ struct HomeView: View {
                     .foregroundStyle(Theme.muted)
                     .padding(.horizontal, 20)
             }
-            ForEach(results) { card in
-                Button { router.title = card.ref } label: { ResultRow(card: card) }
-                    .buttonStyle(.plain)
+            // Side by side on an iPad.
+            Rows(spacing: 4) {
+                ForEach(results) { card in
+                    Button { router.title = card.ref } label: { ResultRow(card: card) }
+                        .buttonStyle(.plain)
+                }
             }
             if mood == nil && nextPage != nil {
                 ProgressView()
@@ -309,7 +315,10 @@ struct HomeView: View {
                     LazyHStack(spacing: 12) {
                         ForEach(payload.forYou) { card in
                             FreshEpisodeCard(card: card, today: payload.today)
-                                .containerRelativeFrame(.horizontal) { w, _ in payload.forYou.count > 1 ? w - 56 : w - 40 }
+                                // A peek of the next card on a phone; several side by side on an iPad.
+                                .containerRelativeFrame(.horizontal) { w, _ in
+                                    wide ? min(520, w - 56) : payload.forYou.count > 1 ? w - 56 : w - 40
+                                }
                         }
                     }
                     .scrollTargetLayout()
@@ -484,6 +493,7 @@ struct AiringSection: View {
                 ForEach(Filter.allCases, id: \.self) { Text($0.rawValue) }
             }
             .pickerStyle(.segmented)
+            .pickerWidth()
             .padding(.horizontal, 20)
 
             if days.isEmpty {
@@ -499,6 +509,7 @@ struct AiringSection: View {
                         .font(.sora(13, .semibold, relativeTo: .footnote))
                         .foregroundStyle(day == today ? Theme.green : Theme.muted)
                         .padding(.horizontal, 20)
+                    Rows(spacing: 8, minWidth: 340) {
                     ForEach(list) { ep in
                         Button {
                             if let id = ep.tmdbId { router.title = TitleRef(tmdbId: id, kind: "tv") }
@@ -525,8 +536,9 @@ struct AiringSection: View {
                             .background(Theme.raised, in: .rect(cornerRadius: 16))
                         }
                         .buttonStyle(.plain)
-                        .padding(.horizontal, 20)
                     }
+                    }
+                    .padding(.horizontal, 20)
                 }
             }
         }

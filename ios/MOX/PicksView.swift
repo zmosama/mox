@@ -31,7 +31,7 @@ struct PicksView: View {
                         Text("Rate at least ten titles and tonight's refresh will choose some for you.")
                             .font(.sora(14)).foregroundStyle(Theme.muted).padding(.horizontal, 20)
                     }
-                    LazyVStack(spacing: 14) {
+                    Rows(spacing: 14, minWidth: 380) {
                         ForEach(picks) { card in row(card) }
                     }
                     .padding(.horizontal, 20)

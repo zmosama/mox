@@ -66,6 +66,7 @@ enum AppTab: Hashable {
 }
 
 struct RootView: View {
+    @Environment(\.horizontalSizeClass) private var sizeClass
     @Environment(AppSettings.self) private var settings
     @Environment(API.self) private var api
     @Environment(Router.self) private var router
@@ -77,19 +78,41 @@ struct RootView: View {
         let half = (tabs.count + 1) / 2
 
         TabView(selection: $router.tab) {
-            ForEach(Array(tabs.prefix(half))) { id in
-                Tab(id.label, systemImage: id.icon, value: AppTab.tab(id)) { screen(id) }
-            }
-            // The ring in its own colours, and no label: the logo is the name.
-            Tab(value: AppTab.home) {
-                HomeView()
-            } label: {
-                Image("TabRing").renderingMode(.original).accessibilityLabel("MOX")
-            }
-            ForEach(Array(tabs.dropFirst(half))) { id in
-                Tab(id.label, systemImage: id.icon, value: AppTab.tab(id)) { screen(id) }
+            if sizeClass == .regular {
+                // iPad: a sidebar with room for everything — home first, your
+                // tabs, then the rest. Calendar and Tasks only once chosen, as
+                // they ask for the iPad's calendars and reminders.
+                Tab(value: AppTab.home) {
+                    HomeView()
+                } label: {
+                    Label { Text("Home") } icon: { Image("TabRing").renderingMode(.original) }
+                }
+                ForEach(tabs) { id in
+                    Tab(id.label, systemImage: id.icon, value: AppTab.tab(id)) { screen(id) }
+                }
+                TabSection("More") {
+                    ForEach(TabID.allCases.filter { !tabs.contains($0) && !$0.needsDevice }) { id in
+                        Tab(id.label, systemImage: id.icon, value: AppTab.tab(id)) { screen(id) }
+                    }
+                }
+            } else {
+                ForEach(Array(tabs.prefix(half))) { id in
+                    Tab(id.label, systemImage: id.icon, value: AppTab.tab(id)) { screen(id) }
+                }
+                // The ring in its own colours, and no label: the logo is the name.
+                Tab(value: AppTab.home) {
+                    HomeView()
+                } label: {
+                    Image("TabRing").renderingMode(.original).accessibilityLabel("MOX")
+                }
+                ForEach(Array(tabs.dropFirst(half))) { id in
+                    Tab(id.label, systemImage: id.icon, value: AppTab.tab(id)) { screen(id) }
+                }
             }
         }
+        // On an iPad the tabs can open as a sidebar; on an iPhone this is the
+        // ordinary tab bar.
+        .tabViewStyle(.sidebarAdaptable)
         .tabBarMinimizeBehavior(.onScrollDown)
         .sheet(item: $router.title) { ref in
             TitleSheet(ref: ref)
@@ -100,13 +123,19 @@ struct RootView: View {
         .sheet(isPresented: $router.settings) {
             SettingsView()
         }
+        #if DEBUG
+        // Screenshots: `simctl launch … -moxTab studios` opens on that tab.
+        .onAppear {
+            if let raw = UserDefaults.standard.string(forKey: "moxTab"), let id = TabID(rawValue: raw) { router.tab = .tab(id) }
+        }
+        #endif
         // The account's tabs, from the server, whenever who is signed in changes.
         .task(id: api.user?.id) {
             guard api.user != nil, let prefs = try? await api.prefs(), !prefs.tabIDs.isEmpty else { return }
             settings.tabs = prefs.tabIDs
         }
         .onChange(of: settings.tabs) {
-            if case .tab(let id) = router.tab, !settings.tabs.contains(id) { router.tab = .home }
+            if sizeClass != .regular, case .tab(let id) = router.tab, !settings.tabs.contains(id) { router.tab = .home }
         }
     }
 

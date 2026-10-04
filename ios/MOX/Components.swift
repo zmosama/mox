@@ -138,14 +138,15 @@ struct PosterRail: View {
     let cards: [Card]
     var caption: (Card) -> String? = { _ in nil }
     let open: (TitleRef) -> Void
+    @Environment(\.horizontalSizeClass) private var size
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             SectionTitle(text: title, detail: detail)
             ScrollView(.horizontal) {
-                LazyHStack(alignment: .top, spacing: 12) {
+                LazyHStack(alignment: .top, spacing: size == .regular ? 16 : 12) {
                     ForEach(cards) { card in
-                        Button { open(card.ref) } label: { PosterCard(card: card, caption: caption(card)) }
+                        Button { open(card.ref) } label: { PosterCard(card: card, width: PosterSize.rail(size), caption: caption(card)) }
                             .buttonStyle(.plain)
                     }
                 }
@@ -277,5 +278,69 @@ struct AgeBadge: View {
             .padding(.horizontal, 7).padding(.vertical, 3)
             .background(Color(hex: 0xFF5A52), in: .capsule)
             .foregroundStyle(.white)
+    }
+}
+
+// MARK: - iPad
+
+/// A list of rows: one column on an iPhone, and on an iPad as many columns of
+/// about `minWidth` as the screen holds — a row stretched across a 13-inch
+/// screen is a long way for the eye to travel for one title.
+struct Rows<Content: View>: View {
+    var spacing: CGFloat = 10
+    var minWidth: CGFloat = 360
+    @ViewBuilder let content: Content
+    @Environment(\.horizontalSizeClass) private var size
+
+    var body: some View {
+        if size == .regular {
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: minWidth), spacing: 16, alignment: .top)],
+                      alignment: .leading, spacing: spacing) { content }
+        } else {
+            LazyVStack(alignment: .leading, spacing: spacing) { content }
+        }
+    }
+}
+
+extension View {
+    /// On an iPad, no wider than reads well, centred; on an iPhone, unchanged.
+    func readableWidth(_ max: CGFloat = 720) -> some View { modifier(ReadableWidth(max: max)) }
+}
+
+private struct ReadableWidth: ViewModifier {
+    let max: CGFloat
+    @Environment(\.horizontalSizeClass) private var size
+
+    func body(content: Content) -> some View {
+        if size == .regular {
+            content.frame(maxWidth: max).frame(maxWidth: .infinity)
+        } else {
+            content
+        }
+    }
+}
+
+/// Poster sizes: a thumb's width on an iPhone, larger on an iPad's screen.
+enum PosterSize {
+    static func grid(_ size: UserInterfaceSizeClass?) -> CGFloat { size == .regular ? 150 : 104 }
+    static func rail(_ size: UserInterfaceSizeClass?) -> CGFloat { size == .regular ? 150 : 118 }
+}
+
+extension View {
+    /// A segmented picker at a size that reads as a control on an iPad, not a
+    /// stripe across the screen; full width on an iPhone, as before.
+    func pickerWidth(_ max: CGFloat = 520) -> some View { modifier(PickerWidth(max: max)) }
+}
+
+private struct PickerWidth: ViewModifier {
+    let max: CGFloat
+    @Environment(\.horizontalSizeClass) private var size
+
+    func body(content: Content) -> some View {
+        if size == .regular {
+            content.frame(maxWidth: max).frame(maxWidth: .infinity, alignment: .leading)
+        } else {
+            content
+        }
     }
 }

@@ -103,6 +103,7 @@ struct NewsView: View {
                     Text("عربي").tag("ar")
                 }
                 .pickerStyle(.segmented)
+                .pickerWidth()
                 .padding(.horizontal, 20)
             }
             let shown = lang == "all" ? p.headlines : p.headlines.filter { $0.lang == lang }
@@ -119,7 +120,7 @@ struct NewsView: View {
     }
 
     private func stories(_ list: [Story]) -> some View {
-        LazyVStack(spacing: 10) {
+        Rows(spacing: 10, minWidth: 380) {
             ForEach(list) { story in
                 Button { reading = URL(string: story.url) } label: { StoryRow(story: story) }
                     .buttonStyle(.plain)

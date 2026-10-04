@@ -6,7 +6,9 @@ struct StudiosView: View {
     @State private var studios: [Studio]?
     @State private var failed = false
 
-    private let columns = [GridItem(.adaptive(minimum: 150), spacing: 12)]
+    @Environment(\.horizontalSizeClass) private var size
+    // Logo tiles: two across a phone, five or six across an iPad.
+    private var columns: [GridItem] { [GridItem(.adaptive(minimum: size == .regular ? 190 : 150), spacing: 12)] }
 
     var body: some View {
         NavigationStack {
@@ -95,7 +97,8 @@ struct StudioView: View {
     @State private var following: Bool?
 
     private static let sorts = [("popular", "Most popular"), ("top", "Top rated"), ("newest", "Newest")]
-    private let columns = [GridItem(.adaptive(minimum: 104), spacing: 12)]
+    @Environment(\.horizontalSizeClass) private var size
+    private var columns: [GridItem] { [GridItem(.adaptive(minimum: PosterSize.grid(size)), spacing: 12)] }
 
     var body: some View {
         ScrollView {
@@ -149,7 +152,7 @@ struct StudioView: View {
                     LazyVGrid(columns: columns, alignment: .leading, spacing: 16) {
                         ForEach(cards) { card in
                             Button { router.title = card.ref } label: {
-                                PosterCard(card: card, width: 104)
+                                PosterCard(card: card, width: PosterSize.grid(size))
                             }
                             .buttonStyle(.plain)
                         }

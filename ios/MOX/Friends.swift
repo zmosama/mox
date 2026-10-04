@@ -116,13 +116,13 @@ struct FriendsView: View {
                     } else if items.isEmpty {
                         Text("Nothing rated here yet.").font(.sora(14)).foregroundStyle(Theme.muted).padding(.horizontal, 20)
                     } else {
-                        LazyVStack(spacing: 14) {
+                        Rows(spacing: 14, minWidth: 380) {
                             ForEach(items) { row($0) }
-                            if next != nil {
-                                ProgressView().padding(.vertical, 20).onAppear { Task { await more() } }
-                            }
                         }
                         .padding(.horizontal, 20)
+                        if next != nil {
+                            ProgressView().frame(maxWidth: .infinity).padding(.vertical, 20).onAppear { Task { await more() } }
+                        }
                     }
                 }
             }

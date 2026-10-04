@@ -203,6 +203,7 @@ struct PersonSheet: View {
                 }
             }
             .pickerStyle(.segmented)
+            .pickerWidth()
             .padding(.horizontal, 20)
 
             if !now.isEmpty {

@@ -6,7 +6,8 @@ struct LibraryView: View {
     @Environment(Router.self) private var router
     @State private var payload: LibraryPayload?
 
-    private let columns = [GridItem(.adaptive(minimum: 104), spacing: 12, alignment: .top)]
+    @Environment(\.horizontalSizeClass) private var size
+    private var columns: [GridItem] { [GridItem(.adaptive(minimum: PosterSize.grid(size)), spacing: 12, alignment: .top)] }
 
     var body: some View {
         ScrollView {
@@ -71,7 +72,7 @@ struct LibraryView: View {
             }
             LazyVGrid(columns: columns, spacing: 18) {
                 ForEach(cards) { card in
-                    Button { router.title = card.ref } label: { PosterCard(card: card, width: 104) }
+                    Button { router.title = card.ref } label: { PosterCard(card: card, width: PosterSize.grid(size)) }
                         .buttonStyle(.plain)
                 }
             }
