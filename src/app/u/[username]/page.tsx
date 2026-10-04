@@ -30,12 +30,13 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
     following.length ? `Follows ${following.length} show${following.length === 1 ? "" : "s"}` : null,
     watchlist.length ? `wants to watch ${watchlist.length}` : null,
   ].filter(Boolean).join(", ") || "What they follow and want to watch.";
-  const poster = [...watchlist, ...following].find((c) => c.poster)?.poster;
+  // The mox wordmark, not a poster: the link is the list, not its first film.
+  const image = { url: "/og.png", width: 1200, height: 630, alt: "mox" };
   return {
     title,
     description,
-    openGraph: { title, description, images: poster ? [poster] : [] },
-    twitter: { card: "summary", title, description, images: poster ? [poster] : [] },
+    openGraph: { title, description, images: [image] },
+    twitter: { card: "summary_large_image", title, description, images: [image] },
   };
 }
 
