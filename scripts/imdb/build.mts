@@ -16,7 +16,7 @@
  * It runs on the server, weekly, from /etc/cron.d/apps:
  *
  *   docker exec -e IMDB_SRC=/data/imdb-src -e IMDB_DB=/data/imdb.db apps-mox-1 \
- *     nice -n 19 node_modules/.bin/tsx scripts/imdb/build.mts --download
+ *     nice -n 19 node_modules/.bin/tsx scripts/imdb/build.mts --download --clean
  *
  * Everything is streamed a line at a time — a full build peaks under 400MB of
  * memory and takes a few minutes — and written under a temporary name, then
@@ -177,3 +177,10 @@ db.exec("vacuum");
 db.close();
 renameSync(tmp, OUT);
 log(`wrote ${OUT}: ${(statSync(OUT).size / 1e6).toFixed(0)}MB`);
+
+// --clean: the 1.8GB of source files are only needed while building. On the
+// server they are dropped and downloaded afresh next week, a minute's work.
+if (process.argv.includes("--clean")) {
+  rmSync(SRC, { recursive: true, force: true });
+  log(`removed ${SRC}`);
+}

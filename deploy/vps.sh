@@ -97,4 +97,8 @@ fi
 
 say "done"
 ssh "$HOST" "rm -f /srv/apps/mox/data/predeploy.db"
+# Every deploy leaves the image it replaced behind, untagged — 4GB each. Only
+# latest and rollback are ever used, so the rest go. (On 2026-10-05 27 of them
+# had taken the disk from 34GB free to 14GB.)
+ssh "$HOST" "docker image prune -f | tail -1 | sed 's/^/    /'"
 echo "    running $(git rev-parse --short HEAD); previous image kept as local/mox:rollback"
