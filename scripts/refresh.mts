@@ -17,6 +17,7 @@
  */
 import { todayISO } from "../src/lib/dates";
 import { pruneCache } from "../src/lib/tmdb";
+import { catalogSize, enrichCatalog, seedCatalog } from "../src/lib/catalog";
 import { refreshCalendar } from "./refresh/calendar.mjs";
 import { refreshFeeds } from "./refresh/feeds.mjs";
 import { refreshServices } from "./refresh/services.mjs";
@@ -88,6 +89,19 @@ await step("store", async () => ({ summary: await refreshStore(TODAY), value: nu
 // recent arrivals, so it has to know which those are.
 await step("prices", async () => ({ summary: await refreshPrices(TODAY), value: null }));
 
+// MOX's own catalogue: take in what is already known, then open the titles
+// only ever seen in a list, so they gain their full record.
+await step("catalog", async () => {
+  const seeded = seedCatalog();
+  const { filled, failed: missed } = await enrichCatalog();
+  const size = catalogSize();
+  return {
+    summary: `${seeded} new from titles and ratings, ${filled} filled in${missed ? `, ${missed} failed` : ""}; ` +
+      `${size.fullTitles} of ${size.titles} titles and ${size.fullPeople} of ${size.people} people complete`,
+    value: null,
+  };
+});
+
 // Last, and after everything that might have wanted a warm cache this run.
 await step("cache", async () => {
   const { removed, freed } = await pruneCache();
@@ -96,7 +110,7 @@ await step("cache", async () => {
 });
 
 if (failed.length) {
-  console.error(`\n${failed.length} of 11 steps failed: ${failed.join(", ")}`);
+  console.error(`\n${failed.length} of 12 steps failed: ${failed.join(", ")}`);
   process.exit(1);
 }
 console.log("\nall steps current");

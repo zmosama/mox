@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { currentUser } from "@/lib/auth";
 import { todayISO } from "@/lib/dates";
 import { seriesProgress, type SeriesShape } from "@/lib/progress";
-import { tmdb } from "@/lib/tmdb";
+import { titleWithProviders } from "@/lib/catalog";
 import { chosenServices } from "@/lib/people";
 
 /** One season of a series, episode by episode, for the season picker. */
@@ -16,8 +16,8 @@ export async function GET(_: Request, { params }: { params: Promise<{ kind: stri
   }
   let show: SeriesShape;
   try {
-    // The same request, and so the same cache entry, as the title page's.
-    show = await tmdb<SeriesShape>(`/tv/${tmdbId}`, { append_to_response: "credits,watch/providers,videos,content_ratings" });
+    // The same record the title page reads, from the catalogue.
+    show = await titleWithProviders<SeriesShape>("tv", tmdbId);
   } catch (e) {
     return NextResponse.json({ error: (e as Error).message }, { status: 502 });
   }

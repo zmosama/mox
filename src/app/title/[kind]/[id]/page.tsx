@@ -2,7 +2,8 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { SharedTitle } from "@/components/SharedTitle";
 import { currentUser } from "@/lib/auth";
-import { posterPath, tmdb } from "@/lib/tmdb";
+import { posterPath } from "@/lib/tmdb";
+import { titleDetail } from "@/lib/catalog";
 import { MEDIA_KINDS, type MediaKind } from "@/db/schema";
 
 type Params = { params: Promise<{ kind: string; id: string }> };
@@ -21,7 +22,7 @@ async function parse(params: Params["params"]) {
 export async function generateMetadata({ params }: Params): Promise<Metadata> {
   const { kind, tmdbId } = await parse(params);
   try {
-    const d = await tmdb<{
+    const d = await titleDetail<{
       title?: string;
       name?: string;
       overview?: string;
@@ -29,7 +30,7 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
       first_air_date?: string;
       poster_path?: string | null;
       backdrop_path?: string | null;
-    }>(`/${kind}/${tmdbId}`);
+    }>(kind, tmdbId);
     const title = d.title ?? d.name ?? "mox";
     const year = (d.release_date ?? d.first_air_date ?? "").slice(0, 4);
     const image = posterPath(d.backdrop_path, "w780") ?? posterPath(d.poster_path, "w500");

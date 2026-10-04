@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { ageFilter } from "@/lib/age-filter";
+import { rememberTitles } from "@/lib/catalog";
 import { currentUser } from "@/lib/auth";
 import { todayISO } from "@/lib/dates";
 import { pageParam, slice, tmdbPage, toHit, type TmdbListItem } from "@/lib/paging";
@@ -32,6 +33,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ slug: st
     return NextResponse.json({ results: [], next: null }, { status: 502 });
   }
 
+  rememberTitles((remote.results ?? []).map((item) => ({ item, kind })));
   const { items, next } = slice((remote.results ?? []).map((r) => toHit(r, kind)), page, remote.total_pages ?? 1);
   const user = await currentUser();
   const results = await ageFilter(user?.id ?? null)(cardsFor(items, user?.id ?? null), { lookUp: true });

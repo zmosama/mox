@@ -17,6 +17,7 @@ import { readPrefs } from "./prefs";
 import { AGE_LABEL, ageLevel, allows, certAppend, filterOff, type AgeLevel, type CertSource } from "./ratings";
 import { tmdb } from "./tmdb";
 import { library } from "./queries";
+import { knownAgeLevels, rememberAgeLevel } from "./catalog";
 
 export type AgeTagged = {
   /** "18+", "PG" … or null when unrated. */
@@ -76,13 +77,17 @@ export function ageFilter(userId: number | null) {
 
   return async function apply<T extends Ref>(items: T[], opts: { lookUp?: boolean } = {}): Promise<(T & AgeTagged)[]> {
     const levels = storedLevels(items);
+    // Then the catalogue's: every certificate ever looked up is kept there.
+    for (const [k, level] of knownAgeLevels(items.filter((i) => !levels.has(`${i.tmdbId}:${i.kind}`)))) levels.set(k, level);
     if (opts.lookUp) {
       const missing = items.filter((i) => !levels.has(k(i))).slice(0, 24);
       await Promise.all(
         missing.map(async (i) => {
           try {
             const body = await tmdb<NonNullable<CertSource["release_dates"]>>(`/${i.kind}/${i.tmdbId}/${certAppend(i.kind)}`, {});
-            levels.set(k(i), ageLevel(i.kind, i.kind === "movie" ? { release_dates: body } : { content_ratings: body }));
+            const level = ageLevel(i.kind, i.kind === "movie" ? { release_dates: body } : { content_ratings: body });
+            levels.set(k(i), level);
+            rememberAgeLevel(i.tmdbId, i.kind, level);
           } catch {
             // Unknown stays unrated, which is shown unless unrated is hidden.
           }

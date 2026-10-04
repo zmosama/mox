@@ -1,4 +1,5 @@
 import { ageFilter } from "@/lib/age-filter";
+import { rememberPeople, rememberTitles } from "@/lib/catalog";
 import { NextResponse } from "next/server";
 import { currentUser } from "@/lib/auth";
 import { cardsFor } from "@/lib/queries";
@@ -41,6 +42,14 @@ export async function GET(req: Request) {
   } catch {
     return NextResponse.json({ results: [], people: [], next: null }, { status: 502 });
   }
+
+  // Everything TMDB answered is kept: the catalogue grows with every search.
+  rememberTitles(
+    (remote.results ?? [])
+      .filter((r) => r.media_type === "movie" || r.media_type === "tv")
+      .map((r) => ({ item: r, kind: r.media_type as MediaKind })),
+  );
+  rememberPeople((remote.results ?? []).filter((r) => r.media_type === "person"));
 
   const titles = (remote.results ?? [])
     .filter((r) => r.media_type === "movie" || r.media_type === "tv")

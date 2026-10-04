@@ -1,14 +1,15 @@
 import { playUrl } from "@/lib/play-links";
-import { AGE_LABEL, ageLevel, certAppend, type CertSource } from "@/lib/ratings";
+import { AGE_LABEL, ageLevel, type CertSource } from "@/lib/ratings";
 import { NextResponse } from "next/server";
 import { and, eq } from "drizzle-orm";
 import { db, schema } from "@/db";
 import { currentUser } from "@/lib/auth";
 import { includedOn, soldOn, type WatchProviders } from "@/lib/providers";
 import { APPLE_TV_STORE, serviceLookup, storeOffer } from "@/lib/queries";
-import { posterPath, region, tmdb } from "@/lib/tmdb";
+import { posterPath, region } from "@/lib/tmdb";
 import { profileUrl } from "@/lib/people";
 import { friendMarks } from "@/lib/friends";
+import { titleWithProviders } from "@/lib/catalog";
 import { seriesProgress, type TmdbSeasonSummary } from "@/lib/progress";
 import { todayISO } from "@/lib/dates";
 import { MEDIA_KINDS, type MediaKind } from "@/db/schema";
@@ -52,9 +53,8 @@ export async function GET(
 
   let d: TmdbTitle;
   try {
-    d = await tmdb<TmdbTitle>(`/${kind}/${tmdbId}`, {
-      append_to_response: `credits,watch/providers,videos,${certAppend(kind)}`,
-    });
+    // From MOX's own catalogue while it is fresh; TMDB only when it is not.
+    d = await titleWithProviders<TmdbTitle>(kind, tmdbId);
   } catch (e) {
     return NextResponse.json({ error: (e as Error).message }, { status: 502 });
   }

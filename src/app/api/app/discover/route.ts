@@ -1,4 +1,5 @@
 import { playUrl } from "@/lib/play-links";
+import { rememberTitles } from "@/lib/catalog";
 import { ageFilter } from "@/lib/age-filter";
 import { NextResponse } from "next/server";
 import { eq } from "drizzle-orm";
@@ -96,6 +97,8 @@ export async function GET(req: Request) {
       }
     }),
   );
+
+  rememberTitles(lists.flat().map((r) => ({ item: r, kind: r.kind })));
 
   // Alternate films and shows so neither buries the other.
   const merged: (NonNullable<Discover["results"]>[number] & { kind: MediaKind })[] = [];

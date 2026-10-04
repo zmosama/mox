@@ -541,3 +541,76 @@ export const friends = sqliteTable(
   },
   (t) => [primaryKey({ columns: [t.userId, t.friendId] })],
 );
+
+/**
+ * MOX's own catalogue: every film and series anybody has met here — in a
+ * search, a studio's list, a person's work, a title opened — kept for good.
+ *
+ * Distinct from `titles`, which is the curated set the nightly refresh tends
+ * (what streams on the services, what someone rated) and which many screens
+ * read whole. This one only grows, and nothing lists it wholesale.
+ *
+ * A row starts light — what a list from TMDB says about a title — and gains
+ * `detail`, the full record (credits, videos, certificates, studios), the
+ * first time the title is opened or the nightly enrichment reaches it. From
+ * then on the title is read from here, and TMDB is asked again only when the
+ * record is old for what it is: hours for a series still airing, a month for
+ * a finished one.
+ */
+export const catalogTitles = sqliteTable(
+  "catalog_titles",
+  {
+    tmdbId: integer("tmdb_id").notNull(),
+    kind: text("kind", { enum: MEDIA_KINDS }).notNull(),
+    title: text("title"),
+    originalTitle: text("original_title"),
+    year: integer("year"),
+    releaseDate: text("release_date"),
+    /** TMDB image paths ("/abc.jpg"), not URLs. */
+    posterPath: text("poster_path"),
+    backdropPath: text("backdrop_path"),
+    overview: text("overview"),
+    rating: real("rating"),
+    votes: integer("votes"),
+    popularity: real("popularity"),
+    lang: text("lang"),
+    /** JSON arrays: genre names, TMDB company ids, TMDB network ids. */
+    genres: text("genres"),
+    companies: text("companies"),
+    networks: text("networks"),
+    imdbId: text("imdb_id"),
+    /** "Returning Series", "Ended", "Released"… from the detail. */
+    status: text("status"),
+    ageLevel: text("age_level"),
+    ageCheckedAt: integer("age_checked_at"),
+    /** The full TMDB record as JSON, trimmed of what nothing reads. */
+    detail: text("detail"),
+    detailAt: integer("detail_at"),
+    seenAt: integer("seen_at").notNull().default(sql`(unixepoch())`),
+    createdAt: integer("created_at").notNull().default(sql`(unixepoch())`),
+  },
+  (t) => [
+    primaryKey({ columns: [t.tmdbId, t.kind] }),
+    index("catalog_titles_popularity").on(t.popularity),
+    index("catalog_titles_imdb").on(t.imdbId),
+    index("catalog_titles_detail").on(t.detailAt),
+  ],
+);
+
+/** The people in the catalogue, the same way: light from a list, full once opened. */
+export const catalogPeople = sqliteTable(
+  "catalog_people",
+  {
+    id: integer("id").primaryKey(),
+    name: text("name").notNull(),
+    profilePath: text("profile_path"),
+    department: text("department"),
+    popularity: real("popularity"),
+    imdbId: text("imdb_id"),
+    detail: text("detail"),
+    detailAt: integer("detail_at"),
+    seenAt: integer("seen_at").notNull().default(sql`(unixepoch())`),
+    createdAt: integer("created_at").notNull().default(sql`(unixepoch())`),
+  },
+  (t) => [index("catalog_people_popularity").on(t.popularity)],
+);

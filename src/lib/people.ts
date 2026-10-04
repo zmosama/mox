@@ -16,6 +16,7 @@ import { addDaysISO, todayISO } from "./dates";
 import { includedOn, isStore, type WatchProviders } from "./providers";
 import { availabilityFor, serviceLookup, tasteFor, verdictsFor } from "./queries";
 import { posterPath, region, tmdb } from "./tmdb";
+import { personDetail as catalogPerson } from "./catalog";
 import type { MediaKind, Verdict } from "@/db/schema";
 
 /** How many of a person's works get a live "where does it stream" lookup. */
@@ -101,8 +102,9 @@ export function chosenServices(userId: number | null) {
   return configured.filter((s) => !isStore(s.providerId) && (picked.size === 0 || picked.has(s.providerId)));
 }
 
+/** From the catalogue for a week at a time; their whole filmography is kept as titles too. */
 async function rawPerson(id: number): Promise<RawPerson> {
-  return tmdb<RawPerson>(`/person/${id}`, { append_to_response: "combined_credits" });
+  return catalogPerson(id, () => tmdb<RawPerson>(`/person/${id}`, { append_to_response: "combined_credits,external_ids" }));
 }
 
 /** Every work, one entry per title, with all their roles on it. Exported for tests. */
