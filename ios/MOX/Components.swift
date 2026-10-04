@@ -141,10 +141,19 @@ struct PosterRail: View {
     @Environment(\.horizontalSizeClass) private var size
 
     var body: some View {
+        // On an iPad, wide pictures, as the TV app shows them.
+        if size == .regular {
+            WideShelf(title: title, detail: detail, cards: cards, caption: caption, open: open)
+        } else {
+            posters
+        }
+    }
+
+    private var posters: some View {
         VStack(alignment: .leading, spacing: 12) {
             SectionTitle(text: title, detail: detail)
             ScrollView(.horizontal) {
-                LazyHStack(alignment: .top, spacing: size == .regular ? 16 : 12) {
+                LazyHStack(alignment: .top, spacing: 12) {
                     ForEach(cards) { card in
                         Button { open(card.ref) } label: { PosterCard(card: card, width: PosterSize.rail(size), caption: caption(card)) }
                             .buttonStyle(.plain)

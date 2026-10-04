@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { withBackdrops } from "@/lib/catalog";
 import { ageFilter } from "@/lib/age-filter";
 import { rememberTitles } from "@/lib/catalog";
 import { currentUser } from "@/lib/auth";
@@ -38,5 +39,5 @@ export async function GET(req: Request, { params }: { params: Promise<{ slug: st
   const user = await currentUser();
   const results = await ageFilter(user?.id ?? null)(cardsFor(items, user?.id ?? null), { lookUp: true });
 
-  return NextResponse.json({ kind, sort, results, next }, { headers: { "cache-control": "no-store" } });
+  return NextResponse.json({ kind, sort, results: withBackdrops(results), next }, { headers: { "cache-control": "no-store" } });
 }

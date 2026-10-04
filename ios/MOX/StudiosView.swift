@@ -98,7 +98,11 @@ struct StudioView: View {
 
     private static let sorts = [("popular", "Most popular"), ("top", "Top rated"), ("newest", "Newest")]
     @Environment(\.horizontalSizeClass) private var size
-    private var columns: [GridItem] { [GridItem(.adaptive(minimum: PosterSize.grid(size)), spacing: 12)] }
+    private var columns: [GridItem] {
+        size == .regular
+            ? [GridItem(.adaptive(minimum: 280), spacing: 20, alignment: .top)]
+            : [GridItem(.adaptive(minimum: PosterSize.grid(size)), spacing: 12)]
+    }
 
     var body: some View {
         ScrollView {
@@ -152,7 +156,7 @@ struct StudioView: View {
                     LazyVGrid(columns: columns, alignment: .leading, spacing: 16) {
                         ForEach(cards) { card in
                             Button { router.title = card.ref } label: {
-                                PosterCard(card: card, width: PosterSize.grid(size))
+                                if size == .regular { WideCard(card: card, width: 280) } else { PosterCard(card: card, width: PosterSize.grid(size)) }
                             }
                             .buttonStyle(.plain)
                         }

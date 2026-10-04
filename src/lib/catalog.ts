@@ -310,6 +310,49 @@ export function rememberAgeLevel(tmdbId: number, kind: MediaKind, level: AgeLeve
   }
 }
 
+/**
+ * Each title's wide picture and what it is about, for the iPad's landscape
+ * cards and its featured titles: from the curated titles or the catalogue,
+ * whichever has them. What a card already carries is kept; a title with
+ * neither anywhere is left without, and the card falls back to its poster.
+ */
+export function withBackdrops<T extends { tmdbId: number; kind: MediaKind; backdrop?: string | null; overview?: string | null }>(
+  items: T[],
+): (T & { backdrop: string | null; overview: string | null })[] {
+  const ids = [...new Set(items.filter((i) => !i.backdrop || !i.overview).map((i) => i.tmdbId))];
+  const found = new Map<string, { backdrop: string | null; overview: string | null }>();
+  const take = (k: string, backdrop: string | null, overview: string | null) => {
+    const was = found.get(k);
+    found.set(k, { backdrop: backdrop ?? was?.backdrop ?? null, overview: overview ?? was?.overview ?? null });
+  };
+  if (ids.length) {
+    for (const r of db
+      .select({
+        tmdbId: schema.catalogTitles.tmdbId,
+        kind: schema.catalogTitles.kind,
+        path: schema.catalogTitles.backdropPath,
+        overview: schema.catalogTitles.overview,
+      })
+      .from(schema.catalogTitles)
+      .where(inArray(schema.catalogTitles.tmdbId, ids))
+      .all()) {
+      take(key(r.tmdbId, r.kind), r.path ? `https://image.tmdb.org/t/p/w780${r.path}` : null, r.overview);
+    }
+    // The curated titles last: their pictures are the ones the site already shows.
+    for (const r of db
+      .select({ tmdbId: schema.titles.tmdbId, kind: schema.titles.kind, url: schema.titles.backdrop, overview: schema.titles.overview })
+      .from(schema.titles)
+      .where(inArray(schema.titles.tmdbId, ids))
+      .all()) {
+      take(key(r.tmdbId, r.kind), r.url, r.overview);
+    }
+  }
+  return items.map((i) => {
+    const f = found.get(key(i.tmdbId, i.kind));
+    return { ...i, backdrop: i.backdrop ?? f?.backdrop ?? null, overview: i.overview ?? f?.overview ?? null };
+  });
+}
+
 /** Titles in the catalogue, light fields only, for lists that start from ids. */
 export function catalogued(refs: { tmdbId: number; kind: MediaKind }[]) {
   const out = new Map<string, typeof schema.catalogTitles.$inferSelect>();

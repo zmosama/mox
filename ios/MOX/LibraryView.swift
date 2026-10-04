@@ -7,7 +7,12 @@ struct LibraryView: View {
     @State private var payload: LibraryPayload?
 
     @Environment(\.horizontalSizeClass) private var size
-    private var columns: [GridItem] { [GridItem(.adaptive(minimum: PosterSize.grid(size)), spacing: 12, alignment: .top)] }
+    private var columns: [GridItem] {
+        // Wide pictures on an iPad, as the TV app shows its library; posters on a phone.
+        size == .regular
+            ? [GridItem(.adaptive(minimum: 280), spacing: 20, alignment: .top)]
+            : [GridItem(.adaptive(minimum: PosterSize.grid(size)), spacing: 12, alignment: .top)]
+    }
 
     var body: some View {
         ScrollView {
@@ -72,11 +77,13 @@ struct LibraryView: View {
             }
             LazyVGrid(columns: columns, spacing: 18) {
                 ForEach(cards) { card in
-                    Button { router.title = card.ref } label: { PosterCard(card: card, width: PosterSize.grid(size)) }
+                    Button { router.title = card.ref } label: {
+                        if size == .regular { WideCard(card: card, width: 280) } else { PosterCard(card: card, width: PosterSize.grid(size)) }
+                    }
                         .buttonStyle(.plain)
                 }
             }
-            .padding(.horizontal, 20)
+            .padding(.horizontal, size == .regular ? IPad.margin : 20)
         }
     }
 

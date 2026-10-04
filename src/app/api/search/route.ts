@@ -1,4 +1,5 @@
 import { ageFilter } from "@/lib/age-filter";
+import { withBackdrops } from "@/lib/catalog";
 import { rememberPeople, rememberTitles } from "@/lib/catalog";
 import { NextResponse } from "next/server";
 import { currentUser } from "@/lib/auth";
@@ -76,7 +77,7 @@ export async function GET(req: Request) {
   const results = await ageFilter(user?.id ?? null)(cardsFor(items, user?.id ?? null), { lookUp: true });
 
   return NextResponse.json(
-    { results, people, next },
+    { results: withBackdrops(results), people, next },
     { headers: { "cache-control": "no-store" } },
   );
 }

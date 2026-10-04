@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { withBackdrops } from "@/lib/catalog";
 import { currentUser } from "@/lib/auth";
 import { ageFilter } from "@/lib/age-filter";
 import { picksFor } from "@/lib/queries";
@@ -8,7 +9,7 @@ export async function GET() {
   const user = await currentUser();
   if (!user) return NextResponse.json({ picks: [] });
   return NextResponse.json(
-    { picks: await ageFilter(user.id)(picksFor(user.id)) },
+    { picks: withBackdrops(await ageFilter(user.id)(picksFor(user.id))) },
     { headers: { "cache-control": "no-store" } },
   );
 }

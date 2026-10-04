@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { withBackdrops } from "@/lib/catalog";
 import { avatarUrl, currentUser } from "@/lib/auth";
 import { todayISO } from "@/lib/dates";
 import { calendar, feed, forYou, withReasons } from "@/lib/queries";
@@ -24,9 +25,9 @@ export async function GET() {
       user: user
         ? { id: user.id, username: user.username, displayName: user.displayName, avatar: avatarUrl(user) }
         : null,
-      forYou: id ? await aged(forYou(id, today)) : [],
+      forYou: id ? withBackdrops(await aged(forYou(id, today))) : [],
       calendar: await agedEpisodes(aged, calendar(id, 14)),
-      trending: await aged(withReasons(id, feed("trending", id, 24))),
+      trending: withBackdrops(await aged(withReasons(id, feed("trending", id, 24)))),
       fromPeople: id ? await agedTitles(aged, await within(2500, newFromPeople(id, today), [])) : [],
       /* The store shelf is gone — rent and buy now show on the title itself.
          Kept as an empty list because the shipped iPhone app decodes it as

@@ -13,6 +13,11 @@ struct TitleSheet: View {
     @State private var following = false
     @State private var signingIn = false
     @State private var person: PersonRef?
+    @Environment(\.horizontalSizeClass) private var sizeClass
+    /// On an iPad the title opens as a whole page, after the TV app: a tall
+    /// picture across the top, the name large over it, wider margins.
+    private var wide: Bool { sizeClass == .regular }
+    private var pad: CGFloat { wide ? IPad.margin : 20 }
 
     var body: some View {
         ScrollView {
@@ -25,6 +30,7 @@ struct TitleSheet: View {
             }
         }
         .scrollIndicators(.hidden)
+        .ignoresSafeArea(edges: wide ? .top : [])
         .background(Theme.ink)
         .overlay(alignment: .topTrailing) {
             Button { dismiss() } label: {
@@ -50,20 +56,23 @@ struct TitleSheet: View {
                    widened the whole column and pushed every line of text to
                    the screen's edges. */
                 Color.clear
-                    .frame(height: 260)
+                    .frame(height: wide ? 620 : 260)
                     .frame(maxWidth: .infinity)
                     .overlay { RemoteImage(url: d.backdrop ?? d.poster) }
                     .clipped()
                 LinearGradient(colors: [.clear, Theme.ink], startPoint: .center, endPoint: .bottom)
-                VStack(alignment: .leading, spacing: 6) {
+                if wide {
+                    LinearGradient(colors: [.black.opacity(0.7), .clear], startPoint: .leading, endPoint: .center)
+                }
+                VStack(alignment: .leading, spacing: wide ? 10 : 6) {
                     Text(d.title)
-                        .font(.sora(28, .bold, relativeTo: .largeTitle))
+                        .font(.sora(wide ? 52 : 28, .bold, relativeTo: .largeTitle))
                         .foregroundStyle(Theme.paper)
                     Text(meta(d))
-                        .font(.sora(13, relativeTo: .footnote))
+                        .font(.sora(wide ? 16 : 13, relativeTo: .footnote))
                         .foregroundStyle(Theme.muted)
                 }
-                .padding(.horizontal, 20)
+                .padding(.horizontal, pad)
             }
 
             VStack(alignment: .leading, spacing: 10) {
@@ -88,7 +97,8 @@ struct TitleSheet: View {
                     .buttonStyle(.plain)
                 }
             }
-            .padding(.horizontal, 20)
+            .frame(maxWidth: wide ? 560 : .infinity, alignment: .leading)
+            .padding(.horizontal, pad)
 
             // Always shown: hidden when signed out, they looked missing rather
             // than locked. Signed out, any of them opens sign-in.
@@ -97,25 +107,26 @@ struct TitleSheet: View {
                 Button("Sign in to rate this, follow it or add it to your list.") { signingIn = true }
                     .font(.sora(13))
                     .foregroundStyle(Theme.muted)
-                    .padding(.horizontal, 20)
+                    .padding(.horizontal, pad)
             }
 
             if let friends = d.friends, !friends.isEmpty {
-                FriendsOnTitle(friends: friends).padding(.horizontal, 20)
+                FriendsOnTitle(friends: friends).padding(.horizontal, pad)
             }
             if let tagline = d.tagline {
-                Text(tagline).font(.sora(15, .medium)).italic().foregroundStyle(Theme.mint).padding(.horizontal, 20)
+                Text(tagline).font(.sora(15, .medium)).italic().foregroundStyle(Theme.mint).padding(.horizontal, pad)
             }
             if let overview = d.overview {
                 Text(overview)
-                    .font(.sora(15, relativeTo: .body))
+                    .font(.sora(wide ? 17 : 15, relativeTo: .body))
                     .foregroundStyle(Theme.paper.opacity(0.85))
                     .lineSpacing(4)
-                    .padding(.horizontal, 20)
+                    .frame(maxWidth: wide ? 760 : .infinity, alignment: .leading)
+                    .padding(.horizontal, pad)
             }
             if d.kind == "tv", let progress = d.progress {
                 EpisodesSection(tmdbId: d.tmdbId, progress: progress) { signingIn = true }
-                    .padding(.horizontal, 20)
+                    .padding(.horizontal, pad)
             }
             // Faces that open each person's page; names only when the server is older.
             if let people = d.people, !people.isEmpty {
@@ -131,7 +142,7 @@ struct TitleSheet: View {
             if let trailer = d.trailer, let url = URL(string: trailer) {
                 Button { openURL(url) } label: { Label("Watch the trailer", systemImage: "play.rectangle") }
                     .buttonStyle(.glass)
-                    .padding(.horizontal, 20)
+                    .padding(.horizontal, pad)
             }
         }
         .padding(.bottom, 40)
@@ -199,7 +210,7 @@ struct TitleSheet: View {
             }
             .buttonStyle(.plain)
         }
-        .padding(.horizontal, 20)
+        .padding(.horizontal, pad)
     }
 
     private func toggle(_ title: String, _ icon: String, on: Bool, action: @escaping () -> Void) -> some View {
@@ -231,7 +242,7 @@ struct TitleSheet: View {
             Text(label).font(.sora(12, .semibold)).foregroundStyle(Theme.muted)
             Text(names).font(.sora(14)).foregroundStyle(Theme.paper)
         }
-        .padding(.horizontal, 20)
+        .padding(.horizontal, pad)
     }
 
     private func meta(_ d: TitleDetail) -> String {

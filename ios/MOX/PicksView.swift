@@ -9,6 +9,7 @@ struct PicksView: View {
     @Environment(API.self) private var api
     @Environment(Router.self) private var router
     @State private var picks: [Card]?
+    @Environment(\.horizontalSizeClass) private var size
 
     var body: some View {
         ScrollView {
@@ -31,10 +32,20 @@ struct PicksView: View {
                         Text("Rate at least ten titles and tonight's refresh will choose some for you.")
                             .font(.sora(14)).foregroundStyle(Theme.muted).padding(.horizontal, 20)
                     }
-                    Rows(spacing: 14, minWidth: 380) {
-                        ForEach(picks) { card in row(card) }
+                    if size == .regular {
+                        // Wide pictures with why each was chosen, as the TV app's shelves.
+                        LazyVGrid(columns: [GridItem(.adaptive(minimum: 280), spacing: 20, alignment: .top)], alignment: .leading, spacing: 28) {
+                            ForEach(picks) { card in
+                                Button { router.title = card.ref } label: { WideCard(card: card, width: 280) }.buttonStyle(.plain)
+                            }
+                        }
+                        .padding(.horizontal, IPad.margin)
+                    } else {
+                        LazyVStack(spacing: 14) {
+                            ForEach(picks) { card in row(card) }
+                        }
+                        .padding(.horizontal, 20)
                     }
-                    .padding(.horizontal, 20)
                 } else {
                     ProgressView().frame(maxWidth: .infinity).padding(.top, 40)
                 }

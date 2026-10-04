@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { withBackdrops } from "@/lib/catalog";
 import { currentUser } from "@/lib/auth";
 import { todayISO } from "@/lib/dates";
 import { datedFeed, newTimeline } from "@/lib/queries";
@@ -12,7 +13,11 @@ export async function GET() {
   const aged = ageFilter(id);
 
   return NextResponse.json(
-    { today, available: await aged(newTimeline(id, today)), upcoming: await aged(datedFeed("upcoming", id)) },
+    {
+      today,
+      available: withBackdrops(await aged(newTimeline(id, today))),
+      upcoming: withBackdrops(await aged(datedFeed("upcoming", id))),
+    },
     { headers: { "cache-control": "no-store" } },
   );
 }

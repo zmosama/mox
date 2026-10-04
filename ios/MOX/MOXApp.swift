@@ -62,6 +62,8 @@ final class Router {
 /// The ring, or one of the account's tabs.
 enum AppTab: Hashable {
     case home
+    /// The iPad's own Search, in the sidebar. On an iPhone it is Home's ask bar.
+    case search
     case tab(TabID)
 }
 
@@ -83,10 +85,11 @@ struct RootView: View {
                 // tabs, then the rest. Calendar and Tasks only once chosen, as
                 // they ask for the iPad's calendars and reminders.
                 Tab(value: AppTab.home) {
-                    HomeView()
+                    IPadHome()
                 } label: {
                     Label { Text("Home") } icon: { Image("TabRing").renderingMode(.original) }
                 }
+                Tab(value: AppTab.search, role: .search) { IPadSearch() }
                 ForEach(tabs) { id in
                     Tab(id.label, systemImage: id.icon, value: AppTab.tab(id)) { screen(id) }
                 }
@@ -114,10 +117,17 @@ struct RootView: View {
         // ordinary tab bar.
         .tabViewStyle(.sidebarAdaptable)
         .tabBarMinimizeBehavior(.onScrollDown)
-        .sheet(item: $router.title) { ref in
+        // A title or a person: a sheet on an iPhone, a whole page on an iPad.
+        .sheet(item: compact($router.title)) { ref in
             TitleSheet(ref: ref)
         }
-        .sheet(item: $router.person) { ref in
+        .fullScreenCover(item: wide($router.title)) { ref in
+            TitleSheet(ref: ref)
+        }
+        .sheet(item: compact($router.person)) { ref in
+            PersonSheet(id: ref.id)
+        }
+        .fullScreenCover(item: wide($router.person)) { ref in
             PersonSheet(id: ref.id)
         }
         .sheet(isPresented: $router.settings) {
@@ -126,7 +136,12 @@ struct RootView: View {
         #if DEBUG
         // Screenshots: `simctl launch … -moxTab studios` opens on that tab.
         .onAppear {
-            if let raw = UserDefaults.standard.string(forKey: "moxTab"), let id = TabID(rawValue: raw) { router.tab = .tab(id) }
+            let raw = UserDefaults.standard.string(forKey: "moxTab")
+            if raw == "search" { router.tab = .search }
+            if let raw, let id = TabID(rawValue: raw) { router.tab = .tab(id) }
+            if let t = UserDefaults.standard.string(forKey: "moxTitle")?.split(separator: "/"), t.count == 2, let id = Int(t[1]) {
+                router.title = TitleRef(tmdbId: id, kind: String(t[0]))
+            }
         }
         #endif
         // The account's tabs, from the server, whenever who is signed in changes.
@@ -137,6 +152,15 @@ struct RootView: View {
         .onChange(of: settings.tabs) {
             if sizeClass != .regular, case .tab(let id) = router.tab, !settings.tabs.contains(id) { router.tab = .home }
         }
+    }
+
+    /// The binding when this size class presents that way, and nothing otherwise.
+    private func compact<T>(_ b: Binding<T?>) -> Binding<T?> {
+        Binding(get: { sizeClass == .regular ? nil : b.wrappedValue }, set: { b.wrappedValue = $0 })
+    }
+
+    private func wide<T>(_ b: Binding<T?>) -> Binding<T?> {
+        Binding(get: { sizeClass == .regular ? b.wrappedValue : nil }, set: { b.wrappedValue = $0 })
     }
 
     @ViewBuilder
