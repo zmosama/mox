@@ -1,9 +1,21 @@
 import { NextResponse } from "next/server";
-import { STUDIOS, kindsOf, logoUrl } from "@/lib/studios";
+import { currentUser } from "@/lib/auth";
+import { readPrefs } from "@/lib/prefs";
+import { kindsOf, logoUrl, studiosFor } from "@/lib/studios";
 
-/** The studios, most important first. */
-export function GET() {
-  return NextResponse.json({
-    studios: STUDIOS.map((s) => ({ slug: s.slug, name: s.name, logo: logoUrl(s.logo), kinds: kindsOf(s) })),
-  });
+/** The studios: the ones you follow first, then the rest, most important first. */
+export async function GET() {
+  const user = await currentUser();
+  return NextResponse.json(
+    {
+      studios: studiosFor(readPrefs(user?.id ?? null).studios).map((s) => ({
+        slug: s.slug,
+        name: s.name,
+        logo: logoUrl(s.logo),
+        kinds: kindsOf(s),
+        following: s.following,
+      })),
+    },
+    { headers: { "cache-control": "no-store" } },
+  );
 }

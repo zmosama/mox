@@ -77,6 +77,17 @@ export function kindsOf(s: Studio): MediaKind[] {
   return s.first === "tv" ? kinds.reverse() : kinds;
 }
 
+/**
+ * The list as one person sees it: the studios they follow first, in the order
+ * they followed them, then the rest in the house order. Slugs that no longer
+ * exist are ignored rather than shown as gaps.
+ */
+export function studiosFor(followed: string[]) {
+  const mine = followed.map(studioBySlug).filter((s): s is Studio => s !== undefined);
+  const rest = STUDIOS.filter((s) => !followed.includes(s.slug));
+  return [...mine.map((s) => ({ ...s, following: true })), ...rest.map((s) => ({ ...s, following: false }))];
+}
+
 export const logoUrl = (path: string) => `https://image.tmdb.org/t/p/w300${path}`;
 
 /**

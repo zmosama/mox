@@ -117,6 +117,12 @@ final class API {
         return payload.studios
     }
 
+    /// Follow or unfollow a studio; followed ones lead the Studios tab.
+    func setFollowing(studio slug: String, _ following: Bool) async throws {
+        try await post("/api/studios/follow", ["slug": slug, "following": following])
+        revision += 1
+    }
+
     /// One studio's films or series, ten a page. Sort: "popular", "top" or "newest".
     func studio(_ slug: String, kind: String, sort: String, page: Int) async throws -> StudioPage {
         try await get("/api/studios/\(slug)", ["kind": kind, "sort": sort, "page": String(page)])

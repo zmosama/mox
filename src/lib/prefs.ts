@@ -63,6 +63,8 @@ export type Prefs = {
    * notifications on the phone.
    */
   notify: Notify;
+  /** Studios you follow, by slug, in the order you followed them: they lead the Studios tab. */
+  studios: string[];
 };
 
 export type Notify = {
@@ -84,6 +86,7 @@ export const DEFAULT_PREFS: Prefs = {
   ages: [...AGE_LEVELS],
   hideUnrated: false,
   notify: DEFAULT_NOTIFY,
+  studios: [],
 };
 
 /** What a client may send: any subset, each part checked on its own. */
@@ -101,6 +104,7 @@ export const PrefsPatch = z
       episodesAt: z.number().int().min(0).max(24 * 60 - 1),
       f1Lead: z.number().int().min(1).max(180),
     }),
+    studios: z.array(z.string().max(64)).max(100),
   })
   .partial();
 
@@ -127,6 +131,7 @@ export function parsePrefs(raw: string | null | undefined): Prefs {
     ages: [...new Set(field("ages"))],
     hideUnrated: field("hideUnrated"),
     notify: field("notify"),
+    studios: [...new Set(field("studios"))],
   };
 }
 
@@ -141,6 +146,7 @@ export function writePrefs(userId: number, patch: z.infer<typeof PrefsPatch>): P
   next.tabs = [...new Set(next.tabs)];
   next.newsLangs = [...new Set(next.newsLangs)];
   next.ages = [...new Set(next.ages)];
+  next.studios = [...new Set(next.studios)];
   db.update(schema.users).set({ prefs: JSON.stringify(next) }).where(eq(schema.users.id, userId)).run();
   return next;
 }

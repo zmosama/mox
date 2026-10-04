@@ -270,6 +270,8 @@ nonisolated struct Studio: Codable, Hashable, Sendable, Identifiable {
     let logo: String
     /// "movie", "tv" or both, the first being the one it opens on.
     let kinds: [String]
+    /// Followed studios lead the list.
+    let following: Bool?
 
     var id: String { slug }
 }

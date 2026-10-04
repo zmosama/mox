@@ -16,19 +16,21 @@ struct StudiosView: View {
                         Text("Studios")
                             .font(.sora(28, .bold, relativeTo: .title))
                             .foregroundStyle(Theme.paper)
-                        Text("What each one made — the most popular, the best rated or the newest.")
+                        Text("What each one made — the most popular, the best rated or the newest. Follow one and it moves to the top.")
                             .font(.sora(14, relativeTo: .subheadline))
                             .foregroundStyle(Theme.muted)
                     }
                     .padding(.top, 12)
 
                     if let studios {
-                        LazyVGrid(columns: columns, spacing: 14) {
-                            ForEach(studios) { studio in
-                                NavigationLink(value: studio) { tile(studio) }
-                                    .buttonStyle(.plain)
-                            }
+                        let mine = studios.filter { $0.following == true }
+                        if !mine.isEmpty {
+                            Text("Following").font(.sora(20, .semibold, relativeTo: .title3)).foregroundStyle(Theme.paper)
+                            grid(mine)
+                            Text("All studios").font(.sora(20, .semibold, relativeTo: .title3)).foregroundStyle(Theme.paper)
+                                .padding(.top, 8)
                         }
+                        grid(studios.filter { $0.following != true })
                     } else if failed {
                         Text("Can't reach the MOX server.").font(.sora(14)).foregroundStyle(Theme.muted)
                     } else {
@@ -40,8 +42,17 @@ struct StudiosView: View {
             }
             .background(Theme.ink)
             .navigationDestination(for: Studio.self) { StudioView(studio: $0) }
-            .task { await load() }
+            .task(id: api.revision) { await load() }
             .refreshable { await load() }
+        }
+    }
+
+    private func grid(_ list: [Studio]) -> some View {
+        LazyVGrid(columns: columns, spacing: 14) {
+            ForEach(list) { studio in
+                NavigationLink(value: studio) { tile(studio) }
+                    .buttonStyle(.plain)
+            }
         }
     }
 
@@ -81,6 +92,7 @@ struct StudioView: View {
     @State private var next: Int?
     @State private var loaded = false
     @State private var loadingMore = false
+    @State private var following: Bool?
 
     private static let sorts = [("popular", "Most popular"), ("top", "Top rated"), ("newest", "Newest")]
     private let columns = [GridItem(.adaptive(minimum: 104), spacing: 12)]
@@ -94,9 +106,25 @@ struct StudioView: View {
                         .overlay { LogoImage(url: studio.logo).padding(8) }
                         .clipShape(.rect(cornerRadius: 10))
                     Text(studio.name)
-                        .font(.sora(26, .bold, relativeTo: .title))
+                        .font(.sora(24, .bold, relativeTo: .title))
                         .foregroundStyle(Theme.paper)
+                        .lineLimit(2)
+                        .minimumScaleFactor(0.8)
+                    Spacer(minLength: 0)
                 }
+
+                // Following moves it to the top of Studios.
+                let on = following ?? studio.following ?? false
+                Button {
+                    Task { await toggleFollow(!on) }
+                } label: {
+                    Label(on ? "Following" : "Follow", systemImage: on ? "checkmark" : "plus")
+                        .font(.sora(14, .semibold))
+                        .padding(.horizontal, 16).padding(.vertical, 9)
+                        .background(on ? Theme.green.opacity(0.2) : Theme.green, in: .capsule)
+                        .foregroundStyle(on ? Theme.green : Theme.ink)
+                }
+                .buttonStyle(.plain)
 
                 ScrollView(.horizontal) {
                     HStack(spacing: 8) {
@@ -140,6 +168,12 @@ struct StudioView: View {
         .background(Theme.ink)
         .navigationBarTitleDisplayMode(.inline)
         .task(id: "\(kind)|\(sort)") { await first() }
+    }
+
+    private func toggleFollow(_ on: Bool) async {
+        guard api.user != nil else { router.settings = true; return }
+        following = on
+        do { try await api.setFollowing(studio: studio.slug, on) } catch { following = !on }
     }
 
     private func first() async {

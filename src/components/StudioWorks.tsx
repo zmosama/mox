@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Grid } from "./Grid";
 import { TitleCard, type CardTitle } from "./TitleCard";
@@ -22,13 +23,35 @@ export function StudioWorks({
   logo,
   kinds,
   signedIn,
+  following: initiallyFollowing,
 }: {
   slug: string;
   name: string;
   logo: string;
   kinds: MediaKind[];
   signedIn: boolean;
+  following: boolean;
 }) {
+  const router = useRouter();
+  const [following, setFollowing] = useState(initiallyFollowing);
+  const [busy, setBusy] = useState(false);
+  const toggleFollow = async () => {
+    if (!signedIn) {
+      router.push("/admin/login");
+      return;
+    }
+    setBusy(true);
+    try {
+      const res = await fetch("/api/studios/follow", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ slug, following: !following }),
+      });
+      if (res.ok) setFollowing(!following);
+    } finally {
+      setBusy(false);
+    }
+  };
   const [kind, setKind] = useState<MediaKind>(kinds[0]);
   const [sort, setSort] = useState<(typeof SORTS)[number][0]>("popular");
   const [open, setOpen] = useState<{ tmdbId: number; kind: MediaKind } | null>(null);
@@ -48,7 +71,20 @@ export function StudioWorks({
           {/* eslint-disable-next-line @next/next/no-img-element -- TMDB logo */}
           <img src={logo} alt="" className="size-full object-contain" />
         </span>
-        <h1 className="text-[28px] font-bold tracking-tight">{name}</h1>
+        <h1 className="min-w-0 flex-1 truncate text-[28px] font-bold tracking-tight">{name}</h1>
+        {/* Following moves it to the top of Studios. Plain about its state, as Follow is on a show. */}
+        <button
+          type="button"
+          onClick={toggleFollow}
+          disabled={busy}
+          aria-pressed={following}
+          className={cn(
+            "flex h-10 shrink-0 items-center gap-1.5 rounded-full px-4 text-[13px] font-semibold transition disabled:opacity-60",
+            following ? "bg-love/20 text-love" : "bg-love text-bg hover:opacity-90",
+          )}
+        >
+          {following ? "✓ Following" : "+ Follow"}
+        </button>
       </div>
 
       <div className="mb-6 flex flex-wrap items-center gap-2">
