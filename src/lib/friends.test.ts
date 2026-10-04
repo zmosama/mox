@@ -68,6 +68,14 @@ describe("friends", () => {
     expect(friends.friendActivity(ids.sara, { page: 1, friendId: ids.nour }).rows).toEqual([]);
   });
 
+  it("suggests people from a letter, without you or your friends", () => {
+    // omar's friends at this point: sara and nour — nobody left to suggest.
+    expect(friends.findPeople(ids.omar, "a")).toEqual([]);
+    expect(friends.findPeople(ids.sara, "n").map((f) => f.username)).toEqual(["nour"]);
+    expect(friends.findPeople(ids.sara, "%")).toEqual([]);
+    expect(friends.findPeople(ids.sara, " ")).toEqual([]);
+  });
+
   it("removes both ways", () => {
     friends.removeFriend(ids.sara, ids.omar);
     expect(friends.friendsOf(ids.omar).map((f) => f.username)).toEqual(["nour"]);

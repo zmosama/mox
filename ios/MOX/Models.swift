@@ -318,6 +318,10 @@ nonisolated struct FriendsPayload: Codable, Sendable {
     let friends: [Friend]
 }
 
+nonisolated struct FindPeoplePayload: Codable, Sendable {
+    let people: [Friend]
+}
+
 nonisolated struct FriendAdded: Codable, Sendable {
     let friend: Friend
     let friends: [Friend]

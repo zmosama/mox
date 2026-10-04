@@ -133,6 +133,23 @@ final class API {
         return payload.friends
     }
 
+    /// People whose name starts with — or contains — what was typed, from the first letter.
+    func findPeople(_ typed: String) async throws -> [Friend] {
+        let payload: FindPeoplePayload = try await get("/api/friends/search", ["q": typed])
+        return payload.people
+    }
+
+    /// A suggestion tapped. Both of you see each other's ratings from now on.
+    func addFriend(id: Int) async throws -> FriendAdded {
+        var request = URLRequest(url: try url("/api/friends"))
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "content-type")
+        request.httpBody = try JSONSerialization.data(withJSONObject: ["id": id])
+        let added: FriendAdded = try await send(request)
+        revision += 1
+        return added
+    }
+
     /// By their username or email. Both of you see each other's ratings from now on.
     func addFriend(_ who: String) async throws -> FriendAdded {
         var request = URLRequest(url: try url("/api/friends"))

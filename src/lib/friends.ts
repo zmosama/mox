@@ -10,7 +10,7 @@
  * Every verdict counts, not only the good ones — "Sara didn't like it" is as
  * useful before pressing play as "Sara loves it".
  */
-import { and, desc, eq, inArray, or } from "drizzle-orm";
+import { and, desc, eq, inArray, or, sql } from "drizzle-orm";
 import { db, schema } from "@/db";
 import type { MediaKind, Verdict } from "@/db/schema";
 import { avatarUrl } from "./auth";
@@ -73,6 +73,49 @@ export function addFriend(userId: number, who: string): Success<Friend> | Failur
     }
   });
   return { ok: true, value: { id: them.id, name: nameOf(them), username: them.username, avatar: avatarUrl(them) } };
+}
+
+/**
+ * People on MOX whose name or username starts with — or contains — what you
+ * typed, for the add-a-friend box. From the first letter: it is a handful of
+ * friends sharing film ratings, not a directory to protect. Names that start
+ * with it come first; you and your friends are left out.
+ */
+export function findPeople(userId: number, typed: string, limit = 8): Friend[] {
+  const q = typed.trim().toLowerCase().replace(/^@/, "");
+  if (!q) return [];
+  const skip = new Set([userId, ...friendIds(userId)]);
+  const like = `%${q.replace(/[%_\\]/g, (c) => `\\${c}`)}%`;
+  return db
+    .select({
+      id: schema.users.id,
+      username: schema.users.username,
+      displayName: schema.users.displayName,
+      avatarAt: schema.users.avatarAt,
+    })
+    .from(schema.users)
+    .where(
+      or(
+        sql`lower(${schema.users.username}) like ${like} escape '\\'`,
+        sql`lower(coalesce(${schema.users.displayName}, '')) like ${like} escape '\\'`,
+      ),
+    )
+    .limit(50)
+    .all()
+    .filter((u) => !skip.has(u.id))
+    .map((u) => ({ id: u.id, name: nameOf(u), username: u.username, avatar: avatarUrl(u) }))
+    .sort((a, b) => {
+      const starts = (f: Friend) => (f.name.toLowerCase().startsWith(q) || f.username.startsWith(q) ? 0 : 1);
+      return starts(a) - starts(b) || a.name.localeCompare(b.name);
+    })
+    .slice(0, limit);
+}
+
+/** Add a friend by id — a suggestion tapped in the add-a-friend box. */
+export function addFriendById(userId: number, friendId: number): Success<Friend> | Failure {
+  const them = db.select().from(schema.users).where(eq(schema.users.id, friendId)).get();
+  if (!them) return fail("No such person.", 404);
+  return addFriend(userId, them.username);
 }
 
 /** Unfriend, for both of you. */

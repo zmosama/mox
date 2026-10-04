@@ -55,7 +55,7 @@ export function FriendsFeed({ signedIn }: { signedIn: boolean }) {
         <Prompt text="Sign in to see what your friends are watching." href="/admin/login" action="Sign in" />
       ) : friends && !friends.length ? (
         <Prompt
-          text="Add a friend by their username or email in Settings, and what they rate shows up here — and what you rate shows up for them."
+          text="Add friends in Settings — type a name and pick them. What they rate shows up here, and what you rate shows up for them."
           href="/admin#friends"
           action="Add friends"
         />

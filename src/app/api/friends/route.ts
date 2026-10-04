@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { currentUser } from "@/lib/auth";
-import { addFriend, friendsOf, removeFriend } from "@/lib/friends";
+import { addFriend, addFriendById, friendsOf, removeFriend } from "@/lib/friends";
 
 const noStore = { headers: { "cache-control": "no-store" } };
 
@@ -12,7 +12,8 @@ export async function GET() {
   return NextResponse.json({ friends: friendsOf(user.id) }, noStore);
 }
 
-const Add = z.object({ who: z.string().min(1).max(200) });
+/** A suggestion tapped (`id`), or a username or email typed in full (`who`). */
+const Add = z.union([z.object({ id: z.number().int().positive() }), z.object({ who: z.string().min(1).max(200) })]);
 
 /** Add a friend by username or email. Both of you see each other's ratings from then on. */
 export async function POST(req: Request) {
@@ -20,7 +21,7 @@ export async function POST(req: Request) {
   if (!user) return NextResponse.json({ error: "sign in first" }, { status: 401 });
   const parsed = Add.safeParse(await req.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ error: "Type their username or email." }, { status: 400 });
-  const result = addFriend(user.id, parsed.data.who);
+  const result = "id" in parsed.data ? addFriendById(user.id, parsed.data.id) : addFriend(user.id, parsed.data.who);
   if (!result.ok) return NextResponse.json({ error: result.error }, { status: result.status });
   return NextResponse.json({ friend: result.value, friends: friendsOf(user.id) }, noStore);
 }

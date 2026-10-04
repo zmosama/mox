@@ -104,7 +104,7 @@ struct FriendsView: View {
                     SignInPrompt(text: "Sign in to see what your friends are watching.") { router.settings = true }
                 } else if let friends, friends.isEmpty {
                     VStack(alignment: .leading, spacing: 12) {
-                        Text("Add a friend by their username or email in Settings, and what they rate shows up here — and what you rate shows up for them.")
+                        Text("Add friends in Settings — type a name and pick them. What they rate shows up here, and what you rate shows up for them.")
                             .font(.sora(14)).foregroundStyle(Theme.muted)
                         Button("Add friends") { router.settings = true }.buttonStyle(.glass)
                     }
@@ -222,11 +222,12 @@ struct FriendsView: View {
     }
 }
 
-/// Settings → Friends: add by username or email, swipe to remove.
+/// Settings → Friends: type a letter or two and pick from who matches; swipe to remove.
 struct FriendsSettingsView: View {
     @Environment(API.self) private var api
     @State private var friends: [Friend] = []
     @State private var who = ""
+    @State private var suggestions: [Friend] = []
     @State private var message: (ok: Bool, text: String)?
     @State private var busy = false
 
@@ -234,12 +235,26 @@ struct FriendsSettingsView: View {
         Form {
             Section {
                 HStack {
-                    TextField("Their username or email", text: $who)
+                    TextField("Start typing a name", text: $who)
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
                         .keyboardType(.emailAddress)
                         .onSubmit(add)
                     Button("Add", action: add).disabled(busy || who.trimmingCharacters(in: .whitespaces).isEmpty)
+                }
+                ForEach(suggestions) { p in
+                    Button { add(p) } label: {
+                        HStack(spacing: 12) {
+                            FriendFace(name: p.name, avatar: p.avatar, size: 30)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(p.name).foregroundStyle(Theme.paper)
+                                Text("@\(p.username)").font(.caption).foregroundStyle(Theme.muted)
+                            }
+                            Spacer()
+                            Label("Add", systemImage: "plus").font(.subheadline.weight(.semibold)).foregroundStyle(Theme.green)
+                        }
+                    }
+                    .disabled(busy)
                 }
                 if let message {
                     Text(message.text).font(.footnote).foregroundStyle(message.ok ? Theme.green : .red)
@@ -268,9 +283,34 @@ struct FriendsSettingsView: View {
         }
         .navigationTitle("Friends")
         .task { friends = (try? await api.friends()) ?? friends }
+        // Suggestions from the first letter, as you type.
+        .task(id: who) {
+            let typed = who.trimmingCharacters(in: .whitespaces)
+            guard !typed.isEmpty else { suggestions = []; return }
+            try? await Task.sleep(for: .milliseconds(120))
+            guard !Task.isCancelled, let found = try? await api.findPeople(typed), !Task.isCancelled else { return }
+            suggestions = found
+        }
+    }
+
+    private func add(_ person: Friend) {
+        busy = true
+        Task {
+            defer { busy = false }
+            do {
+                let added = try await api.addFriend(id: person.id)
+                friends = added.friends
+                who = ""
+                suggestions = []
+                message = (true, "\(added.friend.name) is your friend now.")
+            } catch {
+                message = (false, error.localizedDescription)
+            }
+        }
     }
 
     private func add() {
+        if let first = suggestions.first { add(first); return }
         let handle = who.trimmingCharacters(in: .whitespaces)
         guard !handle.isEmpty else { return }
         busy = true
