@@ -1,6 +1,6 @@
 import { sql } from "drizzle-orm";
 import {
-  index, integer, primaryKey, real, sqliteTable, text, uniqueIndex,
+  blob, index, integer, primaryKey, real, sqliteTable, text, uniqueIndex,
 } from "drizzle-orm/sqlite-core";
 
 /** A film or a series. TMDB reuses ids across the two, so `kind` is never optional. */
@@ -583,8 +583,14 @@ export const catalogTitles = sqliteTable(
     status: text("status"),
     ageLevel: text("age_level"),
     ageCheckedAt: integer("age_checked_at"),
-    /** The full TMDB record as JSON, trimmed of what nothing reads. */
+    /** Superseded by `detailZ`; read only for rows written before it. */
     detail: text("detail"),
+    /**
+     * The full TMDB record, trimmed of what nothing reads, as deflated JSON —
+     * about a quarter of the size, and unpacked in well under a millisecond
+     * when the title is opened. Lists and search never read it.
+     */
+    detailZ: blob("detail_z", { mode: "buffer" }),
     detailAt: integer("detail_at"),
     seenAt: integer("seen_at").notNull().default(sql`(unixepoch())`),
     createdAt: integer("created_at").notNull().default(sql`(unixepoch())`),
@@ -608,6 +614,7 @@ export const catalogPeople = sqliteTable(
     popularity: real("popularity"),
     imdbId: text("imdb_id"),
     detail: text("detail"),
+    detailZ: blob("detail_z", { mode: "buffer" }),
     detailAt: integer("detail_at"),
     seenAt: integer("seen_at").notNull().default(sql`(unixepoch())`),
     createdAt: integer("created_at").notNull().default(sql`(unixepoch())`),

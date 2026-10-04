@@ -16,12 +16,21 @@
  * ever been seen in a list, so the catalogue fills with full records — cast,
  * studios, certificates, IMDb ids — and not just names and posters.
  */
+import { deflateRawSync, inflateRawSync } from "node:zlib";
 import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 import { db, schema } from "@/db";
 import type { MediaKind } from "@/db/schema";
 import { ageLevel, certAppend, type AgeLevel, type CertSource } from "./ratings";
 import { tmdb } from "./tmdb";
 import { topImdbTitles } from "./imdb";
+
+/** Full records are kept deflated: a quarter of the size, unpacked in well under a millisecond. */
+const pack = (value: unknown) => deflateRawSync(JSON.stringify(value));
+function unpack<T>(row: { detailZ?: Buffer | null; detail?: string | null } | undefined): T | null {
+  if (row?.detailZ) return JSON.parse(inflateRawSync(row.detailZ).toString("utf8")) as T;
+  if (row?.detail) return JSON.parse(row.detail) as T;
+  return null;
+}
 
 const HOUR = 3600;
 const DAY = 86_400;
@@ -208,7 +217,8 @@ function saveDetail(kind: MediaKind, tmdbId: number, d: Detail) {
     status: blank(d.status),
     ageLevel: level,
     ageCheckedAt: now(),
-    detail: JSON.stringify(trim(d)),
+    detail: null,
+    detailZ: pack(trim(d)),
     detailAt: now(),
   };
   try {
@@ -230,6 +240,7 @@ export async function titleDetail<T = Detail>(kind: MediaKind, tmdbId: number, o
   const row = db
     .select({
       detail: schema.catalogTitles.detail,
+      detailZ: schema.catalogTitles.detailZ,
       detailAt: schema.catalogTitles.detailAt,
       status: schema.catalogTitles.status,
       releaseDate: schema.catalogTitles.releaseDate,
@@ -238,18 +249,22 @@ export async function titleDetail<T = Detail>(kind: MediaKind, tmdbId: number, o
     .where(and(eq(schema.catalogTitles.tmdbId, tmdbId), eq(schema.catalogTitles.kind, kind)))
     .get();
 
-  if (row?.detail && row.detailAt && !opts.force && now() - row.detailAt < maxAge(kind, row.status, row.releaseDate)) {
-    return JSON.parse(row.detail) as T;
+  const kept = unpack<T>(row);
+  if (kept && row?.detailAt && !opts.force && now() - row.detailAt < maxAge(kind, row.status, row.releaseDate)) {
+    return kept;
   }
   try {
-    const d = await tmdb<Detail>(`/${kind}/${tmdbId}`, {
-      append_to_response: `credits,videos,external_ids,${certAppend(kind)}`,
-    });
+    // Not into the disk cache too: the catalogue is where it is kept.
+    const d = await tmdb<Detail>(
+      `/${kind}/${tmdbId}`,
+      { append_to_response: `credits,videos,external_ids,${certAppend(kind)}` },
+      { store: false },
+    );
     saveDetail(kind, tmdbId, d);
     return trim(d) as T;
   } catch (e) {
     // TMDB down or slow: an old record beats an error page.
-    if (row?.detail) return JSON.parse(row.detail) as T;
+    if (kept) return kept;
     throw e;
   }
 }
@@ -316,11 +331,12 @@ export async function personDetail<T extends { id: number; name: string }>(
   fetch: () => Promise<T & { profile_path?: string | null; known_for_department?: string; popularity?: number; external_ids?: { imdb_id?: string | null }; imdb_id?: string | null; combined_credits?: { cast?: (ListedTitle & { media_type?: string })[]; crew?: (ListedTitle & { media_type?: string })[] } }>,
 ): Promise<T> {
   const row = db
-    .select({ detail: schema.catalogPeople.detail, detailAt: schema.catalogPeople.detailAt })
+    .select({ detail: schema.catalogPeople.detail, detailZ: schema.catalogPeople.detailZ, detailAt: schema.catalogPeople.detailAt })
     .from(schema.catalogPeople)
     .where(eq(schema.catalogPeople.id, id))
     .get();
-  if (row?.detail && row.detailAt && now() - row.detailAt < PERSON_AGE) return JSON.parse(row.detail) as T;
+  const kept = unpack<T>(row);
+  if (kept && row?.detailAt && now() - row.detailAt < PERSON_AGE) return kept;
 
   try {
     const p = await fetch();
@@ -331,7 +347,8 @@ export async function personDetail<T extends { id: number; name: string }>(
       department: blank(p.known_for_department),
       popularity: p.popularity ?? null,
       imdbId: blank(p.external_ids?.imdb_id ?? p.imdb_id),
-      detail: JSON.stringify(p),
+      detail: null,
+      detailZ: pack(p),
       detailAt: now(),
       seenAt: now(),
     };
@@ -348,19 +365,30 @@ export async function personDetail<T extends { id: number; name: string }>(
     );
     return p;
   } catch (e) {
-    if (row?.detail) return JSON.parse(row.detail) as T;
+    if (kept) return kept;
     throw e;
   }
 }
 
 // ---------------------------------------------------------------- nightly
 
+/** Up to `width` at once, in order: TMDB allows far more, and this keeps the box's one core free for the site. */
+async function inParallel<T>(items: T[], width: number, run: (item: T) => Promise<void>) {
+  let next = 0;
+  await Promise.all(
+    Array.from({ length: Math.min(width, items.length) }, async () => {
+      while (next < items.length) await run(items[next++]);
+    }),
+  );
+}
+
 /**
- * Open the most popular titles the catalogue has only seen in lists, so they
- * gain their full record, and renew full records gone stale. A few hundred a
- * night is a few minutes of TMDB's time and fills the catalogue steadily.
+ * Open the titles the catalogue has only seen in lists, so they gain their
+ * full record: what somebody here rated first, then the most popular. Five
+ * thousand a night, six at a time, is about ten minutes at four in the
+ * morning — the catalogue covers what anyone would look for in about six weeks.
  */
-export async function enrichCatalog(limit = 400): Promise<{ filled: number; failed: number }> {
+export async function enrichCatalog(limit = 5000): Promise<{ filled: number; failed: number }> {
   // What somebody here rated first — those are the titles the taste model and
   // the friends tab read — then the most popular.
   const rows = db
@@ -375,14 +403,14 @@ export async function enrichCatalog(limit = 400): Promise<{ filled: number; fail
     .all();
   let filled = 0;
   let failed = 0;
-  for (const r of rows) {
+  await inParallel(rows, 6, async (r) => {
     try {
       await titleDetail(r.kind, r.tmdbId, { force: true });
       filled++;
     } catch {
       failed++;
     }
-  }
+  });
   return { filled, failed };
 }
 
@@ -413,7 +441,7 @@ export function seedCatalog(): number {
  * titles that matter most, not just from what somebody happened to search.
  * The nightly enrichment then gives them full records.
  */
-export async function mapImdb(limit = 1000): Promise<{ found: number; missing: number; failed: number }> {
+export async function mapImdb(limit = 5000): Promise<{ found: number; missing: number; failed: number }> {
   const settled = new Set<string>([
     ...db.select({ id: schema.imdbMap.imdbId }).from(schema.imdbMap).all().map((r) => r.id),
     ...db
@@ -428,38 +456,61 @@ export async function mapImdb(limit = 1000): Promise<{ found: number; missing: n
   let missing = 0;
   let failed = 0;
 
-  // Four at a time: well inside TMDB's limits, and a few minutes for a thousand.
-  for (let i = 0; i < todo.length; i += 4) {
-    await Promise.all(
-      todo.slice(i, i + 4).map(async (t) => {
-        try {
-          const res = await tmdb<{ movie_results?: ListedTitle[]; tv_results?: ListedTitle[] }>(`/find/${t.tconst}`, {
-            external_source: "imdb_id",
-          });
-          const series = t.type === "tvSeries" || t.type === "tvMiniSeries";
-          const kind: MediaKind = series ? "tv" : "movie";
-          const hit = (series ? res.tv_results : res.movie_results)?.[0];
-          db.insert(schema.imdbMap)
-            .values({ imdbId: t.tconst, tmdbId: hit?.id ?? null, kind: hit ? kind : null, checkedAt: now() })
-            .onConflictDoUpdate({ target: schema.imdbMap.imdbId, set: { tmdbId: hit?.id ?? null, kind: hit ? kind : null, checkedAt: now() } })
-            .run();
-          if (!hit) {
-            missing++;
-            return;
-          }
-          rememberTitles([{ item: hit, kind }]);
-          db.update(schema.catalogTitles)
-            .set({ imdbId: t.tconst })
-            .where(and(eq(schema.catalogTitles.tmdbId, hit.id), eq(schema.catalogTitles.kind, kind)))
-            .run();
-          found++;
-        } catch {
-          failed++;
-        }
-      }),
-    );
-  }
+  await inParallel(todo, 6, async (t) => {
+    try {
+      const res = await tmdb<{ movie_results?: ListedTitle[]; tv_results?: ListedTitle[] }>(
+        `/find/${t.tconst}`,
+        { external_source: "imdb_id" },
+        { store: false },
+      );
+      const series = t.type === "tvSeries" || t.type === "tvMiniSeries";
+      const kind: MediaKind = series ? "tv" : "movie";
+      const hit = (series ? res.tv_results : res.movie_results)?.[0];
+      db.insert(schema.imdbMap)
+        .values({ imdbId: t.tconst, tmdbId: hit?.id ?? null, kind: hit ? kind : null, checkedAt: now() })
+        .onConflictDoUpdate({ target: schema.imdbMap.imdbId, set: { tmdbId: hit?.id ?? null, kind: hit ? kind : null, checkedAt: now() } })
+        .run();
+      if (!hit) {
+        missing++;
+        return;
+      }
+      rememberTitles([{ item: hit, kind }]);
+      db.update(schema.catalogTitles)
+        .set({ imdbId: t.tconst })
+        .where(and(eq(schema.catalogTitles.tmdbId, hit.id), eq(schema.catalogTitles.kind, kind)))
+        .run();
+      found++;
+    } catch {
+      failed++;
+    }
+  });
   return { found, missing, failed };
+}
+
+/** Deflate full records written before they were kept deflated. A one-off, then a no-op. */
+export function packOldDetails(): number {
+  const titles = db
+    .select({ tmdbId: schema.catalogTitles.tmdbId, kind: schema.catalogTitles.kind, detail: schema.catalogTitles.detail })
+    .from(schema.catalogTitles)
+    .where(sql`detail is not null and detail_z is null`)
+    .all();
+  const people = db
+    .select({ id: schema.catalogPeople.id, detail: schema.catalogPeople.detail })
+    .from(schema.catalogPeople)
+    .where(sql`detail is not null and detail_z is null`)
+    .all();
+  db.transaction((tx) => {
+    for (const r of titles) {
+      tx.update(schema.catalogTitles)
+        .set({ detailZ: deflateRawSync(r.detail!), detail: null })
+        .where(and(eq(schema.catalogTitles.tmdbId, r.tmdbId), eq(schema.catalogTitles.kind, r.kind)))
+        .run();
+    }
+    for (const r of people) {
+      tx.update(schema.catalogPeople).set({ detailZ: deflateRawSync(r.detail!), detail: null }).where(eq(schema.catalogPeople.id, r.id)).run();
+    }
+  });
+  return titles.length + people.length;
 }
 
 /** How big the catalogue is, for the refresh log. */

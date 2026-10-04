@@ -42,14 +42,25 @@ const cachePath = (path: string, params: Record<string, string>) => {
   return join(CACHE_DIR, `${hash}.json`);
 };
 
-export async function tmdb<T>(path: string, params: Record<string, string | number> = {}): Promise<T> {
+/**
+ * `store: false` skips the disk cache both ways: for answers MOX keeps in its
+ * own catalogue (catalog.ts), where a second copy here would only fill the
+ * disk — the nightly enrichment alone fetches thousands of full records.
+ */
+export async function tmdb<T>(
+  path: string,
+  params: Record<string, string | number> = {},
+  opts: { store?: boolean } = {},
+): Promise<T> {
   const clean = Object.fromEntries(
     Object.entries(params).map(([k, v]) => [k, String(v)]),
   ) as Record<string, string>;
   const file = cachePath(path, clean);
   const ttl = ttlFor(path);
+  const store = opts.store !== false;
 
   try {
+    if (!store) throw new Error("not cached");
     const raw = await readFile(file, "utf8");
     const { at, body } = JSON.parse(raw) as { at: number; body: T };
     if (Date.now() - at < ttl * 1000) return body;
@@ -61,9 +72,15 @@ export async function tmdb<T>(path: string, params: Record<string, string | numb
   for (const [k, v] of Object.entries(clean)) url.searchParams.set(k, v);
   url.searchParams.set("api_key", apiKey());
 
-  const res = await fetch(url, { cache: "no-store" });
+  let res = await fetch(url, { cache: "no-store" });
+  // Too many at once: TMDB says when to come back. Once, then it is an error.
+  if (res.status === 429) {
+    await new Promise((r) => setTimeout(r, (Number(res.headers.get("retry-after")) || 2) * 1000));
+    res = await fetch(url, { cache: "no-store" });
+  }
   if (!res.ok) throw new TmdbError(`TMDB ${res.status} on ${path}`);
   const body = (await res.json()) as T;
+  if (!store) return body;
 
   try {
     await mkdir(CACHE_DIR, { recursive: true });

@@ -81,6 +81,9 @@ describe("titleDetail", () => {
     expect(first.credits.crew.map((c) => c.job)).toEqual(["Director"]);
     expect(first.videos.results.map((v) => v.key)).toEqual(["t1"]);
     expect(row(2)).toMatchObject({ imdb_id: "tt0078748", status: "Released", companies: "[19747]", genres: '["Horror"]', age_level: "18" });
+    // Kept deflated, not as text.
+    expect(row(2)?.detail).toBeNull();
+    expect((row(2)?.detail_z as Buffer).length).toBeLessThan(JSON.stringify(first).length / 2);
 
     const again = await catalog.titleDetail<typeof detail>("movie", 2);
     expect(again.title).toBe("Alien");
@@ -96,6 +99,18 @@ describe("titleDetail", () => {
   it("fails only when there is nothing kept at all", async () => {
     tmdb.mockRejectedValueOnce(new Error("TMDB 503"));
     await expect(catalog.titleDetail("movie", 999)).rejects.toThrow("TMDB 503");
+  });
+});
+
+describe("packOldDetails", () => {
+  it("deflates records written as text, and they still read the same", async () => {
+    raw.prepare("INSERT INTO catalog_titles (tmdb_id, kind, title, detail, detail_at) VALUES (8, 'movie', 'Old', ?, unixepoch())")
+      .run(JSON.stringify({ title: "Old", tagline: "kept as text" }));
+    expect(catalog.packOldDetails()).toBe(1);
+    expect(row(8)?.detail).toBeNull();
+    expect((await catalog.titleDetail<{ tagline: string }>("movie", 8)).tagline).toBe("kept as text");
+    expect(tmdb).not.toHaveBeenCalled();
+    expect(catalog.packOldDetails()).toBe(0);
   });
 });
 
