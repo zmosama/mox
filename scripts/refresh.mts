@@ -17,7 +17,7 @@
  */
 import { todayISO } from "../src/lib/dates";
 import { pruneCache } from "../src/lib/tmdb";
-import { catalogSize, enrichCatalog, seedCatalog } from "../src/lib/catalog";
+import { catalogSize, enrichCatalog, mapImdb, seedCatalog } from "../src/lib/catalog";
 import { refreshCalendar } from "./refresh/calendar.mjs";
 import { refreshFeeds } from "./refresh/feeds.mjs";
 import { refreshServices } from "./refresh/services.mjs";
@@ -93,10 +93,13 @@ await step("prices", async () => ({ summary: await refreshPrices(TODAY), value: 
 // only ever seen in a list, so they gain their full record.
 await step("catalog", async () => {
   const seeded = seedCatalog();
+  // IMDb's most-voted titles first, so tonight's enrichment can fill them in.
+  const mapped = await mapImdb();
   const { filled, failed: missed } = await enrichCatalog();
   const size = catalogSize();
   return {
-    summary: `${seeded} new from titles and ratings, ${filled} filled in${missed ? `, ${missed} failed` : ""}; ` +
+    summary: `${seeded} new from titles and ratings, ${mapped.found} found from IMDb (${mapped.missing} not on TMDB), ` +
+      `${filled} filled in${missed ? `, ${missed} failed` : ""}; ` +
       `${size.fullTitles} of ${size.titles} titles and ${size.fullPeople} of ${size.people} people complete`,
     value: null,
   };

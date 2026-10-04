@@ -169,6 +169,13 @@
       "when": 1791145547558,
       "tag": "0023_catalog",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "6",
+      "when": 1791146658869,
+      "tag": "0024_imdb_map",
+      "breakpoints": true
     }
   ]
 }

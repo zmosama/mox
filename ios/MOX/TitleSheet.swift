@@ -245,6 +245,7 @@ struct TitleSheet: View {
         if let age = d.age { parts.append(age) }
         parts.append(contentsOf: d.genres.prefix(2))
         if let rating = d.rating { parts.append("★ \(String(format: "%.1f", rating))") }
+        if let imdb = d.imdb { parts.append("IMDb \(String(format: "%.1f", imdb.rating))") }
         return parts.joined(separator: " · ")
     }
 

@@ -614,3 +614,15 @@ export const catalogPeople = sqliteTable(
   },
   (t) => [index("catalog_people_popularity").on(t.popularity)],
 );
+
+/**
+ * Which TMDB title each IMDb id is, as TMDB's /find answered — including "none"
+ * (tmdb_id null), so an id TMDB does not know is asked about once, not nightly.
+ * The nightly job walks IMDb's most-voted titles down this list.
+ */
+export const imdbMap = sqliteTable("imdb_map", {
+  imdbId: text("imdb_id").primaryKey(),
+  tmdbId: integer("tmdb_id"),
+  kind: text("kind", { enum: MEDIA_KINDS }),
+  checkedAt: integer("checked_at").notNull().default(sql`(unixepoch())`),
+});

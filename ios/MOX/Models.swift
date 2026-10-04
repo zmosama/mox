@@ -178,6 +178,8 @@ nonisolated struct TitleDetail: Codable, Sendable {
     let verdict: String?
     /// What your friends made of it.
     let friends: [FriendMark]?
+    /// IMDb's rating and votes, from MOX's copy of IMDb's datasets.
+    let imdb: ImdbRating?
     let following: Bool
     /// A series: how many episodes, how many are out, how many you watched.
     let progress: SeriesProgress?
@@ -260,6 +262,12 @@ nonisolated struct WallPayload: Codable, Sendable {
 
 nonisolated struct PicksPayload: Codable, Sendable {
     let picks: [Card]
+}
+
+nonisolated struct ImdbRating: Codable, Hashable, Sendable {
+    let id: String
+    let rating: Double
+    let votes: Int
 }
 
 // MARK: - Studios

@@ -44,6 +44,8 @@ export type SheetTitle = {
   progress?: ProgressData | null;
   /** Its age rating, "18+" or "PG"; null when unrated. */
   age?: string | null;
+  /** IMDb's rating and votes, when MOX's IMDb copy has it. */
+  imdb?: { id: string; rating: number; votes: number } | null;
 };
 
 const cairoToday = () =>
@@ -251,6 +253,7 @@ export function TitleSheet({
         data.age,
         ...data.genres.slice(0, 2),
         data.rating ? `★ ${data.rating}` : null,
+        data.imdb ? `IMDb ${data.imdb.rating.toFixed(1)}` : null,
       ].filter(Boolean)
     : [];
 

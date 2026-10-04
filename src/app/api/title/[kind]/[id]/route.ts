@@ -10,6 +10,7 @@ import { posterPath, region } from "@/lib/tmdb";
 import { profileUrl } from "@/lib/people";
 import { friendMarks } from "@/lib/friends";
 import { titleWithProviders } from "@/lib/catalog";
+import { imdbRating } from "@/lib/imdb";
 import { seriesProgress, type TmdbSeasonSummary } from "@/lib/progress";
 import { todayISO } from "@/lib/dates";
 import { MEDIA_KINDS, type MediaKind } from "@/db/schema";
@@ -37,6 +38,8 @@ type TmdbTitle = {
   };
   videos?: { results?: { site: string; key: string; type: string; official?: boolean }[] };
   "watch/providers"?: { results?: WatchProviders };
+  external_ids?: { imdb_id?: string | null };
+  imdb_id?: string | null;
 } & CertSource;
 
 export async function GET(
@@ -138,6 +141,8 @@ export async function GET(
       seasons: d.number_of_seasons ?? null,
       genres: (d.genres ?? []).map((g) => g.name),
       rating: d.vote_average ? Math.round(d.vote_average * 10) / 10 : null,
+      /** IMDb's rating and vote count, from MOX's copy of IMDb's datasets. */
+      imdb: imdbRating(d.external_ids?.imdb_id ?? d.imdb_id),
       /** Its age rating, "18+" or "PG", or null when it has none. */
       age: (() => { const l = ageLevel(kind, d); return l ? AGE_LABEL[l] : null; })(),
       poster: posterPath(d.poster_path),

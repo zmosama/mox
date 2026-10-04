@@ -21,6 +21,7 @@ import { db, schema } from "@/db";
 import type { MediaKind } from "@/db/schema";
 import { ageLevel, certAppend, type AgeLevel, type CertSource } from "./ratings";
 import { tmdb } from "./tmdb";
+import { topImdbTitles } from "./imdb";
 
 const HOUR = 3600;
 const DAY = 86_400;
@@ -404,6 +405,61 @@ export function seedCatalog(): number {
     from titles`);
   db.run(sql`insert or ignore into catalog_titles (tmdb_id, kind) select distinct tmdb_id, kind from verdicts`);
   return catalogSize().titles - before;
+}
+
+/**
+ * Find IMDb's most-voted titles on TMDB, the ones not settled yet, and keep
+ * each in the catalogue with its IMDb id — so the catalogue fills from the
+ * titles that matter most, not just from what somebody happened to search.
+ * The nightly enrichment then gives them full records.
+ */
+export async function mapImdb(limit = 1000): Promise<{ found: number; missing: number; failed: number }> {
+  const settled = new Set<string>([
+    ...db.select({ id: schema.imdbMap.imdbId }).from(schema.imdbMap).all().map((r) => r.id),
+    ...db
+      .select({ id: schema.catalogTitles.imdbId })
+      .from(schema.catalogTitles)
+      .where(sql`${schema.catalogTitles.imdbId} is not null`)
+      .all()
+      .map((r) => r.id!),
+  ]);
+  const todo = topImdbTitles(settled, limit);
+  let found = 0;
+  let missing = 0;
+  let failed = 0;
+
+  // Four at a time: well inside TMDB's limits, and a few minutes for a thousand.
+  for (let i = 0; i < todo.length; i += 4) {
+    await Promise.all(
+      todo.slice(i, i + 4).map(async (t) => {
+        try {
+          const res = await tmdb<{ movie_results?: ListedTitle[]; tv_results?: ListedTitle[] }>(`/find/${t.tconst}`, {
+            external_source: "imdb_id",
+          });
+          const series = t.type === "tvSeries" || t.type === "tvMiniSeries";
+          const kind: MediaKind = series ? "tv" : "movie";
+          const hit = (series ? res.tv_results : res.movie_results)?.[0];
+          db.insert(schema.imdbMap)
+            .values({ imdbId: t.tconst, tmdbId: hit?.id ?? null, kind: hit ? kind : null, checkedAt: now() })
+            .onConflictDoUpdate({ target: schema.imdbMap.imdbId, set: { tmdbId: hit?.id ?? null, kind: hit ? kind : null, checkedAt: now() } })
+            .run();
+          if (!hit) {
+            missing++;
+            return;
+          }
+          rememberTitles([{ item: hit, kind }]);
+          db.update(schema.catalogTitles)
+            .set({ imdbId: t.tconst })
+            .where(and(eq(schema.catalogTitles.tmdbId, hit.id), eq(schema.catalogTitles.kind, kind)))
+            .run();
+          found++;
+        } catch {
+          failed++;
+        }
+      }),
+    );
+  }
+  return { found, missing, failed };
 }
 
 /** How big the catalogue is, for the refresh log. */
