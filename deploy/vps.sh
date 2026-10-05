@@ -72,7 +72,25 @@ ssh "$HOST" "docker tag local/mox:latest local/mox:rollback && echo '    tagged 
 
 # The old container keeps serving throughout the transfer.
 say "shipping it (about 200MB compressed, the site stays up)"
-docker save local/mox:latest | gzip | ssh "$HOST" "gunzip | docker load" | sed 's/^/    /'
+# To a file first, then rsync with --partial: a link that drops mid-upload
+# resumes where it stopped instead of starting the 200MB again. Streaming it
+# straight into `docker load` over one ssh failed four times on 2026-10-05,
+# each time from zero. The old container serves throughout.
+IMAGE_TGZ="${TMPDIR:-/tmp}/mox-image.tar.gz"
+docker save local/mox:latest | gzip > "$IMAGE_TGZ"
+sent=0
+for attempt in 1 2 3 4 5 6 7 8 9 10; do
+  if rsync --partial --timeout=60 -e "ssh -o ConnectTimeout=20 -o ServerAliveInterval=15 -o ServerAliveCountMax=8" \
+       "$IMAGE_TGZ" "$HOST:/tmp/mox-image.tar.gz"; then sent=1; break; fi
+  echo "    the upload dropped (attempt $attempt) — resuming in 20s"
+  sleep 20
+done
+if [ "$sent" != "1" ]; then
+  echo "!! the image could not be sent — the site is untouched" >&2
+  exit 1
+fi
+ssh "$HOST" "gunzip -c /tmp/mox-image.tar.gz | docker load && rm -f /tmp/mox-image.tar.gz" | sed 's/^/    /'
+rm -f "$IMAGE_TGZ"
 
 say "swapping the container"
 ssh "$HOST" "cd $APPS && docker compose up -d mox 2>&1 | sed 's/^/    /'"
