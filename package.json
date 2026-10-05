@@ -15,7 +15,7 @@
     "test": "vitest run",
     "check": "npm run lint && npm run typecheck && npm test",
     "db:migrate": "drizzle-kit migrate",
-    "refresh": "node --env-file=.env.local node_modules/.bin/tsx scripts/refresh.mts"
+    "refresh": "node --env-file-if-exists=.env.local node_modules/.bin/tsx scripts/refresh.mts"
   },
   "dependencies": {
     "better-sqlite3": "^13.0.3",

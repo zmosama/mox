@@ -26,6 +26,12 @@ URL=${MOX_URL:-https://mox.mosama.me}
 
 say() { printf '\n==> %s\n' "$*"; }
 
+# Every ssh here notices a dead connection within two minutes and fails,
+# rather than waiting forever: on 2026-10-05 a link from the Mac that dropped
+# mid-upload left two deploys hanging until they were killed. Failing is safe
+# — nothing is swapped until the new image has fully arrived.
+ssh() { command ssh -o ConnectTimeout=20 -o ServerAliveInterval=15 -o ServerAliveCountMax=8 "$@"; }
+
 say "checking the working tree"
 if [ -n "$(git status --porcelain --untracked-files=no)" ]; then
   echo "!! uncommitted changes — commit them first, the server builds from main" >&2
