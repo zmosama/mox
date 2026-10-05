@@ -11,6 +11,7 @@ import { profileUrl } from "@/lib/people";
 import { friendMarks } from "@/lib/friends";
 import { titleWithProviders } from "@/lib/catalog";
 import { imdbRating } from "@/lib/imdb";
+import { watchLinks } from "@/lib/watch-links";
 import { seriesProgress, type TmdbSeasonSummary } from "@/lib/progress";
 import { todayISO } from "@/lib/dates";
 import { MEDIA_KINDS, type MediaKind } from "@/db/schema";
@@ -128,6 +129,9 @@ export async function GET(
     ? await seriesProgress(tmdbId, d, user?.id ?? null, todayISO(), undefined, chosen)
     : null;
 
+  // Each service's link to this title, so Play opens its app (watch-links.ts).
+  const own = names.length ? await watchLinks(kind, tmdbId, title) : new Map<number, string>();
+
   return NextResponse.json(
     {
       tmdbId,
@@ -171,7 +175,9 @@ export async function GET(
         return {
           name,
           logo: row?.logo ?? null,
-          url: playUrl(row?.providerId, title, deepLink.get(name)),
+          /* A link Mohammed chose by hand first, then the title's own page on
+             the service (which opens its app), then the service's search. */
+          url: deepLink.get(name) ?? (row ? own.get(row.providerId) : undefined) ?? playUrl(row?.providerId, title, null),
         };
       }),
       /* Rent or buy on Apple TV Store, apart from `platforms` on purpose:
