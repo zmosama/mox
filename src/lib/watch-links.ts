@@ -62,8 +62,11 @@ function clean(url: string): string {
   }
 }
 
+/** JustWatch saying "too many requests": the night's asking stops there. */
+class Throttled extends Error {}
+
 /** JustWatch's answer, or null when it could not be asked — which is not the same as "none". */
-async function ask(kind: MediaKind, tmdbId: number, title: string): Promise<Map<number, string> | null> {
+async function ask(kind: MediaKind, tmdbId: number, title: string, opts: { throwOn429?: boolean } = {}): Promise<Map<number, string> | null> {
   try {
     const res = await fetch(ENDPOINT, {
       method: "POST",
@@ -75,6 +78,7 @@ async function ask(kind: MediaKind, tmdbId: number, title: string): Promise<Map<
       signal: AbortSignal.timeout(2000),
       cache: "no-store",
     });
+    if (res.status === 429 && opts.throwOn429) throw new Throttled();
     if (!res.ok) return null;
     const body = (await res.json()) as Answer;
     // The search is by name; the match is by TMDB id and kind, so a remake
@@ -91,7 +95,8 @@ async function ask(kind: MediaKind, tmdbId: number, title: string): Promise<Map<
       links.set(id, clean(o.standardWebURL));
     }
     return links;
-  } catch {
+  } catch (e) {
+    if (e instanceof Throttled) throw e;
     return null;
   }
 }
@@ -126,9 +131,12 @@ export async function watchLinks(kind: MediaKind, tmdbId: number, title: string)
 
 /**
  * The nightly refresh: every title on somebody's services, followed or on a
- * watchlist, asked again — the ones asked longest ago first, four at a time.
+ * watchlist, asked again — the ones asked longest ago first, one at a time
+ * with a pause between. JustWatch turns away a server that asks faster: four
+ * at once got 429 after a hundred titles. When it does, the night stops there
+ * and the next night carries on from the oldest.
  */
-export async function refreshWatchLinks(limit = 3000): Promise<{ asked: number; withLinks: number; failed: number }> {
+export async function refreshWatchLinks(limit = 1500, pauseMs = 700): Promise<{ asked: number; withLinks: number; failed: number; throttled: boolean }> {
   const rows = db.all<{ tmdb_id: number; kind: MediaKind; title: string }>(sql`
     with wanted as (
       select tmdb_id, kind from availability
@@ -146,21 +154,20 @@ export async function refreshWatchLinks(limit = 3000): Promise<{ asked: number; 
   let asked = 0;
   let withLinks = 0;
   let failed = 0;
-  let next = 0;
-  await Promise.all(
-    Array.from({ length: 4 }, async () => {
-      while (next < rows.length) {
-        const r = rows[next++];
-        const links = await ask(r.kind, r.tmdb_id, r.title);
-        if (!links) {
-          failed++;
-          continue;
-        }
-        save(r.kind, r.tmdb_id, links);
-        asked++;
-        if (links.size) withLinks++;
-      }
-    }),
-  );
-  return { asked, withLinks, failed };
+  for (const r of rows) {
+    let links: Map<number, string> | null;
+    try {
+      links = await ask(r.kind, r.tmdb_id, r.title, { throwOn429: true });
+    } catch {
+      return { asked, withLinks, failed, throttled: true };
+    }
+    if (!links) failed++;
+    else {
+      save(r.kind, r.tmdb_id, links);
+      asked++;
+      if (links.size) withLinks++;
+    }
+    await new Promise((done) => setTimeout(done, pauseMs));
+  }
+  return { asked, withLinks, failed, throttled: false };
 }

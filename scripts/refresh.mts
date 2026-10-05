@@ -110,8 +110,12 @@ await step("catalog", async () => {
 // Each service's link to every title somebody could play, so Play opens the
 // service's app on the title (src/lib/watch-links.ts).
 await step("links", async () => {
-  const { asked, withLinks, failed: missed } = await refreshWatchLinks();
-  return { summary: `${asked} titles asked, ${withLinks} with links${missed ? `, ${missed} unanswered` : ""}`, value: null };
+  const { asked, withLinks, failed: missed, throttled } = await refreshWatchLinks();
+  return {
+    summary: `${asked} titles asked, ${withLinks} with links${missed ? `, ${missed} unanswered` : ""}` +
+      (throttled ? " — JustWatch asked us to slow down; tomorrow carries on" : ""),
+    value: null,
+  };
 });
 
 // Last, and after everything that might have wanted a warm cache this run.
