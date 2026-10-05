@@ -69,6 +69,8 @@ enum AppTab: Hashable {
 
 struct RootView: View {
     @Environment(\.horizontalSizeClass) private var sizeClass
+    /// Where titles open from on an iPad (see `opensTitle`).
+    @Namespace private var cards
     @Environment(AppSettings.self) private var settings
     @Environment(API.self) private var api
     @Environment(Router.self) private var router
@@ -117,19 +119,26 @@ struct RootView: View {
         // ordinary tab bar.
         .tabViewStyle(.sidebarAdaptable)
         .tabBarMinimizeBehavior(.onScrollDown)
-        // A title or a person: a sheet on an iPhone, a whole page on an iPad.
-        .sheet(item: compact($router.title)) { ref in
-            TitleSheet(ref: ref)
+        // On an iPad a title grows out of the card it was opened from into a
+        // large card over the screen, and shrinks back into it — swiped down
+        // or closed. On an iPhone, the sheet it always was.
+        .sheet(item: $router.title) { ref in
+            if sizeClass == .regular {
+                TitleSheet(ref: ref)
+                    .navigationTransition(.zoom(sourceID: ref.id, in: cards))
+                    .presentationSizing(.page)
+            } else {
+                TitleSheet(ref: ref)
+            }
         }
-        .fullScreenCover(item: wide($router.title)) { ref in
-            TitleSheet(ref: ref)
+        .sheet(item: $router.person) { ref in
+            if sizeClass == .regular {
+                PersonSheet(id: ref.id).presentationSizing(.page)
+            } else {
+                PersonSheet(id: ref.id)
+            }
         }
-        .sheet(item: compact($router.person)) { ref in
-            PersonSheet(id: ref.id)
-        }
-        .fullScreenCover(item: wide($router.person)) { ref in
-            PersonSheet(id: ref.id)
-        }
+        .environment(\.cardNamespace, sizeClass == .regular ? cards : nil)
         .sheet(isPresented: $router.settings) {
             SettingsView()
         }
@@ -152,15 +161,6 @@ struct RootView: View {
         .onChange(of: settings.tabs) {
             if sizeClass != .regular, case .tab(let id) = router.tab, !settings.tabs.contains(id) { router.tab = .home }
         }
-    }
-
-    /// The binding when this size class presents that way, and nothing otherwise.
-    private func compact<T>(_ b: Binding<T?>) -> Binding<T?> {
-        Binding(get: { sizeClass == .regular ? nil : b.wrappedValue }, set: { b.wrappedValue = $0 })
-    }
-
-    private func wide<T>(_ b: Binding<T?>) -> Binding<T?> {
-        Binding(get: { sizeClass == .regular ? b.wrappedValue : nil }, set: { b.wrappedValue = $0 })
     }
 
     @ViewBuilder

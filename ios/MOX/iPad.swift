@@ -2,7 +2,7 @@ import SwiftUI
 
 // The iPad's own screens, after the Apple TV app: a featured title across the
 // top of Home, shelves of wide pictures rather than posters, Search as a place
-// of its own in the sidebar, and titles that open as a full page. On an iPhone
+// of its own in the sidebar, and titles that grow out of their card. On an iPhone
 // none of this is used — every screen here is chosen by the regular size class.
 
 // MARK: - Cards
@@ -32,6 +32,7 @@ struct WideCard: View {
                     if let friends = card.friends, !friends.isEmpty { FriendFaces(friends: friends, size: 24).padding(10) }
                 }
                 .clipShape(.rect(cornerRadius: 14))
+                .opensTitle(card.ref)
             Text(card.title)
                 .font(.sora(15, .semibold, relativeTo: .subheadline))
                 .foregroundStyle(Theme.paper)
@@ -79,6 +80,40 @@ struct WideShelf: View {
 enum IPad {
     /// The page margin on an iPad, wider than a phone's 20.
     static let margin: CGFloat = 40
+}
+
+// MARK: - Opening a title
+
+/// The namespace titles open from: a card marks itself as the source, and the
+/// title's page grows out of it and shrinks back into it — Netflix's card, and
+/// MOX's own on the website. Set only on an iPad.
+private struct CardNamespaceKey: EnvironmentKey {
+    static let defaultValue: Namespace.ID? = nil
+}
+
+extension EnvironmentValues {
+    var cardNamespace: Namespace.ID? {
+        get { self[CardNamespaceKey.self] }
+        set { self[CardNamespaceKey.self] = newValue }
+    }
+}
+
+private struct OpensTitle: ViewModifier {
+    let id: String
+    @Environment(\.cardNamespace) private var ns
+
+    func body(content: Content) -> some View {
+        if let ns {
+            content.matchedTransitionSource(id: id, in: ns) { $0.clipShape(.rect(cornerRadius: 14)) }
+        } else {
+            content
+        }
+    }
+}
+
+extension View {
+    /// Where a title opens from, for the iPad's zoom into its page.
+    func opensTitle(_ ref: TitleRef) -> some View { modifier(OpensTitle(id: ref.id)) }
 }
 
 // MARK: - Featured
@@ -172,6 +207,7 @@ struct FeaturedCarousel: View {
             .padding(.bottom, 56)
         }
         .contentShape(.rect)
+        .opensTitle(card.ref)
         .onTapGesture { open(card.ref) }
     }
 }
@@ -285,84 +321,198 @@ struct AccountButton: View {
 
 // MARK: - Search
 
-/// Search on an iPad, a place of its own in the sidebar: the field at the top,
-/// moods to start from, and results as wide cards, ten at a time.
+/// A mood as the Browse row shows it: a tall tile with a picture.
+nonisolated struct BrowseMood: Codable, Hashable, Sendable, Identifiable {
+    let id: String
+    let label: String
+    let image: String?
+}
+
+nonisolated struct BrowsePayload: Codable, Sendable {
+    let moods: [BrowseMood]
+}
+
+/// Search on an iPad, after the TV app's: the field across the top, then
+/// Browse — a tall tile for each mood, and the studios — until something is
+/// typed, when the results take their place, ten at a time.
 struct IPadSearch: View {
     @Environment(API.self) private var api
     @Environment(Router.self) private var router
     @State private var query = ""
-    @State private var mood: Mood?
+    @State private var mood: BrowseMood?
+    @State private var browse: [BrowseMood] = []
+    @State private var studios: [Studio] = []
+    @State private var studio: Studio?
     @State private var results: [Card] = []
     @State private var people: [PersonChip] = []
     @State private var next: Int?
     @State private var looking = false
     @State private var loadingMore = false
+    @FocusState private var focused: Bool
 
     private var trimmed: String { query.trimmingCharacters(in: .whitespaces) }
+    private var searching: Bool { trimmed.count >= 2 }
     private let columns = [GridItem(.adaptive(minimum: 280), spacing: 20, alignment: .top)]
 
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(alignment: .leading, spacing: 28) {
-                    moods
-                    if !people.isEmpty {
-                        PeopleRow(title: "People", people: people) { router.person = PersonRef(id: $0) }
-                    }
-                    if let mood, trimmed.isEmpty {
-                        Text(mood.label).font(.sora(24, .bold)).foregroundStyle(Theme.paper)
-                            .padding(.horizontal, IPad.margin)
-                    }
-                    if results.isEmpty && !looking && (trimmed.count >= 2 || mood != nil) {
-                        Text(mood != nil && trimmed.isEmpty ? "Nothing in that mood on your services right now." : "Nothing found for “\(trimmed)”.")
-                            .font(.sora(15)).foregroundStyle(Theme.muted)
-                            .padding(.horizontal, IPad.margin)
-                    }
-                    LazyVGrid(columns: columns, alignment: .leading, spacing: 28) {
-                        ForEach(results) { card in
-                            Button { router.title = card.ref } label: { WideCard(card: card, width: 280) }
-                                .buttonStyle(.plain)
-                        }
-                    }
-                    .padding(.horizontal, IPad.margin)
-                    if next != nil {
-                        ProgressView().frame(maxWidth: .infinity).padding(.vertical, 24)
-                            .onAppear { Task { await more() } }
-                    } else if looking {
-                        ProgressView().frame(maxWidth: .infinity).padding(.top, 60)
+                VStack(alignment: .leading, spacing: 32) {
+                    field
+                    if searching || mood != nil {
+                        answers
+                    } else {
+                        browseRow
+                        if !studios.isEmpty { studiosRow }
                     }
                 }
-                .padding(.vertical, 24)
+                .padding(.vertical, 20)
             }
+            .scrollDismissesKeyboard(.interactively)
             .background(Theme.ink)
-            .navigationTitle("Search")
-            .searchable(text: $query, placement: .toolbar, prompt: "Films, series, actors, directors")
+            .toolbar(.hidden, for: .navigationBar)
+            .navigationDestination(item: $studio) { StudioView(studio: $0) }
+            .task { await loadBrowse() }
             .task(id: trimmed) { await search() }
             .task(id: mood) { await discover() }
         }
     }
 
-    private var moods: some View {
-        ScrollView(.horizontal) {
-            HStack(spacing: 10) {
-                ForEach(Mood.allCases) { m in
-                    Chip(label: m.label, on: mood == m) {
-                        mood = mood == m ? nil : m
-                        query = ""
+    // MARK: Field
+
+    private var field: some View {
+        HStack(spacing: 12) {
+            Image(systemName: "magnifyingglass").font(.system(size: 18, weight: .medium)).foregroundStyle(Theme.muted)
+            TextField("", text: $query, prompt: Text("Films, series, actors and directors").foregroundStyle(Theme.muted))
+                .font(.sora(18, relativeTo: .body))
+                .foregroundStyle(Theme.paper)
+                .focused($focused)
+                .submitLabel(.search)
+                .autocorrectionDisabled()
+                .onChange(of: query) { if !query.isEmpty { mood = nil } }
+            if looking {
+                ProgressView().controlSize(.small)
+            } else if !query.isEmpty || mood != nil {
+                Button {
+                    query = ""; mood = nil
+                } label: {
+                    Image(systemName: "xmark.circle.fill").font(.system(size: 18)).foregroundStyle(Theme.muted)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Clear")
+            }
+        }
+        .padding(.horizontal, 18)
+        .frame(height: 54)
+        .glassEffect(.regular.interactive(), in: .capsule)
+        .padding(.horizontal, IPad.margin)
+    }
+
+    // MARK: Browse
+
+    private var browseRow: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text("Browse").font(.sora(24, .bold, relativeTo: .title2)).foregroundStyle(Theme.paper)
+                .padding(.horizontal, IPad.margin)
+            ScrollView(.horizontal) {
+                LazyHStack(spacing: 18) {
+                    ForEach(browse) { m in
+                        Button { mood = m; focused = false } label: { tile(m) }
+                            .buttonStyle(.plain)
                     }
                 }
+                .padding(.horizontal, IPad.margin)
             }
-            .padding(.horizontal, IPad.margin)
+            .scrollIndicators(.hidden)
         }
-        .scrollIndicators(.hidden)
+    }
+
+    /// Tall, its picture filling it, the mood's name at the bottom — the TV app's genre tile.
+    private func tile(_ m: BrowseMood) -> some View {
+        Color.clear
+            .frame(width: 200, height: 300)
+            .overlay { RemoteImage(url: m.image) }
+            .overlay {
+                LinearGradient(colors: [.clear, .black.opacity(0.75)], startPoint: .center, endPoint: .bottom)
+            }
+            .overlay(alignment: .bottomLeading) {
+                Text(m.label)
+                    .font(.sora(18, .bold, relativeTo: .headline))
+                    .foregroundStyle(.white)
+                    .padding(16)
+            }
+            .clipShape(.rect(cornerRadius: 18))
+            .contentShape(.rect)
+    }
+
+    private var studiosRow: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text("Studios").font(.sora(24, .bold, relativeTo: .title2)).foregroundStyle(Theme.paper)
+                .padding(.horizontal, IPad.margin)
+            ScrollView(.horizontal) {
+                LazyHStack(spacing: 16) {
+                    ForEach(studios) { s in
+                        Button { studio = s } label: {
+                            Color(hex: 0xF2F2EE)
+                                .frame(width: 200, height: 112)
+                                .overlay {
+                                    AsyncImage(url: URL(string: s.logo)) { phase in
+                                        if let image = phase.image { image.resizable().scaledToFit() } else { Color.clear }
+                                    }
+                                    .padding(20)
+                                }
+                                .clipShape(.rect(cornerRadius: 16))
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel(s.name)
+                    }
+                }
+                .padding(.horizontal, IPad.margin)
+            }
+            .scrollIndicators(.hidden)
+        }
+    }
+
+    // MARK: Answers
+
+    @ViewBuilder
+    private var answers: some View {
+        if !people.isEmpty {
+            PeopleRow(title: "People", people: people) { router.person = PersonRef(id: $0) }
+        }
+        VStack(alignment: .leading, spacing: 16) {
+            Text(mood.map(\.label) ?? "Top results")
+                .font(.sora(24, .bold, relativeTo: .title2)).foregroundStyle(Theme.paper)
+            if results.isEmpty && !looking {
+                Text(mood != nil ? "Nothing in that mood on your services right now." : "Nothing found for “\(trimmed)”.")
+                    .font(.sora(15)).foregroundStyle(Theme.muted)
+            }
+            LazyVGrid(columns: columns, alignment: .leading, spacing: 28) {
+                ForEach(results) { card in
+                    Button { router.title = card.ref } label: { WideCard(card: card, width: 280) }
+                        .buttonStyle(.plain)
+                }
+            }
+            if next != nil {
+                ProgressView().frame(maxWidth: .infinity).padding(.vertical, 24)
+                    .onAppear { Task { await more() } }
+            }
+        }
+        .padding(.horizontal, IPad.margin)
+    }
+
+    // MARK: Loading
+
+    private func loadBrowse() async {
+        if browse.isEmpty, let b: BrowsePayload = try? await api.get("/api/app/browse") { browse = b.moods }
+        if studios.isEmpty { studios = (try? await api.studios()) ?? [] }
     }
 
     private func search() async {
-        guard trimmed.count >= 2 else {
+        guard searching else {
             if mood == nil { results = []; people = []; next = nil }
             return
         }
-        mood = nil
         try? await Task.sleep(for: .milliseconds(300))
         guard !Task.isCancelled else { return }
         looking = true
@@ -395,6 +545,6 @@ struct IPadSearch: View {
         next = nil
         looking = true
         defer { looking = false }
-        if let found = try? await api.discover(mood: mood.rawValue), !Task.isCancelled { results = found }
+        if let found = try? await api.discover(mood: mood.id), !Task.isCancelled { results = found }
     }
 }

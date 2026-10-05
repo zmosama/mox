@@ -14,7 +14,7 @@ struct TitleSheet: View {
     @State private var signingIn = false
     @State private var person: PersonRef?
     @Environment(\.horizontalSizeClass) private var sizeClass
-    /// On an iPad the title opens as a whole page, after the TV app: a tall
+    /// On an iPad the title opens as a large card over the screen: a taller
     /// picture across the top, the name large over it, wider margins.
     private var wide: Bool { sizeClass == .regular }
     private var pad: CGFloat { wide ? IPad.margin : 20 }
@@ -30,7 +30,6 @@ struct TitleSheet: View {
             }
         }
         .scrollIndicators(.hidden)
-        .ignoresSafeArea(edges: wide ? .top : [])
         .background(Theme.ink)
         .overlay(alignment: .topTrailing) {
             Button { dismiss() } label: {
@@ -56,7 +55,7 @@ struct TitleSheet: View {
                    widened the whole column and pushed every line of text to
                    the screen's edges. */
                 Color.clear
-                    .frame(height: wide ? 620 : 260)
+                    .frame(height: wide ? 440 : 260)
                     .frame(maxWidth: .infinity)
                     .overlay { RemoteImage(url: d.backdrop ?? d.poster) }
                     .clipped()
@@ -66,7 +65,7 @@ struct TitleSheet: View {
                 }
                 VStack(alignment: .leading, spacing: wide ? 10 : 6) {
                     Text(d.title)
-                        .font(.sora(wide ? 52 : 28, .bold, relativeTo: .largeTitle))
+                        .font(.sora(wide ? 40 : 28, .bold, relativeTo: .largeTitle))
                         .foregroundStyle(Theme.paper)
                     Text(meta(d))
                         .font(.sora(wide ? 16 : 13, relativeTo: .footnote))

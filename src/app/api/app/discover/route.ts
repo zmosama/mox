@@ -10,26 +10,7 @@ import { serviceLookup, verdictsFor } from "@/lib/queries";
 import { posterPath, region, tmdb } from "@/lib/tmdb";
 import { clientAddress, takeRequest } from "@/lib/rate-limit";
 import type { MediaKind } from "@/db/schema";
-
-/**
- * "Something funny", "an action film": Ask MOX's suggestion chips.
- *
- * TMDB's discover does the filtering, restricted to the services you pay for in
- * Egypt, so everything returned is playable tonight. Only a handful of titles
- * carry genre features locally, which is why this does not read the catalog.
- */
-const MOODS: Record<string, { movie: number | null; tv: number | null }> = {
-  comedy: { movie: 35, tv: 35 },
-  action: { movie: 28, tv: 10759 },
-  drama: { movie: 18, tv: 18 },
-  thriller: { movie: 53, tv: 9648 },
-  scifi: { movie: 878, tv: 10765 },
-  horror: { movie: 27, tv: null },
-  romance: { movie: 10749, tv: null },
-  animation: { movie: 16, tv: 16 },
-  crime: { movie: 80, tv: 80 },
-  documentary: { movie: 99, tv: 99 },
-};
+import { MOODS } from "@/lib/moods";
 
 type Discover = {
   results?: {
