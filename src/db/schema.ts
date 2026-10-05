@@ -633,3 +633,18 @@ export const imdbMap = sqliteTable("imdb_map", {
   kind: text("kind", { enum: MEDIA_KINDS }),
   checkedAt: integer("checked_at").notNull().default(sql`(unixepoch())`),
 });
+
+/**
+ * Each service's link to a title's own page — what Play opens, so the
+ * service's app opens on the title (see src/lib/watch-links.ts). One row per
+ * title: `links` is {providerId: url} as JSON, possibly empty, and
+ * `checkedAt` says when JustWatch was last asked. Refreshed nightly for every
+ * title on somebody's services, followed or on a watchlist, so a link that
+ * changes is right the next day; anything else is asked for when opened.
+ */
+export const watchLinks = sqliteTable("watch_links", {
+  tmdbId: integer("tmdb_id").notNull(),
+  kind: text("kind", { enum: MEDIA_KINDS }).notNull(),
+  links: text("links").notNull(),
+  checkedAt: integer("checked_at").notNull(),
+}, (t) => [primaryKey({ columns: [t.tmdbId, t.kind] })]);

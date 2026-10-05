@@ -8,21 +8,25 @@
  * TMDB's watch providers come from (the provider ids are the same numbers),
  * for each service's link to this title.
  *
- * Asked when the title is opened and kept in memory for a few hours, never
- * stored: a new season, a title arriving on a service, a link a service
- * changes — all are right the next time anybody looks. A title JustWatch does
- * not have, or an answer slower than two seconds, falls back to the search
- * URL, exactly as before.
+ * Kept in MOX's database (`watch_links`), one row per title, and asked again
+ * every night for every title on somebody's services, followed or wanted —
+ * so a link a service changes, or a title arriving on a new service, is right
+ * the next day. Anything else is asked for the first time it is opened, then
+ * kept. A title JustWatch does not have, or an answer slower than two
+ * seconds, falls back to the search URL, exactly as before.
  *
  * For some series a service's link is its first episode rather than the
  * series (TOD, OSN+): it still opens the right show in the right app.
  */
+import { and, eq, sql } from "drizzle-orm";
+import { db, schema } from "@/db";
 import type { MediaKind } from "@/db/schema";
 import { region } from "./tmdb";
 
 const ENDPOINT = "https://apis.justwatch.com/graphql";
-const TTL = 6 * 3600_000;
-const cache = new Map<string, { at: number; links: Map<number, string> }>();
+/** A kept answer older than this is asked again when the title is opened. */
+const FRESH = 2 * 86_400;
+const now = () => Math.floor(Date.now() / 1000);
 
 const QUERY = `query($country: Country!, $language: Language!, $first: Int!, $filter: TitleFilter) {
   popularTitles(country: $country, first: $first, filter: $filter) {
@@ -58,13 +62,8 @@ function clean(url: string): string {
   }
 }
 
-/** Each service's link to this title, by provider id. Empty when JustWatch has none. */
-export async function watchLinks(kind: MediaKind, tmdbId: number, title: string): Promise<Map<number, string>> {
-  const k = `${kind}:${tmdbId}`;
-  const hit = cache.get(k);
-  if (hit && Date.now() - hit.at < TTL) return hit.links;
-
-  const links = new Map<number, string>();
+/** JustWatch's answer, or null when it could not be asked — which is not the same as "none". */
+async function ask(kind: MediaKind, tmdbId: number, title: string): Promise<Map<number, string> | null> {
   try {
     const res = await fetch(ENDPOINT, {
       method: "POST",
@@ -76,6 +75,7 @@ export async function watchLinks(kind: MediaKind, tmdbId: number, title: string)
       signal: AbortSignal.timeout(2000),
       cache: "no-store",
     });
+    if (!res.ok) return null;
     const body = (await res.json()) as Answer;
     // The search is by name; the match is by TMDB id and kind, so a remake
     // or a namesake is never taken for this title.
@@ -84,15 +84,83 @@ export async function watchLinks(kind: MediaKind, tmdbId: number, title: string)
         e.node.content?.externalIds?.tmdbId === String(tmdbId) &&
         (e.node.objectType === "SHOW") === (kind === "tv"),
     )?.node;
+    const links = new Map<number, string>();
     for (const o of node?.offers ?? []) {
       const id = o.package?.packageId;
       if (!id || !o.standardWebURL || links.has(id)) continue;
       links.set(id, clean(o.standardWebURL));
     }
+    return links;
   } catch {
-    // Slow or unreachable: the search links stand.
+    return null;
   }
-  cache.set(k, { at: Date.now(), links });
-  if (cache.size > 2000) cache.delete(cache.keys().next().value!);
-  return links;
+}
+
+function save(kind: MediaKind, tmdbId: number, links: Map<number, string>) {
+  const values = { tmdbId, kind, links: JSON.stringify(Object.fromEntries(links)), checkedAt: now() };
+  try {
+    db.insert(schema.watchLinks)
+      .values(values)
+      .onConflictDoUpdate({ target: [schema.watchLinks.tmdbId, schema.watchLinks.kind], set: values })
+      .run();
+  } catch {
+    // Asked again next time.
+  }
+}
+
+const parse = (json: string) => new Map(Object.entries(JSON.parse(json) as Record<string, string>).map(([k, v]) => [Number(k), v]));
+
+/** Each service's link to this title, by provider id: kept, or asked and kept. Empty when there is none. */
+export async function watchLinks(kind: MediaKind, tmdbId: number, title: string): Promise<Map<number, string>> {
+  const row = db
+    .select()
+    .from(schema.watchLinks)
+    .where(and(eq(schema.watchLinks.tmdbId, tmdbId), eq(schema.watchLinks.kind, kind)))
+    .get();
+  if (row && now() - row.checkedAt < FRESH) return parse(row.links);
+  const asked = await ask(kind, tmdbId, title);
+  if (asked) save(kind, tmdbId, asked);
+  // JustWatch unreachable: an older answer beats none.
+  return asked ?? (row ? parse(row.links) : new Map());
+}
+
+/**
+ * The nightly refresh: every title on somebody's services, followed or on a
+ * watchlist, asked again — the ones asked longest ago first, four at a time.
+ */
+export async function refreshWatchLinks(limit = 3000): Promise<{ asked: number; withLinks: number; failed: number }> {
+  const rows = db.all<{ tmdb_id: number; kind: MediaKind; title: string }>(sql`
+    with wanted as (
+      select tmdb_id, kind from availability
+      union select tmdb_id, 'tv' from follows
+      union select tmdb_id, kind from verdicts where verdict = 'watchlist'
+    )
+    select w.tmdb_id, w.kind, coalesce(t.title, c.title) as title
+    from wanted w
+    left join titles t on t.tmdb_id = w.tmdb_id and t.kind = w.kind
+    left join catalog_titles c on c.tmdb_id = w.tmdb_id and c.kind = w.kind
+    left join watch_links l on l.tmdb_id = w.tmdb_id and l.kind = w.kind
+    where coalesce(t.title, c.title) is not null
+    order by l.checked_at asc nulls first
+    limit ${limit}`);
+  let asked = 0;
+  let withLinks = 0;
+  let failed = 0;
+  let next = 0;
+  await Promise.all(
+    Array.from({ length: 4 }, async () => {
+      while (next < rows.length) {
+        const r = rows[next++];
+        const links = await ask(r.kind, r.tmdb_id, r.title);
+        if (!links) {
+          failed++;
+          continue;
+        }
+        save(r.kind, r.tmdb_id, links);
+        asked++;
+        if (links.size) withLinks++;
+      }
+    }),
+  );
+  return { asked, withLinks, failed };
 }

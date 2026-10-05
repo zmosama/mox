@@ -17,6 +17,7 @@
  */
 import { todayISO } from "../src/lib/dates";
 import { pruneCache } from "../src/lib/tmdb";
+import { refreshWatchLinks } from "../src/lib/watch-links";
 import { catalogSize, enrichCatalog, mapImdb, packOldDetails, seedCatalog } from "../src/lib/catalog";
 import { refreshCalendar } from "./refresh/calendar.mjs";
 import { refreshFeeds } from "./refresh/feeds.mjs";
@@ -106,6 +107,13 @@ await step("catalog", async () => {
   };
 });
 
+// Each service's link to every title somebody could play, so Play opens the
+// service's app on the title (src/lib/watch-links.ts).
+await step("links", async () => {
+  const { asked, withLinks, failed: missed } = await refreshWatchLinks();
+  return { summary: `${asked} titles asked, ${withLinks} with links${missed ? `, ${missed} unanswered` : ""}`, value: null };
+});
+
 // Last, and after everything that might have wanted a warm cache this run.
 await step("cache", async () => {
   const { removed, freed } = await pruneCache();
@@ -114,7 +122,7 @@ await step("cache", async () => {
 });
 
 if (failed.length) {
-  console.error(`\n${failed.length} of 12 steps failed: ${failed.join(", ")}`);
+  console.error(`\n${failed.length} of 13 steps failed: ${failed.join(", ")}`);
   process.exit(1);
 }
 console.log("\nall steps current");
