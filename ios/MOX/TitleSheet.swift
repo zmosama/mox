@@ -164,8 +164,13 @@ struct TitleSheet: View {
             }
             // An eye, so its mark is not mistaken for the watchlist's tick;
             // the words change too, so it never rests on colour alone.
-            toggle(verdict == "seen" ? "Watched" : "Mark as seen",
-                   verdict == "seen" ? "eye.circle.fill" : "eye", on: verdict == "seen") {
+            // A rating means watched too, so it lights this as well, and a tap
+            // then leaves the rating alone: clearing it is the Rate menu's job.
+            let rated = ["love", "like", "dislike"].contains(verdict ?? "")
+            let watched = rated || verdict == "seen"
+            toggle(watched ? "Watched" : "Mark as seen",
+                   watched ? "eye.circle.fill" : "eye", on: watched) {
+                guard !rated else { return }
                 set(verdict == "seen" ? nil : "seen")
             }
             if api.user == nil {

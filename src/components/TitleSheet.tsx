@@ -257,6 +257,10 @@ export function TitleSheet({
       ].filter(Boolean)
     : [];
 
+  /* A rating is a verdict on something you watched, so it counts as seen. */
+  const rated = data?.verdict === "love" || data?.verdict === "like" || data?.verdict === "dislike";
+  const watched = rated || data?.verdict === "seen";
+
   /**
    * Rendered on <body>, never where it was opened from.
    *
@@ -414,14 +418,17 @@ export function TitleSheet({
                     <path d={data.verdict === "watchlist" ? ICON.checkOn : ICON.plus} />
                   </Pill>
                   {/* An eye, so its mark is not mistaken for the watchlist's tick;
-                      the words change too, so it never rests on colour alone. */}
+                      the words change too, so it never rests on colour alone.
+                      A rating means watched too, so it lights this as well, and
+                      a tap then leaves the rating alone: clearing it is the
+                      rating menu's job. */}
                   <Pill
-                    on={data.verdict === "seen"}
+                    on={watched}
                     disabled={busy}
-                    onClick={signedIn ? () => setVerdict("seen") : signIn}
-                    label={data.verdict === "seen" ? "Watched" : "Mark as seen"}
+                    onClick={signedIn ? () => !rated && setVerdict("seen") : signIn}
+                    label={watched ? "Watched" : "Mark as seen"}
                   >
-                    <path d={data.verdict === "seen" ? ICON.eyeOn : ICON.eye} fillRule="evenodd" />
+                    <path d={watched ? ICON.eyeOn : ICON.eye} fillRule="evenodd" />
                   </Pill>
 
                   <div className="relative">
