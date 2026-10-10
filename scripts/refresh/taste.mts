@@ -18,10 +18,10 @@
  * It runs here, nightly, because building the model reads every rating and
  * every feature, and that is not something to do every time the app opens.
  */
-import { and, eq, inArray, notInArray, sql } from "drizzle-orm";
-import { db, mapPool, s } from "./shared.mjs";
+import { and, eq, inArray, sql } from "drizzle-orm";
+import { catalogue, db, fetchTitle, mapPool, s, saveTitle, type Detail as TitleDetail } from "./shared.mjs";
 import { tmdb } from "../../src/lib/tmdb";
-import { TasteModel, type Feature, type RatedTitle, type Scorable } from "../../src/lib/taste";
+import { type Feature } from "../../src/lib/taste";
 import type { FeatureKind, MediaKind, Verdict } from "../../src/db/schema";
 
 const key = (id: number, kind: string) => `${id}:${kind}`;
@@ -50,26 +50,12 @@ const PER_REASON = 3;
  * them in reach: the second run's thirty had twelve, Ice Age and The Rescuers
  * among them, for someone whose ratings are mostly action.
  */
-const FAMILY_MAX = 5;
+const FAMILY_MAX = 3;
 /**
  * Arabic work is rated by few people on TMDB, so the vote floor that keeps out
  * obscure filler would keep out almost all of it too.
  */
 const MIN_VOTES_BY_LANG: Record<string, number> = { ar: 3 };
-/**
- * Keywords that describe a mood or a stock character rather than a film.
- * "villain" sits on nearly every cartoon and was the strongest term in half
- * the first list; TMDB's mood tags ("amused", "wistful") are the same problem.
- * Taken out for picking only — the taste page keeps the model as it is.
- */
-const PICK_NOISE = new Set([
-  "villain", "hero", "cartoon", "amused", "wistful", "admiring", "awestruck", "playful",
-  "hopeful", "joyful", "comforting", "sympathetic", "inspirational", "whimsical",
-  "exhilarated", "dramatic", "bold", "provocative", "celebratory", "defiant",
-  "appreciative", "nostalgic", "adoring", "witty", "lighthearted", "complicated",
-  "sentimental", "enthusiastic", "familiar", "tense", "thrilling", "dark",
-]);
-
 /** Newer first, gently: a 1961 cartoon should not outrank this year's film. */
 function ageFactor(releaseDate: string | null) {
   const y = Number(releaseDate?.slice(0, 4) ?? 0);
@@ -194,94 +180,121 @@ export async function refreshFeatures() {
 
 // --------------------------------------------------------------------- picks
 
-export async function refreshPicks(today: string) {
-  const featureRows = db
-    .select({ tmdbId: s.features.tmdbId, kind: s.features.kind, feature: s.features.feature, value: s.features.value })
-    .from(s.features)
-    .all();
-  const features = new Map<string, Feature[]>();
-  for (const r of featureRows) {
-    if (r.feature === "keyword" && PICK_NOISE.has(r.value)) continue;
-    const k = key(r.tmdbId, r.kind);
-    (features.get(k) ?? features.set(k, []).get(k)!).push({ feature: r.feature, value: r.value });
-  }
-  const titles = db.select().from(s.titles).all();
-  const corpus: Scorable[] = titles.map((t) => ({ tmdbId: t.tmdbId, features: features.get(key(t.tmdbId, t.kind)) ?? [] }));
+/**
+ * How much each verdict pulls on what it recommends. Dislikes and hidden
+ * titles push away what they recommend, so a loved superhero film and a
+ * disliked one cancel out on the cartoon they both suggest.
+ */
+const PULL: Partial<Record<Verdict, number>> = { love: 2, like: 1, watchlist: 0.5, seen: 0.3, dislike: -1.5, hidden: -1 };
+/** How many of the best-recommended get looked up for where they stream. */
+const SHORTLIST = 200;
 
+type Rec = { id: number; media_type?: string; original_language?: string };
+
+/** TMDB's "if you liked this" list for one title, kept a week in the disk cache. */
+async function recommendations(kind: MediaKind, tmdbId: number): Promise<Rec[]> {
+  try {
+    const body = await tmdb<{ results?: Rec[] }>(`/${kind}/${tmdbId}/recommendations`);
+    return body.results ?? [];
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Picks, from what the titles you rated recommend.
+ *
+ * The feature model this replaced learned almost nothing from Mohammed's
+ * ratings — 231 loves against 23 dislikes leave little to tell apart — and
+ * filled the list on a shared keyword or studio: Tinker Bell, a dog film, a
+ * cooking contest, for someone who loves Mr. Robot, The Boys and The Expanse.
+ *
+ * TMDB's recommendations are built from what people actually watch together.
+ * A title recommended by fifteen of your loves is the strongest pick there
+ * is; one none of them recommends never appears. Each candidate's score is
+ * the sum of its pulls, higher in the source's list counting more. The best
+ * are then looked up for where they stream, so the list is not limited to
+ * the titles MOX already tracks; the thirty chosen are saved as titles so
+ * every screen can show them.
+ */
+export async function refreshPicks(today: string) {
   const people = db
     .select({ userId: s.verdicts.userId, n: sql<number>`count(*)` })
     .from(s.verdicts)
     .groupBy(s.verdicts.userId)
     .all()
     .filter((p) => p.n >= MIN_RATINGS);
-
+  const services = catalogue();
   const summary: string[] = [];
 
   for (const { userId } of people) {
-    const verdicts = new Map(
-      db.select().from(s.verdicts).where(eq(s.verdicts.userId, userId)).all()
-        .map((v) => [key(v.tmdbId, v.kind), v.verdict as Verdict]),
-    );
+    const rated = db.select().from(s.verdicts).where(eq(s.verdicts.userId, userId)).all();
+    const judged = new Set(rated.map((v) => key(v.tmdbId, v.kind)));
     const followed = new Set(
       db.select({ id: s.follows.tmdbId }).from(s.follows).where(eq(s.follows.userId, userId)).all().map((f) => f.id),
     );
-    const rated: RatedTitle[] = [];
-    for (const t of titles) {
-      const v = verdicts.get(key(t.tmdbId, t.kind));
-      if (v) rated.push({ tmdbId: t.tmdbId, verdict: v, features: features.get(key(t.tmdbId, t.kind)) ?? [] });
-    }
-    const model = new TasteModel(rated, corpus);
+    const names = new Map(db.select({ tmdbId: s.titles.tmdbId, kind: s.titles.kind, title: s.titles.title }).from(s.titles).all()
+      .map((t) => [key(t.tmdbId, t.kind), t.title]));
+
+    const sources = rated.filter((v) => PULL[v.verdict as Verdict]);
+    const lists = await mapPool(sources, 6, (v) => recommendations(v.kind as MediaKind, v.tmdbId));
+    const arabic = new Set(db.select({ tmdbId: s.titles.tmdbId, kind: s.titles.kind }).from(s.titles).where(eq(s.titles.lang, "ar")).all()
+      .map((t) => key(t.tmdbId, t.kind)));
+
+    const pull = new Map<string, { id: number; kind: MediaKind; score: number; because: Map<string, number> }>();
+    sources.forEach((v, i) => {
+      const w = PULL[v.verdict as Verdict]!;
+      /* Few people watch Arabic work on TMDB, so what it recommends for an
+         Egyptian series is whatever is popular: "لعبة نيوتن" recommended a
+         Netflix teen romance. From Arabic work, only Arabic work counts. */
+      const fromArabic = arabic.has(key(v.tmdbId, v.kind));
+      lists[i].filter((r) => !fromArabic || r.original_language === "ar").forEach((r, rank) => {
+        const kind = (r.media_type === "tv" ? "tv" : r.media_type === "movie" ? "movie" : v.kind) as MediaKind;
+        const k = key(r.id, kind);
+        if (judged.has(k) || (kind === "tv" && followed.has(r.id))) return;
+        const add = w * (1 - rank / 40);
+        const c = pull.get(k) ?? pull.set(k, { id: r.id, kind, score: 0, because: new Map() }).get(k)!;
+        c.score += add;
+        const from = names.get(key(v.tmdbId, v.kind));
+        if (from && add > 0) c.because.set(from, (c.because.get(from) ?? 0) + add);
+      });
+    });
+
+    const shortlist = [...pull.values()].filter((c) => c.score > 0).sort((a, b) => b.score - a.score).slice(0, SHORTLIST);
 
     // Their services; everything, until they have chosen.
-    const mine = db
-      .select({ name: s.services.name })
-      .from(s.userServices)
-      .innerJoin(s.services, eq(s.services.providerId, s.userServices.providerId))
-      .where(eq(s.userServices.userId, userId))
-      .all()
-      .map((r) => r.name);
-    const onServices = new Set(
-      db.selectDistinct({ tmdbId: s.availability.tmdbId, kind: s.availability.kind })
-        .from(s.availability)
-        .where(mine.length ? inArray(s.availability.provider, mine) : notInArray(s.availability.provider, [""]))
+    const mine = new Set(
+      db.select({ name: s.services.name })
+        .from(s.userServices)
+        .innerJoin(s.services, eq(s.services.providerId, s.userServices.providerId))
+        .where(eq(s.userServices.userId, userId))
         .all()
-        .map((a) => key(a.tmdbId, a.kind)),
+        .map((r) => r.name),
     );
+    const fetched = await mapPool(shortlist, 6, (c) => fetchTitle(c.id, c.kind, services));
 
-    /* The people a title shares with what they rated well, strongest first —
-       "Because you like Denis Villeneuve" when it is true, nothing when not. */
-    const loved = model.strongest("person", 3, 50);
-    const rank = new Map(loved.map((p, i) => [p.value, i]));
-
-    const scored = titles
-      .filter((t) => onServices.has(key(t.tmdbId, t.kind)))
-      .filter((t) => !verdicts.has(key(t.tmdbId, t.kind)))
-      .filter((t) => !(t.kind === "tv" && followed.has(t.tmdbId)))
-      .map((t) => ({ t, f: features.get(key(t.tmdbId, t.kind)) ?? [] }))
-      .filter(({ t, f }) => {
-        const lang = f.find((x) => x.feature === "lang")?.value ?? "";
-        return (t.votes ?? 0) >= (MIN_VOTES_BY_LANG[lang] ?? MIN_VOTES);
-      })
-      // Children's television is not for this list, whatever the cast.
-      .filter(({ f }) => !f.some((x) => x.feature === "genre" && x.value === "kids"))
-      .map(({ t, f }) => {
-        const best = f
-          .filter((x) => x.feature === "person" && rank.has(x.value))
-          .sort((a, b) => rank.get(a.value)! - rank.get(b.value)!)[0];
-        const family = f.some((x) => x.feature === "genre" && (x.value === "animation" || x.value === "family"));
-        const fit = model.score({ tmdbId: t.tmdbId, features: f });
-        return {
-          t,
-          family,
-          // Ranked by fit, then by age and quality; only a positive fit counts at all.
-          score: fit > 0 ? fit * ageFactor(t.releaseDate) * qualityFactor(t.rating) : fit,
-          reason: best ? `Because you like ${best.value}` : null,
-        };
-      })
-      .filter((x) => x.score > 0)
-      .filter(({ t }) => t.rating == null || t.rating >= MIN_RATING)
-      .filter(({ t }) => t.kind !== "movie" || t.runtime == null || t.runtime >= MIN_FILM_MINUTES)
-      .sort((a, b) => b.score - a.score);
+    const scored = shortlist.flatMap((c, i) => {
+      const f = fetched[i];
+      if (!f) return [];
+      const d = f.detail as TitleDetail & { genres?: { name: string }[] };
+      if (!f.platforms.some((p) => !mine.size || mine.has(p))) return [];
+      const genres = (d.genres ?? []).map((g) => g.name.toLowerCase());
+      // Children's television is not for this list, whatever recommends it.
+      if (genres.includes("kids")) return [];
+      const lang = d.original_language ?? "";
+      if ((d.vote_count ?? 0) < (MIN_VOTES_BY_LANG[lang] ?? MIN_VOTES)) return [];
+      if (d.vote_average != null && d.vote_average < MIN_RATING) return [];
+      const runtime = d.runtime ?? null;
+      if (c.kind === "movie" && runtime != null && runtime < MIN_FILM_MINUTES) return [];
+      const because = [...c.because].sort((a, b) => b[1] - a[1])[0]?.[0];
+      return [{
+        f,
+        collection: d.belongs_to_collection?.name ?? null,
+        family: genres.includes("animation") || genres.includes("family"),
+        score: c.score * ageFactor(d.release_date || d.first_air_date || null) * qualityFactor(d.vote_average ?? null),
+        reason: because ? `Because you liked ${because}` : null,
+      }];
+    }).sort((a, b) => b.score - a.score);
 
     const perCollection = new Map<string, number>();
     const perReason = new Map<string, number>();
@@ -289,7 +302,7 @@ export async function refreshPicks(today: string) {
     const chosen: typeof scored = [];
     for (const x of scored) {
       if (chosen.length >= PICKS) break;
-      const c = x.t.collection;
+      const c = x.collection;
       if (c && (perCollection.get(c) ?? 0) >= PER_COLLECTION) continue;
       if (x.reason && (perReason.get(x.reason) ?? 0) >= PER_REASON) continue;
       if (x.family && families >= FAMILY_MAX) continue;
@@ -298,16 +311,19 @@ export async function refreshPicks(today: string) {
       if (x.reason) perReason.set(x.reason, (perReason.get(x.reason) ?? 0) + 1);
       chosen.push(x);
     }
+    // An empty answer is never written: a bad night keeps yesterday's picks.
+    if (!chosen.length) continue;
 
     db.transaction((tx) => {
+      for (const { f } of chosen) saveTitle(tx, f);
       tx.delete(s.picks).where(eq(s.picks.userId, userId)).run();
-      chosen.forEach(({ t, score, reason }, i) =>
+      chosen.forEach(({ f, score, reason }, i) =>
         tx.insert(s.picks)
-          .values({ userId, tmdbId: t.tmdbId, kind: t.kind as MediaKind, rank: i, score, reason, builtAt: today })
+          .values({ userId, tmdbId: f.tmdbId, kind: f.kind, rank: i, score, reason, builtAt: today })
           .run(),
       );
     });
-    summary.push(`#${userId} ${chosen.length}`);
+    summary.push(`#${userId} ${chosen.length} of ${pull.size} recommended`);
   }
 
   return summary.length ? `picks for ${summary.join(", ")}` : "nobody has rated enough yet";

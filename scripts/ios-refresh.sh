@@ -51,11 +51,28 @@ if [ "${1:-}" = "--force" ] || [ "$left" -le "$RENEW_WITHIN_DAYS" ]; then
   say "signing has ${left}d left — renewing"
   # Release, never Debug: AppSettings.defaultServer is localhost:3000 under
   # #if DEBUG, and on a device localhost is the device.
-  xcodebuild -project "$HERE/ios/MOX.xcodeproj" -scheme MOX -configuration Release \
-    -destination "generic/platform=iOS" \
-    -allowProvisioningUpdates -derivedDataPath "$HERE/ios/build" \
-    build >/dev/null
+  build() {
+    xcodebuild -project "$HERE/ios/MOX.xcodeproj" -scheme MOX -configuration Release \
+      -destination "generic/platform=iOS" \
+      -allowProvisioningUpdates -derivedDataPath "$HERE/ios/build" \
+      build >/dev/null
+  }
+  build
   new_end=$(expires_at "$APP/embedded.mobileprovision")
+  if [ "$new_end" -le "$end" ]; then
+    # Xcode reuses a cached profile while it is still valid, so it never mints
+    # a new one before expiry (2026-10-08..10). Put the cached one aside — not
+    # deleted — and build again, which makes Xcode ask Apple for a fresh one.
+    aside="$HOME/Library/Application Support/mox-ios/old-profiles"
+    mkdir -p "$aside"
+    for p in "$HOME/Library/Developer/Xcode/UserData/Provisioning Profiles"/*.mobileprovision; do
+      [ -f "$p" ] || continue
+      id=$(security cms -D -i "$p" 2>/dev/null | plutil -extract Entitlements.application-identifier raw - 2>/dev/null) || continue
+      case "$id" in *.me.mosama.mox) say "putting aside the cached profile $(basename "$p")"; mv "$p" "$aside/" ;; esac
+    done
+    build
+    new_end=$(expires_at "$APP/embedded.mobileprovision")
+  fi
   if [ "$new_end" -le "$end" ]; then
     say "!! the build did not mint a newer profile — not installing"
     exit 1
