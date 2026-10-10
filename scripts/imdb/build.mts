@@ -8,7 +8,8 @@
  * Unpacked they are about 10GB, nearly all of it TV episodes, shorts, video
  * games and titles nobody has rated. What is kept here is what MOX can use:
  *
- *   - films and series (not episodes, shorts, videos or games) with at least
+ *   - films and series, direct-to-video films included — the animated DC and
+ *     Marvel films are — (not episodes, shorts or games) with at least
  *     MIN_VOTES votes, with their IMDb rating and vote count;
  *   - their Arabic and Egyptian titles, so a search in Arabic finds them;
  *   - the first actors, directors and writers of each, and those people.
@@ -34,7 +35,7 @@ import { foldArabic } from "../../src/lib/arabic";
 const SRC = process.env.IMDB_SRC ?? "data/imdb-src";
 const OUT = process.env.IMDB_DB ?? "data/imdb.db";
 const MIN_VOTES = Number(process.env.IMDB_MIN_VOTES ?? 100);
-const KEPT_TYPES = new Set(["movie", "tvSeries", "tvMiniSeries", "tvMovie"]);
+const KEPT_TYPES = new Set(["movie", "video", "tvSeries", "tvMiniSeries", "tvMovie"]);
 const KEPT_JOBS = new Set(["actor", "actress", "director", "writer"]);
 const MAX_ORDER = 15;
 /** Arabic-speaking regions, for the akas worth searching by. */

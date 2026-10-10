@@ -21,8 +21,8 @@ import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 import { db, schema } from "@/db";
 import type { MediaKind } from "@/db/schema";
 import { ageLevel, certAppend, type AgeLevel, type CertSource } from "./ratings";
-import { tmdb } from "./tmdb";
-import { topImdbTitles } from "./imdb";
+import { posterPath, tmdb } from "./tmdb";
+import { searchImdb, topImdbTitles } from "./imdb";
 
 /** Full records are kept deflated: a quarter of the size, unpacked in well under a millisecond. */
 const pack = (value: unknown) => deflateRawSync(JSON.stringify(value));
@@ -184,7 +184,7 @@ type Detail = Record<string, unknown> & CertSource & {
   networks?: { id: number; name: string }[];
   imdb_id?: string | null;
   external_ids?: { imdb_id?: string | null };
-  credits?: { cast?: { order?: number }[]; crew?: { job?: string }[] };
+  credits?: { cast?: (ListedPerson & { order?: number })[]; crew?: (ListedPerson & { job?: string })[] };
   videos?: { results?: { site?: string; type?: string }[] };
 };
 
@@ -229,6 +229,16 @@ function saveDetail(kind: MediaKind, tmdbId: number, d: Detail) {
   } catch {
     // Served all the same; it is fetched again next time.
   }
+  rememberPeople(peopleIn(d));
+}
+
+/** The people worth knowing from a title's credits: its leading cast and who made it. */
+const MAKERS = new Set(["Director", "Creator", "Screenplay", "Writer"]);
+function peopleIn(d: Detail): ListedPerson[] {
+  return [
+    ...(d.credits?.cast ?? []).slice(0, 15),
+    ...(d.credits?.crew ?? []).filter((c) => MAKERS.has(c.job ?? "")),
+  ];
 }
 
 /**
@@ -483,8 +493,12 @@ export function seedCatalog(): number {
  * each in the catalogue with its IMDb id — so the catalogue fills from the
  * titles that matter most, not just from what somebody happened to search.
  * The nightly enrichment then gives them full records.
+ *
+ * Twenty-five thousand a night, ten at a time: one small request each, about
+ * a quarter of an hour, so all of IMDb's ~200,000 are mapped in about a week
+ * and search can answer from here (see searchCatalog).
  */
-export async function mapImdb(limit = 5000): Promise<{ found: number; missing: number; failed: number }> {
+export async function mapImdb(limit = 25_000): Promise<{ found: number; missing: number; failed: number }> {
   const settled = new Set<string>([
     ...db.select({ id: schema.imdbMap.imdbId }).from(schema.imdbMap).all().map((r) => r.id),
     ...db
@@ -499,35 +513,138 @@ export async function mapImdb(limit = 5000): Promise<{ found: number; missing: n
   let missing = 0;
   let failed = 0;
 
-  await inParallel(todo, 6, async (t) => {
+  await inParallel(todo, 10, async (t) => {
     try {
-      const res = await tmdb<{ movie_results?: ListedTitle[]; tv_results?: ListedTitle[] }>(
-        `/find/${t.tconst}`,
-        { external_source: "imdb_id" },
-        { store: false },
-      );
-      const series = t.type === "tvSeries" || t.type === "tvMiniSeries";
-      const kind: MediaKind = series ? "tv" : "movie";
-      const hit = (series ? res.tv_results : res.movie_results)?.[0];
-      db.insert(schema.imdbMap)
-        .values({ imdbId: t.tconst, tmdbId: hit?.id ?? null, kind: hit ? kind : null, checkedAt: now() })
-        .onConflictDoUpdate({ target: schema.imdbMap.imdbId, set: { tmdbId: hit?.id ?? null, kind: hit ? kind : null, checkedAt: now() } })
-        .run();
-      if (!hit) {
-        missing++;
-        return;
-      }
-      rememberTitles([{ item: hit, kind }]);
-      db.update(schema.catalogTitles)
-        .set({ imdbId: t.tconst })
-        .where(and(eq(schema.catalogTitles.tmdbId, hit.id), eq(schema.catalogTitles.kind, kind)))
-        .run();
-      found++;
+      if ((await mapOne(t)).tmdbId) found++;
+      else missing++;
     } catch {
       failed++;
     }
   });
   return { found, missing, failed };
+}
+
+/** Which TMDB title one IMDb id is, asked once and kept — "none" included. */
+async function mapOne(t: { tconst: string; type: string }): Promise<{ tmdbId: number | null; kind: MediaKind | null }> {
+  const res = await tmdb<{ movie_results?: ListedTitle[]; tv_results?: ListedTitle[] }>(
+    `/find/${t.tconst}`,
+    { external_source: "imdb_id" },
+    { store: false },
+  );
+  const series = t.type === "tvSeries" || t.type === "tvMiniSeries";
+  const kind: MediaKind = series ? "tv" : "movie";
+  const hit = (series ? res.tv_results : res.movie_results)?.[0];
+  const mapped = { tmdbId: hit?.id ?? null, kind: hit ? kind : null };
+  db.insert(schema.imdbMap)
+    .values({ imdbId: t.tconst, ...mapped, checkedAt: now() })
+    .onConflictDoUpdate({ target: schema.imdbMap.imdbId, set: { ...mapped, checkedAt: now() } })
+    .run();
+  if (hit) {
+    rememberTitles([{ item: hit, kind }]);
+    db.update(schema.catalogTitles)
+      .set({ imdbId: t.tconst })
+      .where(and(eq(schema.catalogTitles.tmdbId, hit.id), eq(schema.catalogTitles.kind, kind)))
+      .run();
+  }
+  return mapped;
+}
+
+/**
+ * The people in every full record already kept — a one-off for the records
+ * saved before saving one also kept its people (scripts/catalog-people.mts).
+ */
+export function peopleFromRecords(): number {
+  let seen = 0;
+  for (let after = -1, kindAfter = ""; ; ) {
+    const rows = db
+      .select({ tmdbId: schema.catalogTitles.tmdbId, kind: schema.catalogTitles.kind, detail: schema.catalogTitles.detail, detailZ: schema.catalogTitles.detailZ })
+      .from(schema.catalogTitles)
+      .where(sql`detail_at is not null and (tmdb_id, kind) > (${after}, ${kindAfter})`)
+      .orderBy(schema.catalogTitles.tmdbId, schema.catalogTitles.kind)
+      .limit(500)
+      .all();
+    if (!rows.length) return seen;
+    const people = rows.flatMap((r) => peopleIn(unpack<Detail>(r) ?? {}));
+    rememberPeople(people);
+    seen += people.length;
+    after = rows[rows.length - 1].tmdbId;
+    kindAfter = rows[rows.length - 1].kind;
+  }
+}
+
+/**
+ * Titles matching what was typed, answered here rather than by TMDB: IMDb's
+ * index finds them (English, original and Arabic names, most-voted first) and
+ * the catalogue knows which TMDB title each one is.
+ *
+ * Matches near the top not mapped to TMDB yet are mapped now, a few at most
+ * (the nightly job will have reached them all within days). Null when there
+ * are more than that, or TMDB will not say: search then asks TMDB instead of
+ * showing a list with holes in it.
+ */
+const MUST_COVER = 40;
+const MAP_NOW = 8;
+export async function searchCatalog(typed: string, limit: number): Promise<{ tmdbId: number; kind: MediaKind; title: string; year: number | null; poster: string | null; rating: number | null }[] | null> {
+  // IMDb barely knows Egyptian and Arab work by its Arabic name — "الاختيار"
+  // found an Indian series whose Arabic title is the same — and the
+  // catalogue holds too little of it yet. TMDB answers Arabic for now.
+  if (/\p{Script=Arabic}/u.test(typed)) return null;
+  const found = searchImdb(typed, limit);
+  if (!found.length) return null;
+  const ids = found.map((f) => f.tconst);
+  const settled = new Map<string, { tmdbId: number | null; kind: MediaKind | null }>();
+  for (const r of db.select().from(schema.imdbMap).where(inArray(schema.imdbMap.imdbId, ids)).all()) {
+    settled.set(r.imdbId, { tmdbId: r.tmdbId, kind: r.kind });
+  }
+  for (const r of db
+    .select({ imdbId: schema.catalogTitles.imdbId, tmdbId: schema.catalogTitles.tmdbId, kind: schema.catalogTitles.kind })
+    .from(schema.catalogTitles)
+    .where(inArray(schema.catalogTitles.imdbId, ids))
+    .all()) {
+    settled.set(r.imdbId!, { tmdbId: r.tmdbId, kind: r.kind });
+  }
+  // What anybody scrolls to must be whole; further down, a gap is only skipped.
+  const gaps = found.slice(0, MUST_COVER).filter((f) => !settled.has(f.tconst));
+  if (gaps.length > MAP_NOW) return null;
+  try {
+    const mapped = await Promise.all(gaps.map(mapOne));
+    gaps.forEach((g, i) => settled.set(g.tconst, mapped[i]));
+  } catch {
+    return null;
+  }
+
+  const refs = ids.flatMap((id) => {
+    const s = settled.get(id);
+    return s?.tmdbId && s.kind ? [{ tmdbId: s.tmdbId, kind: s.kind }] : [];
+  });
+  const rows = catalogued(refs);
+  const seen = new Set<string>();
+  return refs.flatMap((r) => {
+    const row = rows.get(key(r.tmdbId, r.kind));
+    if (!row?.title || seen.has(key(r.tmdbId, r.kind))) return [];
+    seen.add(key(r.tmdbId, r.kind));
+    return [{
+      tmdbId: r.tmdbId,
+      kind: r.kind,
+      title: row.title,
+      year: row.year,
+      poster: posterPath(row.posterPath),
+      rating: row.rating ? Math.round(row.rating * 10) / 10 : null,
+    }];
+  });
+}
+
+/** People in the catalogue whose name matches, with a face, best known first. */
+export function searchPeople(typed: string, limit = 8) {
+  const words = typed.toLowerCase().match(/[\p{L}\p{N}]+/gu) ?? [];
+  if (!words.length) return [];
+  return db
+    .select()
+    .from(schema.catalogPeople)
+    .where(and(sql`profile_path is not null`, ...words.map((w) => sql`lower(name) like ${`%${w}%`}`)))
+    .orderBy(sql`popularity desc nulls last`)
+    .limit(limit)
+    .all();
 }
 
 /** Deflate full records written before they were kept deflated. A one-off, then a no-op. */

@@ -1,12 +1,11 @@
 import { ageFilter } from "@/lib/age-filter";
-import { withBackdrops } from "@/lib/catalog";
-import { rememberPeople, rememberTitles } from "@/lib/catalog";
+import { rememberPeople, rememberTitles, searchCatalog, searchPeople, withBackdrops } from "@/lib/catalog";
 import { NextResponse } from "next/server";
 import { currentUser } from "@/lib/auth";
 import { cardsFor } from "@/lib/queries";
 import { tmdb } from "@/lib/tmdb";
 import { profileUrl } from "@/lib/people";
-import { pageParam, slice, tmdbPage, toHit, type TmdbListItem } from "@/lib/paging";
+import { PAGE, pageParam, slice, tmdbPage, toHit, type TmdbListItem } from "@/lib/paging";
 import type { MediaKind } from "@/db/schema";
 
 type MultiResult = {
@@ -22,10 +21,16 @@ type MultiResult = {
  * Search, ten titles at a time: `?q=…&page=n`, and `next` names the page to
  * ask for when the list is scrolled to its end.
  *
+ * MOX's own catalogue answers first. TMDB is asked only when it cannot answer
+ * in full — a name rather than a title, or matches not mapped to TMDB yet.
+ *
  * TMDB's order is the order, so pages never repeat or skip a title; the
  * catalogue only adds where it streams and what you and your friends thought.
  * People come with the first page only.
  */
+/** Twenty pages of ten: past that, nobody is looking for one title. */
+const LOCAL_LIMIT = 200;
+
 export async function GET(req: Request) {
   const params = new URL(req.url).searchParams;
   const query = params.get("q")?.trim() ?? "";
@@ -33,6 +38,26 @@ export async function GET(req: Request) {
   if (query.length < 2) return NextResponse.json({ results: [], people: [], next: null });
 
   const user = await currentUser();
+  const apply = ageFilter(user?.id ?? null);
+
+  const local = await searchCatalog(query, LOCAL_LIMIT);
+  if (local?.length) {
+    const items = local.slice((page - 1) * PAGE, page * PAGE);
+    const next = local.length > page * PAGE ? page + 1 : null;
+    const people = page !== 1 ? [] : searchPeople(query).map((p) => ({
+      id: p.id,
+      name: p.name,
+      profile: profileUrl(p.profilePath),
+      department: p.department,
+      knownFor: [],
+    }));
+    const results = await apply(cardsFor(items, user?.id ?? null), { lookUp: true });
+    return NextResponse.json(
+      { results: withBackdrops(results), people, next, source: "mox" },
+      { headers: { "cache-control": "no-store" } },
+    );
+  }
+
   let remote: MultiResult = {};
   try {
     remote = await tmdb<MultiResult>("/search/multi", {
@@ -74,7 +99,7 @@ export async function GET(req: Request) {
   /* Straight from TMDB, so many results were never stored: their certificates
      are looked up here — ten at most — rather than letting an unchecked 18+
      through. */
-  const results = await ageFilter(user?.id ?? null)(cardsFor(items, user?.id ?? null), { lookUp: true });
+  const results = await apply(cardsFor(items, user?.id ?? null), { lookUp: true });
 
   return NextResponse.json(
     { results: withBackdrops(results), people, next },

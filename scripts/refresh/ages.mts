@@ -8,7 +8,7 @@
  */
 import { and, eq, isNull } from "drizzle-orm";
 import { db, mapPool, s } from "./shared.mjs";
-import { tmdb } from "../../src/lib/tmdb";
+import { tmdb, TmdbError } from "../../src/lib/tmdb";
 import { ageLevel, certAppend, type CertSource } from "../../src/lib/ratings";
 
 const PER_NIGHT = 400;
@@ -30,7 +30,10 @@ export async function refreshAges(): Promise<string> {
       );
       const source: CertSource = t.kind === "movie" ? { release_dates: body } : { content_ratings: body };
       return { ...t, level: ageLevel(t.kind, source) };
-    } catch {
+    } catch (e) {
+      // Gone from TMDB (announced titles get merged or deleted): unrated for
+      // good, rather than asked again every night.
+      if (e instanceof TmdbError && e.message.startsWith("TMDB 404")) return { ...t, level: null };
       return null;
     }
   });
