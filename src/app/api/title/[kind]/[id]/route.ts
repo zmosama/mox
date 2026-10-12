@@ -9,7 +9,11 @@ import { APPLE_TV_STORE, serviceLookup, storeOffer } from "@/lib/queries";
 import { posterPath, region } from "@/lib/tmdb";
 import { profileUrl } from "@/lib/people";
 import { friendMarks } from "@/lib/friends";
-import { titleWithProviders } from "@/lib/catalog";
+import { rememberTitles, titleWithProviders } from "@/lib/catalog";
+import { ageFilter } from "@/lib/age-filter";
+import { cardsFor, type Hit } from "@/lib/queries";
+import { toHit, type TmdbListItem } from "@/lib/paging";
+import { tmdb } from "@/lib/tmdb";
 import { imdbRating } from "@/lib/imdb";
 import { watchLinks } from "@/lib/watch-links";
 import { seriesProgress, type TmdbSeasonSummary } from "@/lib/progress";
@@ -41,7 +45,37 @@ type TmdbTitle = {
   "watch/providers"?: { results?: WatchProviders };
   external_ids?: { imdb_id?: string | null };
   imdb_id?: string | null;
+  belongs_to_collection?: { id: number; name: string } | null;
 } & CertSource;
+
+/**
+ * The other films of its collection, in release order — what comes before
+ * and after it — and what TMDB recommends to people who watched it. Kept in
+ * the catalogue like any list TMDB returns. Either is empty rather than an
+ * error when TMDB cannot answer: they are the end of the page, not its point.
+ */
+async function related(kind: MediaKind, tmdbId: number, collection: TmdbTitle["belongs_to_collection"]) {
+  const [parts, recs] = await Promise.all([
+    collection
+      ? tmdb<{ parts?: TmdbListItem[] }>(`/collection/${collection.id}`).then((c) => c.parts ?? [], () => [])
+      : Promise.resolve([] as TmdbListItem[]),
+    tmdb<{ results?: TmdbListItem[] }>(`/${kind}/${tmdbId}/recommendations`).then((r) => r.results ?? [], () => []),
+  ]);
+  const others = parts
+    .filter((p) => p.id !== tmdbId)
+    // Undated (announced) parts last: they come after everything released.
+    .sort((a, b) => (a.release_date || "9999").localeCompare(b.release_date || "9999"));
+  const inCollection = new Set(others.map((p) => p.id));
+  const similar = recs
+    .filter((r) => r.id !== tmdbId && !inCollection.has(r.id) && (!r.media_type || r.media_type === "movie" || r.media_type === "tv"))
+    .slice(0, 12);
+  const kindOf = (r: TmdbListItem) => (r.media_type === "tv" || r.media_type === "movie" ? r.media_type : kind) as MediaKind;
+  rememberTitles([...others.map((item) => ({ item, kind: "movie" as const })), ...similar.map((item) => ({ item, kind: kindOf(item) }))]);
+  return {
+    parts: others.map((p): Hit => toHit(p, "movie")),
+    similar: similar.map((r): Hit => toHit(r, kindOf(r))),
+  };
+}
 
 export async function GET(
   _req: Request,
@@ -64,6 +98,8 @@ export async function GET(
   }
 
   const title = d.title ?? d.name ?? "Untitled";
+  // Started now, so it runs alongside everything below.
+  const relating = related(kind, tmdbId, d.belongs_to_collection);
   const releaseDate = d.release_date ?? d.first_air_date ?? null;
   const user = await currentUser();
 
@@ -132,6 +168,13 @@ export async function GET(
   // Each service's link to this title, so Play opens its app (watch-links.ts).
   const own = names.length ? await watchLinks(kind, tmdbId, title) : new Map<number, string>();
 
+  const more = await relating;
+  const apply = ageFilter(user?.id ?? null);
+  const [parts, similar] = await Promise.all([
+    apply(cardsFor(more.parts, user?.id ?? null)),
+    apply(cardsFor(more.similar, user?.id ?? null)),
+  ]);
+
   return NextResponse.json(
     {
       tmdbId,
@@ -188,6 +231,10 @@ export async function GET(
       friends: friendMarks(user?.id ?? null, [{ tmdbId, kind }]).get(`${tmdbId}:${kind}`) ?? [],
       following,
       progress,
+      /** The other films of its collection, in release order. */
+      parts,
+      /** What people who watched it also watched. */
+      similar,
     },
     // App state must never be reused from the browser's cache: a refresh once
     // redrew a film that had just been dismissed.

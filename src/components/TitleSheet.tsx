@@ -8,6 +8,8 @@ import { useRouter } from "next/navigation";
 import type { Service } from "./ServiceBadge";
 import { PeopleRow, type PersonChipData } from "./People";
 import { PersonSheet } from "./PersonSheet";
+import { Rail, RailItem } from "./Rail";
+import { TitleCard, type CardTitle } from "./TitleCard";
 import { Episodes, shortDate, type ProgressData } from "./Episodes";
 import { isTopSheet, popSheet, pushSheet } from "./sheets";
 import { cn } from "@/lib/cn";
@@ -46,6 +48,10 @@ export type SheetTitle = {
   age?: string | null;
   /** IMDb's rating and votes, when MOX's IMDb copy has it. */
   imdb?: { id: string; rating: number; votes: number } | null;
+  /** The other films of its collection, in release order. */
+  parts?: CardTitle[];
+  /** What people who watched it also watched. */
+  similar?: CardTitle[];
 };
 
 const cairoToday = () =>
@@ -217,6 +223,8 @@ export function TitleSheet({
   /** Where the rating menu is drawn, fixed to the screen, or null when shut. */
   const [rating, setRating] = useState<{ left: number; top: number; above: boolean } | null>(null);
   const [person, setPerson] = useState<number | null>(null);
+  const [other, setOther] = useState<{ tmdbId: number; kind: MediaKind } | null>(null);
+  const openOther = (c: CardTitle) => setOther({ tmdbId: c.tmdbId, kind: c.kind });
   const [copied, setCopied] = useState(false);
 
   /** The phone's share sheet where there is one; otherwise copy the link. */
@@ -562,12 +570,32 @@ export function TitleSheet({
                   Watch the trailer
                 </a>
               ) : null}
+
+              {data.parts?.length ? (
+                <Related title="More in the series">
+                  {data.parts.map((c) => (
+                    <RailItem key={`${c.kind}-${c.tmdbId}`}>
+                      <TitleCard item={{ ...c, releaseLabel: c.year ? String(c.year) : "Soon" }} onOpen={openOther} />
+                    </RailItem>
+                  ))}
+                </Related>
+              ) : null}
+              {data.similar?.length ? (
+                <Related title="More like this">
+                  {data.similar.map((c) => (
+                    <RailItem key={`${c.kind}-${c.tmdbId}`}>
+                      <TitleCard item={c} onOpen={openOther} />
+                    </RailItem>
+                  ))}
+                </Related>
+              ) : null}
             </div>
           )}
         </div>
       </div>
 
       {person !== null ? <PersonSheet id={person} signedIn={signedIn} onClose={() => setPerson(null)} /> : null}
+      {other ? <TitleSheet tmdbId={other.tmdbId} kind={other.kind} signedIn={signedIn} onClose={() => setOther(null)} /> : null}
     </div>,
     document.body,
   );
@@ -627,6 +655,15 @@ function Pill({
       </svg>
       {label}
     </button>
+  );
+}
+
+function Related({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <section className="mt-2">
+      <h3 className="mb-3 text-[17px] font-semibold tracking-tight">{title}</h3>
+      <Rail>{children}</Rail>
+    </section>
   );
 }
 

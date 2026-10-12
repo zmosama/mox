@@ -18,6 +18,7 @@ const TTL: [string, number][] = [
   ["/search/", 3600],
   // What a title recommends barely moves; the picks ask for hundreds nightly.
   ["/recommendations", 7 * 86400],
+  ["/collection/", 7 * 86400],
 ];
 const DEFAULT_TTL = 6 * 3600;
 

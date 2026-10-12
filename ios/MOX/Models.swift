@@ -185,6 +185,10 @@ nonisolated struct TitleDetail: Codable, Sendable {
     let progress: SeriesProgress?
     /// Its age rating, "18+" or "PG"; nil when unrated.
     let age: String?
+    /// The other films of its collection, in release order.
+    let parts: [Card]?
+    /// What people who watched it also watched.
+    let similar: [Card]?
 }
 
 nonisolated struct EpisodeProgress: Codable, Hashable, Sendable {

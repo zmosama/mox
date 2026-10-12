@@ -13,6 +13,8 @@ struct TitleSheet: View {
     @State private var following = false
     @State private var signingIn = false
     @State private var person: PersonRef?
+    /// Another title opened from this one: a part of its series, or one like it.
+    @State private var other: TitleRef?
     @Environment(\.horizontalSizeClass) private var sizeClass
     /// On an iPad the title opens as a large card over the screen: a taller
     /// picture across the top, the name large over it, wider margins.
@@ -44,6 +46,7 @@ struct TitleSheet: View {
         .presentationDragIndicator(.visible)
         .sheet(isPresented: $signingIn) { SettingsView() }
         .sheet(item: $person) { PersonSheet(id: $0.id) }
+        .sheet(item: $other) { TitleSheet(ref: $0) }
         .task { await load() }
     }
 
@@ -142,6 +145,14 @@ struct TitleSheet: View {
                 Button { openURL(url) } label: { Label("Watch the trailer", systemImage: "play.rectangle") }
                     .buttonStyle(.glass)
                     .padding(.horizontal, pad)
+            }
+            if let parts = d.parts, !parts.isEmpty {
+                PosterRail(title: "More in the series", cards: parts, caption: { $0.year.map(String.init) ?? "Soon" }) { other = $0 }
+                    .padding(.top, 8)
+            }
+            if let similar = d.similar, !similar.isEmpty {
+                PosterRail(title: "More like this", cards: similar) { other = $0 }
+                    .padding(.top, 8)
             }
         }
         .padding(.bottom, 40)
