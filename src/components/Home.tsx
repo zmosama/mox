@@ -125,25 +125,6 @@ export function Home({
        mean the viewport. */
     <div className="relative mx-[calc(50%-50vw)] overflow-x-clip">
       <div aria-hidden className="fixed inset-0 -z-10 bg-black" />
-      {/* Green light caught in the screen's glass, like a prism at its edge:
-          the rim lit hardest at the top corner and split — lime, a white-mint
-          core, teal — dying away along both edges, a white highlight where
-          the glass curves, and a soft glow inside; it breathes, slowly. */}
-      <div
-        aria-hidden
-        className="pointer-events-none fixed inset-0 -z-10 motion-safe:animate-[mox-breathe_5s_ease-in-out_infinite] [background:radial-gradient(circle_at_30%_20%,rgb(0_208_132/0.15),rgb(0_208_132/0.05)_30%,transparent_45%)]"
-      />
-      {/* The rim, drawn like the iPhone's: it follows a rounded screen
-          corner, a bright split line (lime, white-mint, teal) on a soft green
-          bloom that spreads inward, fading along both edges. */}
-      <div
-        aria-hidden
-        className="pointer-events-none fixed inset-0 -z-10 rounded-[55px] motion-safe:animate-[mox-breathe_5s_ease-in-out_infinite] [box-shadow:inset_0_0_0_1.5px_rgb(190_242_100/0.55),inset_0_0_0_3px_rgb(240_255_248/1),inset_0_0_0_4.5px_rgb(94_234_212/0.7),inset_0_0_6px_2px_rgb(0_208_132/0.6),inset_0_0_40px_8px_rgb(0_208_132/0.32)] [mask-image:radial-gradient(ellipse_100%_100%_at_0_0,#000_0%,rgb(0_0_0/0.85)_12%,rgb(0_0_0/0.35)_35%,transparent_62%)]"
-      />
-      <div
-        aria-hidden
-        className="pointer-events-none fixed inset-0 -z-10 rounded-[55px] [box-shadow:inset_0_0_0_2.5px_rgb(255_255_255/0.9)] [mask-image:radial-gradient(circle_120px_at_26px_26px,#000,rgb(0_0_0/0.6)_40%,transparent)]"
-      />
       {/* A phone gets the phone app's layout; a computer the iPad's — the
           featured picture across the whole width, wide cards, and only the
           floating dock to move around. */}
