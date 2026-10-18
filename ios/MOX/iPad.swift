@@ -118,94 +118,119 @@ extension View {
 
 // MARK: - Featured
 
-/// The top of Home: a few titles, each across the whole width with its picture,
-/// name and what it is, a page at a time.
+/// The top of Home: the week's biggest titles as a carousel, as on the
+/// website. Each picture keeps its own shape — never cropped — on a rounded
+/// card no taller than half the screen, centred, with its neighbours showing
+/// either side; it moves on by itself every few seconds.
 struct FeaturedCarousel: View {
     let cards: [Card]
     let open: (TitleRef) -> Void
     @State private var page: String?
+    @State private var size: CGSize = .init(width: 834, height: 1194)
+
+    /// As wide as fits, and no taller than about half the screen.
+    private var slideWidth: CGFloat {
+        min(size.width - IPad.margin * 2, size.height * 0.5 * 16 / 9)
+    }
 
     var body: some View {
-        ScrollView(.horizontal) {
-            LazyHStack(spacing: 0) {
-                ForEach(cards) { card in
-                    slide(card).containerRelativeFrame(.horizontal)
+        VStack(spacing: 14) {
+            ScrollView(.horizontal) {
+                HStack(spacing: 20) {
+                    ForEach(Array(cards.enumerated()), id: \.element.id) { i, card in
+                        slide(card, rank: i + 1)
+                            .frame(width: slideWidth)
+                            .id(card.id)
+                    }
                 }
+                .scrollTargetLayout()
             }
-            .scrollTargetLayout()
-        }
-        .scrollTargetBehavior(.paging)
-        .scrollIndicators(.hidden)
-        .scrollPosition(id: $page)
-        .frame(height: 560)
-        .overlay(alignment: .bottom) {
+            .contentMargins(.horizontal, (size.width - slideWidth) / 2, for: .scrollContent)
+            .scrollTargetBehavior(.viewAligned)
+            .scrollIndicators(.hidden)
+            .scrollPosition(id: $page, anchor: .center)
+            .frame(height: slideWidth * 9 / 16)
+
             HStack(spacing: 8) {
                 ForEach(cards) { card in
-                    Circle()
-                        .fill((page ?? cards.first?.id) == card.id ? Theme.paper : Theme.paper.opacity(0.3))
-                        .frame(width: 7, height: 7)
+                    Capsule()
+                        .fill(Theme.paper.opacity((page ?? cards.first?.id) == card.id ? 1 : 0.3))
+                        .frame(width: (page ?? cards.first?.id) == card.id ? 20 : 7, height: 7)
                 }
             }
-            .padding(.bottom, 18)
+            .animation(.smooth, value: page)
+        }
+        .onGeometryChange(for: CGSize.self) { proxy in
+            CGSize(width: proxy.size.width, height: UIScreen.main.bounds.height)
+        } action: { size = $0 }
+        .task(id: page) {
+            try? await Task.sleep(for: .seconds(7))
+            guard !Task.isCancelled, !cards.isEmpty else { return }
+            let i = cards.firstIndex { $0.id == (page ?? cards.first?.id) } ?? 0
+            withAnimation(.smooth) { page = cards[(i + 1) % cards.count].id }
         }
     }
 
-    private func slide(_ card: Card) -> some View {
+    /// TMDB's larger picture for the same file: w780 was soft at this size.
+    private func sharp(_ url: String?) -> String? {
+        url?.replacingOccurrences(of: #"/w\d+/"#, with: "/w1280/", options: .regularExpression)
+    }
+
+    private func slide(_ card: Card, rank: Int) -> some View {
         ZStack(alignment: .bottomLeading) {
             Color.clear
-                .overlay { RemoteImage(url: card.backdrop ?? card.poster) }
+                .overlay { RemoteImage(url: sharp(card.backdrop ?? card.poster)) }
                 .clipped()
-            LinearGradient(colors: [.black.opacity(0.85), .black.opacity(0.2), .clear], startPoint: .bottomLeading, endPoint: .topTrailing)
-            LinearGradient(colors: [Theme.ink, .clear], startPoint: .bottom, endPoint: .center)
+            LinearGradient(colors: [.black.opacity(0.9), .black.opacity(0.25), .clear], startPoint: .bottom, endPoint: .center)
+            LinearGradient(colors: [.black.opacity(0.6), .clear], startPoint: .leading, endPoint: .center)
 
-            VStack(alignment: .leading, spacing: 12) {
-                if let tag = card.episodeLabel ?? card.reason {
-                    Text(tag.uppercased())
-                        .font(.sora(13, .semibold, relativeTo: .caption))
-                        .tracking(1.2)
-                        .foregroundStyle(Theme.mint)
-                }
+            VStack(alignment: .leading, spacing: 10) {
+                Text(["#\(rank) this week", card.platforms.first?.name].compactMap { $0 }.joined(separator: " · ").uppercased())
+                    .font(.sora(12, .semibold, relativeTo: .caption))
+                    .tracking(1.3)
+                    .foregroundStyle(Theme.green)
                 Text(card.title)
-                    .font(.sora(46, .bold, relativeTo: .largeTitle))
+                    .font(.sora(40, .bold, relativeTo: .largeTitle))
                     .foregroundStyle(Theme.paper)
                     .lineLimit(2)
-                    .minimumScaleFactor(0.7)
+                    .minimumScaleFactor(0.6)
                 Text([card.year.map(String.init), card.isTV ? "Series" : "Film",
-                      card.rating.map { "★ \(String(format: "%.1f", $0))" }, card.platforms.first?.name]
+                      card.rating.map { "★ \(String(format: "%.1f", $0))" }]
                     .compactMap { $0 }.joined(separator: " · "))
-                    .font(.sora(15, relativeTo: .subheadline))
+                    .font(.sora(14, relativeTo: .subheadline))
                     .foregroundStyle(Theme.paper.opacity(0.8))
                 if let overview = card.overview {
                     Text(overview)
-                        .font(.sora(15, relativeTo: .body))
+                        .font(.sora(14, relativeTo: .body))
                         .foregroundStyle(Theme.paper.opacity(0.75))
                         .lineLimit(2)
-                        .frame(maxWidth: 560, alignment: .leading)
+                        .frame(maxWidth: 520, alignment: .leading)
                 }
                 HStack(spacing: 12) {
                     if let p = card.platforms.first, let s = p.url, let url = URL(string: s) {
                         Link(destination: url) {
-                            Label("Play on \(p.name)", systemImage: "play.fill")
-                                .font(.sora(16, .semibold))
-                                .padding(.horizontal, 22).padding(.vertical, 13)
+                            Label("Play", systemImage: "play.fill")
+                                .font(.sora(15, .semibold))
+                                .padding(.horizontal, 20).padding(.vertical, 11)
                                 .background(Theme.paper, in: .capsule)
                                 .foregroundStyle(Theme.ink)
                         }
                     }
                     Button { open(card.ref) } label: {
                         Label("Details", systemImage: "info.circle")
-                            .font(.sora(16, .semibold))
-                            .padding(.horizontal, 22).padding(.vertical, 13)
+                            .font(.sora(15, .semibold))
+                            .padding(.horizontal, 20).padding(.vertical, 11)
                             .glassEffect(.regular.interactive(), in: .capsule)
                             .foregroundStyle(Theme.paper)
                     }
                     .buttonStyle(.plain)
                 }
-                .padding(.top, 6)
+                .padding(.top, 4)
             }
-            .padding(.horizontal, IPad.margin)
-            .padding(.bottom, 56)
+            .padding(28)
         }
+        .aspectRatio(16 / 9, contentMode: .fit)
+        .clipShape(.rect(cornerRadius: 28))
         .contentShape(.rect)
         .opensTitle(card.ref)
         .onTapGesture { open(card.ref) }
@@ -271,7 +296,6 @@ struct IPadHome: View {
             .padding(.bottom, 60)
         }
         .scrollIndicators(.hidden)
-        .ignoresSafeArea(edges: .top)
         .background { CornerGlow() }
         .overlay(alignment: .topTrailing) { AccountButton().padding(.trailing, 24).padding(.top, 8) }
         .refreshable { await load() }

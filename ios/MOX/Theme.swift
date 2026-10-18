@@ -75,8 +75,8 @@ extension View {
 struct CornerGlow: View {
     /// Breathing: the light dims a little and comes back, slowly.
     @State private var dim = false
-    /// The screen's own corner, near enough on every current iPhone.
-    private let radius: CGFloat = 56
+    /// The screen's own corner, near enough on every current iPhone and iPad.
+    private let radius: CGFloat = UIDevice.current.userInterfaceIdiom == .pad ? 18 : 56
     private let teal = Color(hex: 0x5EEAD4)
     private let lime = Color(hex: 0xBEF264)
 
