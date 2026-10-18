@@ -462,17 +462,20 @@ function Spotlight({ spots, signedIn, onOpen }: { spots: Spot[]; signedIn: boole
   const [at, setAt] = useState(0);
   const [held, setHeld] = useState(false);
 
-  const go = useCallback((i: number) => {
+  /* Slides are not always the strip's width: on a wide screen each is only as
+     wide as keeps its picture whole, and its neighbours show either side. So
+     a slide is found and centred by its own position, not by multiplying. */
+  const centre = useCallback((i: number, behavior: ScrollBehavior) => {
     const el = strip.current;
-    if (!el) return;
-    const n = (i + spots.length) % spots.length;
-    el.scrollTo({ left: n * el.clientWidth * (document.dir === "rtl" ? -1 : 1), behavior: "smooth" });
-  }, [spots.length]);
+    const slide = el?.children[i] as HTMLElement | undefined;
+    if (!el || !slide) return;
+    el.scrollTo({ left: slide.offsetLeft - (el.clientWidth - slide.clientWidth) / 2, behavior });
+  }, []);
+  const go = useCallback((i: number) => centre((i + spots.length) % spots.length, "smooth"), [centre, spots.length]);
 
   // A resized window keeps its old scroll offset, which left the picture
-  // stopped halfway between two slides: put it back on the current one.
-  // Only when the width really changes — not on every slide, which would
-  // snap a swipe in the middle of it.
+  // stopped halfway between two slides: put it back on the current one —
+  // only when the width really changes, not mid-swipe.
   const atRef = useRef(at);
   useEffect(() => {
     atRef.current = at;
@@ -484,11 +487,11 @@ function Spotlight({ spots, signedIn, onOpen }: { spots: Spot[]; signedIn: boole
     const watch = new ResizeObserver(() => {
       if (el.clientWidth === width) return;
       width = el.clientWidth;
-      el.scrollTo({ left: atRef.current * width * (document.dir === "rtl" ? -1 : 1), behavior: "instant" });
+      centre(atRef.current, "instant");
     });
     watch.observe(el);
     return () => watch.disconnect();
-  }, []);
+  }, [centre]);
 
   useEffect(() => {
     if (held || spots.length < 2) return;
@@ -500,79 +503,99 @@ function Spotlight({ spots, signedIn, onOpen }: { spots: Spot[]; signedIn: boole
     <section
       aria-roledescription="carousel"
       aria-label="Big this week"
-      className="relative"
       onMouseEnter={() => setHeld(true)}
       onMouseLeave={() => setHeld(false)}
       onTouchStart={() => setHeld(true)}
     >
-      <div
-        ref={strip}
-        onScroll={(e) => {
-          const el = e.currentTarget;
-          setAt(Math.round(Math.abs(el.scrollLeft) / el.clientWidth));
-        }}
-        className="flex snap-x snap-mandatory overflow-x-auto rounded-[24px] [scrollbar-width:none] lg:rounded-[28px] [&::-webkit-scrollbar]:hidden"
-      >
-        {spots.map((t, i) => (
-          <SpotSlide key={`${t.kind}-${t.tmdbId}`} spot={t} rank={i + 1} signedIn={signedIn} onOpen={onOpen} />
-        ))}
+      <div className="relative">
+        <div
+          ref={strip}
+          onScroll={(e) => {
+            const el = e.currentTarget;
+            const mid = el.scrollLeft + el.clientWidth / 2;
+            let best = 0;
+            [...el.children].forEach((c, i) => {
+              const s = c as HTMLElement;
+              const top = el.children[best] as HTMLElement;
+              if (Math.abs(s.offsetLeft + s.clientWidth / 2 - mid) < Math.abs(top.offsetLeft + top.clientWidth / 2 - mid)) best = i;
+            });
+            setAt(best);
+          }}
+          className="flex snap-x snap-mandatory gap-4 overflow-x-auto [scrollbar-width:none] lg:px-[calc(50%-min(50%,35svh*16/9))] [&::-webkit-scrollbar]:hidden"
+        >
+          {spots.map((t, i) => (
+            <SpotSlide key={`${t.kind}-${t.tmdbId}`} spot={t} rank={i + 1} signedIn={signedIn} onOpen={onOpen} />
+          ))}
+        </div>
+        {spots.length > 1 ? (
+          <>
+            <button
+              type="button"
+              aria-label="Previous"
+              onClick={() => go(at - 1)}
+              className="absolute start-3 top-1/2 hidden size-10 -translate-y-1/2 place-items-center rounded-full border border-white/15 bg-black/50 text-xl text-ink backdrop-blur-xl transition hover:bg-black/70 lg:grid"
+            >
+              ‹
+            </button>
+            <button
+              type="button"
+              aria-label="Next"
+              onClick={() => go(at + 1)}
+              className="absolute end-3 top-1/2 hidden size-10 -translate-y-1/2 place-items-center rounded-full border border-white/15 bg-black/50 text-xl text-ink backdrop-blur-xl transition hover:bg-black/70 lg:grid"
+            >
+              ›
+            </button>
+          </>
+        ) : null}
       </div>
       {spots.length > 1 ? (
-        <>
-          <div className="pointer-events-none absolute inset-x-0 bottom-3 flex justify-center gap-1.5">
-            {spots.map((t, i) => (
-              <button
-                key={t.tmdbId}
-                type="button"
-                aria-label={`Show ${t.title}`}
-                onClick={() => go(i)}
-                className={cn("pointer-events-auto h-1.5 rounded-full transition-all", i === at ? "w-5 bg-ink" : "w-1.5 bg-ink/40")}
-              />
-            ))}
-          </div>
-          <button
-            type="button"
-            aria-label="Previous"
-            onClick={() => go(at - 1)}
-            className="absolute start-3 top-1/2 hidden size-10 lg:start-4 -translate-y-1/2 place-items-center rounded-full border border-white/15 bg-black/40 text-xl text-ink backdrop-blur-xl transition hover:bg-black/60 sm:grid"
-          >
-            ‹
-          </button>
-          <button
-            type="button"
-            aria-label="Next"
-            onClick={() => go(at + 1)}
-            className="absolute end-3 top-1/2 hidden size-10 lg:end-4 -translate-y-1/2 place-items-center rounded-full border border-white/15 bg-black/40 text-xl text-ink backdrop-blur-xl transition hover:bg-black/60 sm:grid"
-          >
-            ›
-          </button>
-        </>
+        <div className="mt-3 flex justify-center gap-1.5">
+          {spots.map((t, i) => (
+            <button
+              key={t.tmdbId}
+              type="button"
+              aria-label={`Show ${t.title}`}
+              onClick={() => go(i)}
+              className={cn("h-1.5 rounded-full transition-all", i === at ? "w-5 bg-ink" : "w-1.5 bg-ink/40")}
+            />
+          ))}
+        </div>
       ) : null}
     </section>
   );
 }
 
+/** TMDB's larger picture for the same file: w780 was blurry stretched across a screen. */
+const sharp = (url: string | null) => url?.replace(/\/w\d+\//, "/w1280/") ?? null;
+
+/**
+ * One title of the week. The picture is never cropped: it keeps its own
+ * shape. On a phone the words sit under it; on a computer over its lower
+ * left, and the slide is only as wide as keeps the picture whole on screen.
+ */
 function SpotSlide({ spot, rank, signedIn, onOpen }: { spot: Spot; rank: number; signedIn: boolean; onOpen: (r: Ref) => void }) {
   const where = spot.platforms[0];
   return (
-    <article className="relative h-[420px] w-full shrink-0 snap-start overflow-hidden bg-surface sm:h-[460px] lg:h-[min(640px,78svh)]">
-      <Thumb src={spot.backdrop} className="absolute inset-0 size-full" />
-      <div className="absolute inset-0 bg-gradient-to-t from-black via-black/40 to-transparent" />
-      <div className="absolute inset-0 bg-gradient-to-r from-black/70 via-transparent to-transparent" />
-      {/* Into the page's black at the bottom, so the shelves grow out of it. */}
-      <div className="absolute inset-x-0 bottom-0 hidden h-40 bg-gradient-to-t from-black to-transparent lg:block" />
-      <div className="absolute inset-x-0 bottom-0 max-w-[700px] p-5 pb-10 sm:p-8 sm:px-16 sm:pb-12 lg:px-10 lg:pb-16">
+    <article className="relative w-full shrink-0 snap-center overflow-hidden rounded-[24px] bg-surface lg:w-[min(100%,calc(70svh*16/9))] lg:rounded-[28px]">
+      <div className="relative aspect-video">
+        <Thumb src={sharp(spot.backdrop)} className="absolute inset-0 size-full" />
+        {/* Into the card below on a phone; under the words on a computer. */}
+        <div className="absolute inset-x-0 bottom-0 h-1/3 bg-gradient-to-t from-surface to-transparent lg:hidden" />
+        <div className="absolute inset-0 hidden bg-gradient-to-t from-black/90 via-black/30 to-transparent lg:block" />
+        <div className="absolute inset-0 hidden bg-gradient-to-r from-black/70 via-transparent to-transparent lg:block" />
+      </div>
+      <div className="p-5 pt-2 lg:absolute lg:inset-x-0 lg:bottom-0 lg:max-w-[680px] lg:p-10 lg:pb-12">
         <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-love-soft">
           #{rank} this week{where ? ` · ${where.name}` : ""}
         </div>
-        <h2 className="mt-1.5 text-[28px] font-bold leading-tight text-white sm:text-[40px] lg:text-[52px]">{spot.title}</h2>
+        <h2 className="mt-1.5 line-clamp-2 text-[26px] font-bold leading-tight text-white sm:text-[34px] lg:text-[48px]">{spot.title}</h2>
         <div className="numeric mt-1 text-[13px] text-white/75">
           {[spot.year, spot.kind === "tv" ? "Series" : "Film", spot.rating ? `★ ${spot.rating.toFixed(1)}` : null]
             .filter(Boolean)
             .join(" · ")}
         </div>
         {spot.overview ? (
-          <p className="mt-2 line-clamp-2 text-[14px] leading-snug text-white/80 sm:line-clamp-3 sm:text-[15px]">{spot.overview}</p>
+          <p className="mt-2 line-clamp-2 text-[14px] leading-snug text-white/80 lg:line-clamp-3 lg:text-[15px]">{spot.overview}</p>
         ) : null}
         <div className="mt-4 flex items-center gap-2.5">
           {where?.url ? (

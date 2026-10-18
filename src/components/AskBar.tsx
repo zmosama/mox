@@ -110,8 +110,8 @@ export function AskBar({
       <input
         value={query}
         onChange={(e) => onQuery(e.target.value)}
-        placeholder={listening ? "Listening…" : "Ask MOX anything…"}
-        aria-label="Ask MOX"
+        placeholder={listening ? "Listening…" : "Films, series, people…"}
+        aria-label="Search"
         enterKeyHint="search"
         autoComplete="off"
         className="min-w-0 flex-1 bg-transparent text-base text-ink outline-none placeholder:text-ink-dim lg:text-[17px]"

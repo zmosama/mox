@@ -211,7 +211,7 @@ struct HomeView: View {
             .buttonStyle(.plain)
             .accessibilityLabel(showMoods ? "Hide moods" : "Pick a mood")
 
-            TextField("", text: $query, prompt: Text(dictation.listening ? "Listening…" : "Ask MOX anything…").foregroundStyle(Theme.muted))
+            TextField("", text: $query, prompt: Text(dictation.listening ? "Listening…" : "Films, series, people…").foregroundStyle(Theme.muted))
                 .font(.sora(16, relativeTo: .body))
                 .foregroundStyle(Theme.paper)
                 .focused($fieldFocused)
@@ -602,13 +602,17 @@ struct AiringSection: View {
     }
 }
 
-/// The week's biggest titles, one wide picture at a time, swiped or moving on
-/// by itself every few seconds.
+/// The week's biggest titles, a page at a time, swiped or moving on by itself
+/// every few seconds. The picture keeps its own shape — never cropped — with
+/// the words under it, so the slide is as tall as that needs and no taller.
 struct Spotlight: View {
     let spots: [Card]
     let open: (TitleRef) -> Void
     @State private var at = 0
-    @Environment(\.horizontalSizeClass) private var size
+    @State private var width: CGFloat = 400
+
+    /// The picture's height at this width, plus room for the words.
+    private var height: CGFloat { (width - 40) * 9 / 16 + 150 }
 
     var body: some View {
         VStack(spacing: 10) {
@@ -621,7 +625,8 @@ struct Spotlight: View {
                 }
             }
             .tabViewStyle(.page(indexDisplayMode: .never))
-            .frame(height: size == .regular ? 460 : 400)
+            .frame(height: height)
+            .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width = $0 }
 
             HStack(spacing: 6) {
                 ForEach(spots.indices, id: \.self) { i in
@@ -639,25 +644,32 @@ struct Spotlight: View {
         }
     }
 
+    /// TMDB's larger picture for the same file: w780 was soft at this size.
+    private func sharp(_ url: String?) -> String? {
+        url?.replacingOccurrences(of: #"/w\d+/"#, with: "/w1280/", options: .regularExpression)
+    }
+
     private func slide(_ card: Card, rank: Int) -> some View {
         Button { open(card.ref) } label: {
-            ZStack(alignment: .bottomLeading) {
-                // The picture fills the slide but never sizes it: left to
-                // itself, a backdrop wider than the phone made the slide —
-                // and every rail under it — wider than the screen.
+            VStack(alignment: .leading, spacing: 0) {
                 Color.clear
-                    .overlay { RemoteImage(url: card.backdrop) }
+                    .aspectRatio(16 / 9, contentMode: .fit)
+                    .overlay { RemoteImage(url: sharp(card.backdrop)) }
                     .clipped()
-                LinearGradient(colors: [.clear, .black.opacity(0.45), .black.opacity(0.95)], startPoint: .top, endPoint: .bottom)
+                    .overlay(alignment: .bottom) {
+                        LinearGradient(colors: [.clear, Theme.surface], startPoint: .top, endPoint: .bottom)
+                            .frame(height: 50)
+                    }
                 VStack(alignment: .leading, spacing: 6) {
                     Text(["#\(rank) this week", card.platforms.first?.name].compactMap { $0 }.joined(separator: " · ").uppercased())
                         .font(.sora(11, .semibold))
                         .tracking(1.4)
                         .foregroundStyle(Theme.green)
                     Text(card.title)
-                        .font(.sora(28, .bold, relativeTo: .title))
+                        .font(.sora(26, .bold, relativeTo: .title))
                         .foregroundStyle(.white)
-                        .lineLimit(2)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.7)
                     Text([card.year.map(String.init), card.kind == "tv" ? "Series" : "Film", card.rating.map { String(format: "★ %.1f", $0) }].compactMap { $0 }.joined(separator: " · "))
                         .font(.sora(13))
                         .foregroundStyle(.white.opacity(0.75))
@@ -670,9 +682,12 @@ struct Spotlight: View {
                 }
                 .multilineTextAlignment(.leading)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(20)
+                .padding(.horizontal, 20)
+                .padding(.top, 4)
+                Spacer(minLength: 0)
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+            .background(Theme.surface)
             .clipShape(.rect(cornerRadius: 24))
             .padding(.horizontal, 20)
         }
