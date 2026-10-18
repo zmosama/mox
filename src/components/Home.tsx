@@ -123,11 +123,12 @@ export function Home({
     <div className="relative mx-[calc(50%-50vw)] overflow-x-clip">
       <div aria-hidden className="fixed inset-0 -z-10 bg-black" />
       {/* Green light caught in the screen's glass, like a prism at its edge:
-          a bright thin line hugging the top corner and dying away along both
-          edges, a dark gap, then a soft glow that has spilled into the page. */}
+          the rim lit hardest at the top corner and split like a prism — lime,
+          a white-mint core, teal — dying away along both edges, a dark gap,
+          then a soft glow that has spilled into the page. */}
       <div
         aria-hidden
-        className="pointer-events-none fixed inset-0 -z-10 [box-shadow:inset_0_0_0_1.5px_rgb(167_243_208/0.95),inset_0_0_14px_3px_rgb(0_208_132/0.75),inset_0_0_42px_10px_rgb(0_208_132/0.35)] [mask-image:radial-gradient(ellipse_75%_60%_at_0_0,#000_10%,rgb(0_0_0/0.5)_40%,transparent_75%)]"
+        className="pointer-events-none fixed inset-0 -z-10 [box-shadow:inset_0_0_0_1px_rgb(190_242_100/0.55),inset_0_0_0_2.5px_rgb(236_253_245/0.95),inset_0_0_0_4px_rgb(94_234_212/0.6),inset_0_0_10px_4px_rgb(0_208_132/0.8),inset_0_0_36px_12px_rgb(0_208_132/0.38)] [mask-image:radial-gradient(ellipse_80%_70%_at_0_0,#000_0%,rgb(0_0_0/0.85)_12%,rgb(0_0_0/0.35)_35%,transparent_62%)]"
       />
       <div
         aria-hidden
@@ -143,6 +144,10 @@ export function Home({
         {!asking && spots.length ? (
           <div className="relative z-10 pt-4 sm:pt-6 lg:pt-0">
             <Spotlight spots={spots} signedIn={user !== null} onOpen={setOpen} />
+            {/* Your photo in the top corner, over the picture, as on the iPad. */}
+            <div className="absolute end-3 top-7 z-20 sm:top-9 lg:end-0 lg:top-4">
+              <Avatar user={user} />
+            </div>
           </div>
         ) : null}
         <header className={cn("relative z-30 flex items-center gap-3 pb-4 sm:gap-4", asking || !spots.length ? "pt-4 sm:pt-6" : "pt-6")}>
@@ -163,7 +168,7 @@ export function Home({
               }}
             />
           </div>
-          <Avatar user={user} />
+          {asking || !spots.length ? <Avatar user={user} /> : null}
         </header>
         {showMoods || mood ? (
           <MoodChips

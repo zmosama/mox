@@ -65,6 +65,12 @@ struct HomeView: View {
                 if !asking, let spots = spotlightCards, !spots.isEmpty {
                     Spotlight(spots: spots) { router.title = $0 }
                         .padding(.top, 8)
+                        // Your photo in the top corner, as on the iPad.
+                        .overlay(alignment: .topTrailing) {
+                            avatar
+                                .padding(.trailing, 30)
+                                .padding(.top, 20)
+                        }
                         .transition(.opacity)
                 }
                 hero
@@ -104,8 +110,13 @@ struct HomeView: View {
             HStack(spacing: 10) {
                 askBar
                     .padding(.leading, 20)
-                avatar
-                    .padding(.trailing, 20)
+                    .padding(.trailing, asking ? 0 : 20)
+                // Beside the bar only while asking, when the bar is at the
+                // top; otherwise it stays in the top corner, over the picture.
+                if asking {
+                    avatar
+                        .padding(.trailing, 20)
+                }
             }
             .padding(.top, 4)
             if showMoods || mood != nil {

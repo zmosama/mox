@@ -67,50 +67,58 @@ extension View {
     }
 }
 
-/// Green light caught in the screen's glass, like a prism at its edge: a
-/// bright thin line where the glass meets the frame, heaviest at the top
-/// corner and dying away along both edges; a dark gap; then a soft glow that
-/// has spilled into the app.
+/// Green light caught in the screen's glass, like a prism at its edge: the
+/// glass's rim lit hardest at the top corner and split, the way a prism splits
+/// light, into a white-mint core, green, and a thin teal and lime either side;
+/// it dies away along both edges, leaves a dark gap, and a soft glow has
+/// spilled into the app beyond it.
 struct CornerGlow: View {
     /// The screen's own corner, near enough on every current iPhone.
     private let radius: CGFloat = 56
+    private let teal = Color(hex: 0x5EEAD4)
+    private let lime = Color(hex: 0xBEF264)
 
     var body: some View {
         GeometryReader { geo in
             let w = geo.size.width
             let h = geo.size.height
-            // Along the edges from the corner: full at the corner, gone by a
-            // little past halfway across and a third of the way down.
+            // Along the edges from the corner: whole at the corner, half by a
+            // quarter of the way, gone a little past halfway.
             let fade = EllipticalGradient(
-                colors: [.white, .white.opacity(0.6), .clear],
-                center: .topLeading, startRadiusFraction: 0, endRadiusFraction: 0.55
+                stops: [.init(color: .white, location: 0), .init(color: .white.opacity(0.85), location: 0.12),
+                        .init(color: .white.opacity(0.35), location: 0.35), .init(color: .clear, location: 0.62)],
+                center: .topLeading, startRadiusFraction: 0, endRadiusFraction: 1
             )
             ZStack {
                 Color.black
                 // The glow inside, set in from the corner so there is a gap
                 // between it and the edge.
-                RadialGradient(colors: [Theme.green.opacity(0.16), Theme.green.opacity(0.05), .clear],
+                RadialGradient(colors: [Theme.green.opacity(0.15), Theme.green.opacity(0.05), .clear],
                                center: UnitPoint(x: 0.3, y: 0.2), startRadius: 0, endRadius: max(w, h) * 0.38)
                     .mask(RadialGradient(colors: [.clear, .clear, .white], center: .topLeading,
                                          startRadius: 0, endRadius: 240))
-                // The heavy light in the glass's edge.
-                RoundedRectangle(cornerRadius: radius)
-                    .strokeBorder(Theme.green, lineWidth: 14)
-                    .blur(radius: 14)
-                    .opacity(0.85)
-                    .mask(fade)
-                RoundedRectangle(cornerRadius: radius)
-                    .strokeBorder(
-                        LinearGradient(colors: [Theme.mint, Theme.green, Theme.green.opacity(0.6)],
-                                       startPoint: .topLeading, endPoint: .bottomTrailing),
-                        lineWidth: 2.5
-                    )
-                    .blur(radius: 1.2)
-                    .mask(fade)
+                ZStack {
+                    // Bloom: the light the rim throws into the glass.
+                    rim(inset: 0, width: 26, color: Theme.green.opacity(0.45)).blur(radius: 22)
+                    rim(inset: 0, width: 10, color: Theme.green.opacity(0.9)).blur(radius: 6)
+                    // The split: lime outside, the white-mint core, teal inside.
+                    rim(inset: 0, width: 1.5, color: lime.opacity(0.55)).blur(radius: 0.6)
+                    rim(inset: 1.5, width: 1.6, color: Color(hex: 0xECFDF5)).blur(radius: 0.5)
+                    rim(inset: 3.5, width: 1.4, color: teal.opacity(0.7)).blur(radius: 0.8)
+                    rim(inset: 6, width: 2, color: Theme.green.opacity(0.35)).blur(radius: 1.5)
+                }
+                .mask(fade)
             }
             .frame(width: w, height: h)
         }
         .ignoresSafeArea()
         .allowsHitTesting(false)
+    }
+
+    /// A band of the given width just inside the screen's edge.
+    private func rim(inset: CGFloat, width: CGFloat, color: Color) -> some View {
+        RoundedRectangle(cornerRadius: radius - inset)
+            .inset(by: inset)
+            .strokeBorder(color, lineWidth: width)
     }
 }
