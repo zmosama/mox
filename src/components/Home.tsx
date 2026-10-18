@@ -138,11 +138,11 @@ export function Home({
           bloom that spreads inward, fading along both edges. */}
       <div
         aria-hidden
-        className="pointer-events-none fixed inset-0 -z-10 rounded-[55px] motion-safe:animate-[mox-breathe_5s_ease-in-out_infinite] lg:rounded-[22px] [box-shadow:inset_0_0_0_1.5px_rgb(190_242_100/0.55),inset_0_0_0_3px_rgb(240_255_248/1),inset_0_0_0_4.5px_rgb(94_234_212/0.7),inset_0_0_6px_2px_rgb(0_208_132/0.6),inset_0_0_40px_8px_rgb(0_208_132/0.32)] [mask-image:radial-gradient(ellipse_100%_100%_at_0_0,#000_0%,rgb(0_0_0/0.85)_12%,rgb(0_0_0/0.35)_35%,transparent_62%)]"
+        className="pointer-events-none fixed inset-0 -z-10 rounded-[55px] motion-safe:animate-[mox-breathe_5s_ease-in-out_infinite] [box-shadow:inset_0_0_0_1.5px_rgb(190_242_100/0.55),inset_0_0_0_3px_rgb(240_255_248/1),inset_0_0_0_4.5px_rgb(94_234_212/0.7),inset_0_0_6px_2px_rgb(0_208_132/0.6),inset_0_0_40px_8px_rgb(0_208_132/0.32)] [mask-image:radial-gradient(ellipse_100%_100%_at_0_0,#000_0%,rgb(0_0_0/0.85)_12%,rgb(0_0_0/0.35)_35%,transparent_62%)]"
       />
       <div
         aria-hidden
-        className="pointer-events-none fixed inset-0 -z-10 rounded-[55px] lg:rounded-[22px] [box-shadow:inset_0_0_0_2.5px_rgb(255_255_255/0.9)] [mask-image:radial-gradient(circle_120px_at_26px_26px,#000,rgb(0_0_0/0.6)_40%,transparent)]"
+        className="pointer-events-none fixed inset-0 -z-10 rounded-[55px] [box-shadow:inset_0_0_0_2.5px_rgb(255_255_255/0.9)] [mask-image:radial-gradient(circle_120px_at_26px_26px,#000,rgb(0_0_0/0.6)_40%,transparent)]"
       />
       {/* A phone gets the phone app's layout; a computer the iPad's — the
           featured picture across the whole width, wide cards, and only the
@@ -462,23 +462,34 @@ function Board({
  */
 function Spotlight({ spots, signedIn, onOpen }: { spots: Spot[]; signedIn: boolean; onOpen: (r: Ref) => void }) {
   const strip = useRef<HTMLDivElement>(null);
-  const [at, setAt] = useState(0);
+  const n = spots.length;
+  /* It goes round in both directions: the slides are laid out three times
+     over, the middle set is the one shown, and whenever scrolling comes to
+     rest in the first or last set it is moved, unseen, to the same slide in
+     the middle. So the first slide has the last one on its left, never a
+     gap. `at` counts across all three sets. */
+  const looped = n > 1 ? [...spots, ...spots, ...spots] : spots;
+  const home = n > 1 ? n : 0;
+  const [at, setAt] = useState(home);
   const [held, setHeld] = useState(false);
+  const settle = useRef<number | undefined>(undefined);
 
-  /* Slides are not always the strip's width: on a wide screen each is only as
-     wide as keeps its picture whole, and its neighbours show either side. So
-     a slide is found and centred by its own position, not by multiplying. */
   const centre = useCallback((i: number, behavior: ScrollBehavior) => {
     const el = strip.current;
     const slide = el?.children[i] as HTMLElement | undefined;
     if (!el || !slide) return;
     el.scrollTo({ left: slide.offsetLeft - (el.clientWidth - slide.clientWidth) / 2, behavior });
   }, []);
-  const go = useCallback((i: number) => centre((i + spots.length) % spots.length, "smooth"), [centre, spots.length]);
+  const go = useCallback((i: number) => centre(i, "smooth"), [centre]);
 
-  // A resized window keeps its old scroll offset, which left the picture
-  // stopped halfway between two slides: put it back on the current one —
-  // only when the width really changes, not mid-swipe.
+  // Start on the first slide of the middle set.
+  useEffect(() => {
+    centre(home, "instant");
+  }, [centre, home]);
+
+  // A resized window keeps its old offset, which left the picture stopped
+  // between two slides: put it back on the current one — only when the
+  // width really changes, not mid-swipe.
   const atRef = useRef(at);
   useEffect(() => {
     atRef.current = at;
@@ -497,10 +508,10 @@ function Spotlight({ spots, signedIn, onOpen }: { spots: Spot[]; signedIn: boole
   }, [centre]);
 
   useEffect(() => {
-    if (held || spots.length < 2) return;
+    if (held || n < 2) return;
     const timer = setTimeout(() => go(at + 1), 7000);
     return () => clearTimeout(timer);
-  }, [at, held, go, spots.length]);
+  }, [at, held, go, n]);
 
   return (
     <section
@@ -509,6 +520,8 @@ function Spotlight({ spots, signedIn, onOpen }: { spots: Spot[]; signedIn: boole
       onMouseEnter={() => setHeld(true)}
       onMouseLeave={() => setHeld(false)}
       onTouchStart={() => setHeld(true)}
+      // Edge to edge: out of the page's side margins.
+      className="-mx-4 sm:-mx-6 lg:-mx-10"
     >
       <div className="relative">
         <div
@@ -523,20 +536,36 @@ function Spotlight({ spots, signedIn, onOpen }: { spots: Spot[]; signedIn: boole
               if (Math.abs(s.offsetLeft + s.clientWidth / 2 - mid) < Math.abs(top.offsetLeft + top.clientWidth / 2 - mid)) best = i;
             });
             setAt(best);
+            // Once it comes to rest outside the middle set, back into it.
+            window.clearTimeout(settle.current);
+            settle.current = window.setTimeout(() => {
+              if (n > 1 && (best < n || best >= 2 * n)) {
+                const same = (best % n) + n;
+                centre(same, "instant");
+                setAt(same);
+              }
+            }, 140);
           }}
-          className="flex snap-x snap-mandatory gap-4 overflow-x-auto [scrollbar-width:none] lg:px-[calc(50%-min(50%,35svh*16/9))] [&::-webkit-scrollbar]:hidden"
+          className="flex snap-x snap-mandatory gap-3 overflow-x-auto [scrollbar-width:none] lg:gap-4 [&::-webkit-scrollbar]:hidden"
         >
-          {spots.map((t, i) => (
-            <SpotSlide key={`${t.kind}-${t.tmdbId}`} spot={t} rank={i + 1} signedIn={signedIn} onOpen={onOpen} />
+          {looped.map((t, i) => (
+            <SpotSlide
+              key={`${t.kind}-${t.tmdbId}-${i}`}
+              spot={t}
+              rank={(i % n) + 1}
+              current={i === at}
+              signedIn={signedIn}
+              onOpen={onOpen}
+            />
           ))}
         </div>
-        {spots.length > 1 ? (
+        {n > 1 ? (
           <>
             <button
               type="button"
               aria-label="Previous"
               onClick={() => go(at - 1)}
-              className="absolute start-3 top-1/2 hidden size-10 -translate-y-1/2 place-items-center rounded-full border border-white/15 bg-black/50 text-xl text-ink backdrop-blur-xl transition hover:bg-black/70 lg:grid"
+              className="absolute start-4 top-1/2 hidden size-10 -translate-y-1/2 place-items-center rounded-full border border-white/15 bg-black/50 text-xl text-ink backdrop-blur-xl transition hover:bg-black/70 lg:grid"
             >
               ‹
             </button>
@@ -544,22 +573,22 @@ function Spotlight({ spots, signedIn, onOpen }: { spots: Spot[]; signedIn: boole
               type="button"
               aria-label="Next"
               onClick={() => go(at + 1)}
-              className="absolute end-3 top-1/2 hidden size-10 -translate-y-1/2 place-items-center rounded-full border border-white/15 bg-black/50 text-xl text-ink backdrop-blur-xl transition hover:bg-black/70 lg:grid"
+              className="absolute end-4 top-1/2 hidden size-10 -translate-y-1/2 place-items-center rounded-full border border-white/15 bg-black/50 text-xl text-ink backdrop-blur-xl transition hover:bg-black/70 lg:grid"
             >
               ›
             </button>
           </>
         ) : null}
       </div>
-      {spots.length > 1 ? (
+      {n > 1 ? (
         <div className="mt-3 flex justify-center gap-1.5">
           {spots.map((t, i) => (
             <button
               key={t.tmdbId}
               type="button"
               aria-label={`Show ${t.title}`}
-              onClick={() => go(i)}
-              className={cn("h-1.5 rounded-full transition-all", i === at ? "w-5 bg-ink" : "w-1.5 bg-ink/40")}
+              onClick={() => go(n + i)}
+              className={cn("h-1.5 rounded-full transition-all", i === at % n ? "w-5 bg-ink" : "w-1.5 bg-ink/40")}
             />
           ))}
         </div>
@@ -576,10 +605,16 @@ const sharp = (url: string | null) => url?.replace(/\/w\d+\//, "/w1280/") ?? nul
  * shape. On a phone the words sit under it; on a computer over its lower
  * left, and the slide is only as wide as keeps the picture whole on screen.
  */
-function SpotSlide({ spot, rank, signedIn, onOpen }: { spot: Spot; rank: number; signedIn: boolean; onOpen: (r: Ref) => void }) {
+function SpotSlide({ spot, rank, current, signedIn, onOpen }: { spot: Spot; rank: number; current: boolean; signedIn: boolean; onOpen: (r: Ref) => void }) {
   const where = spot.platforms[0];
   return (
-    <article className="relative w-full shrink-0 snap-center overflow-hidden rounded-[24px] bg-surface lg:w-[min(100%,calc(70svh*16/9))] lg:rounded-[28px]">
+    <article
+      className={cn(
+        "relative w-[calc(100%-2.5rem)] shrink-0 snap-center overflow-hidden rounded-[24px] bg-surface transition-opacity duration-500 lg:w-[min(calc(100%-8rem),calc(70svh*16/9))] lg:rounded-[28px]",
+        // The ones either side, waiting their turn, stay in the background.
+        !current && "opacity-40",
+      )}
+    >
       <div className="relative aspect-video">
         <Thumb src={sharp(spot.backdrop)} className="absolute inset-0 size-full" />
         {/* Into the card below on a phone; under the words on a computer. */}
