@@ -96,10 +96,15 @@ struct CornerGlow: View {
             ZStack {
                 if part != .rim {
                     Color.black
+                }
+                // The soft glow inside — not on an iPad, where iPadOS 27's
+                // sidebar is see-through and turned green over it.
+                if part == .all {
                     // The glow inside, set in from the corner so there is a gap
                     // between it and the edge.
                     RadialGradient(colors: [Theme.green.opacity(0.15), Theme.green.opacity(0.05), .clear],
-                                   center: UnitPoint(x: 0.3, y: 0.2), startRadius: 0, endRadius: max(w, h) * 0.38)
+                                   center: UnitPoint(x: 0.3, y: 0.2), startRadius: 0,
+                                   endRadius: UIDevice.current.userInterfaceIdiom == .pad ? 320 : max(w, h) * 0.38)
                         .mask(RadialGradient(colors: [.clear, .clear, .white], center: .topLeading,
                                              startRadius: 0, endRadius: 240))
                 }
@@ -117,9 +122,14 @@ struct CornerGlow: View {
     @ViewBuilder
     private func rimLight(w: CGFloat, h: CGFloat, stops: [Gradient.Stop]) -> some View {
                 ZStack {
-                    // Bloom: the light the rim throws into the glass.
-                    rim(inset: 0, width: 26, color: Theme.green.opacity(0.45)).blur(radius: 22)
-                    rim(inset: 0, width: 10, color: Theme.green.opacity(0.9)).blur(radius: 6)
+                    // Bloom: the light the rim throws into the glass. Not over
+                    // an iPad's sidebar, which it turned green.
+                    if part != .rim {
+                        rim(inset: 0, width: 26, color: Theme.green.opacity(0.45)).blur(radius: 22)
+                        rim(inset: 0, width: 10, color: Theme.green.opacity(0.9)).blur(radius: 6)
+                    } else {
+                        rim(inset: 0, width: 4, color: Theme.green.opacity(0.9)).blur(radius: 2)
+                    }
                     // The split: lime outside, the white-mint core, teal inside.
                     rim(inset: 0, width: 1.5, color: lime.opacity(0.55)).blur(radius: 0.6)
                     rim(inset: 1.5, width: 1.6, color: Color(hex: 0xECFDF5)).blur(radius: 0.5)
@@ -134,13 +144,13 @@ struct CornerGlow: View {
                     .mask(RadialGradient(colors: [.white, .white.opacity(0.6), .clear], center: UnitPoint(x: 26 / w, y: 26 / h), startRadius: 0, endRadius: 120))
     }
 
-    /// How far along the edges the light reaches. On a phone, a share of the
-    /// screen; on an iPad a share of its tall screen ran the line half way
-    /// down the side, so there it is a fixed reach from the corner.
+    /// How far along the edges the light reaches: a share of the screen, a
+    /// little shorter on an iPad, where the phone's share ran the line most of
+    /// the way down the side.
     @ViewBuilder
     private func fade(_ stops: [Gradient.Stop]) -> some View {
         if UIDevice.current.userInterfaceIdiom == .pad {
-            RadialGradient(stops: stops, center: .topLeading, startRadius: 0, endRadius: 620)
+            EllipticalGradient(stops: stops, center: .topLeading, startRadiusFraction: 0, endRadiusFraction: 0.8)
         } else {
             EllipticalGradient(stops: stops, center: .topLeading, startRadiusFraction: 0, endRadiusFraction: 1)
         }
