@@ -125,16 +125,21 @@ export function Home({
        mean the viewport. */
     <div className="relative mx-[calc(50%-50vw)] overflow-x-clip">
       <div aria-hidden className="fixed inset-0 -z-10 bg-black" />
-      {/* Green light caught in the screen's glass: a fine bright line at the
-          edge and light that melts inward from it — heaviest at the top
-          corner, dying away along both edges — with a soft glow beyond. */}
+      {/* Green light caught in the screen's glass, like a prism at its edge:
+          the rim lit hardest at the top corner and split — lime, a white-mint
+          core, teal — dying away along both edges, a white highlight where
+          the glass curves, and a soft glow inside; it breathes, slowly. */}
       <div
         aria-hidden
-        className="pointer-events-none fixed inset-0 -z-10 [background:radial-gradient(circle_at_26%_18%,rgb(0_208_132/0.18),rgb(0_208_132/0.06)_35%,transparent_55%)]"
+        className="pointer-events-none fixed inset-0 -z-10 motion-safe:animate-[mox-breathe_5s_ease-in-out_infinite] [background:radial-gradient(circle_at_30%_20%,rgb(0_208_132/0.15),rgb(0_208_132/0.05)_30%,transparent_45%)]"
       />
       <div
         aria-hidden
-        className="pointer-events-none fixed inset-0 -z-10 [box-shadow:inset_0_0_0_2px_rgb(167_243_208/0.75),inset_0_0_18px_6px_rgb(0_208_132/0.85),inset_0_0_60px_20px_rgb(0_208_132/0.35),inset_0_0_120px_40px_rgb(0_208_132/0.12)] [mask-image:radial-gradient(ellipse_85%_60%_at_0_0,#000_0%,rgb(0_0_0/0.85)_12%,rgb(0_0_0/0.35)_35%,transparent_62%)]"
+        className="pointer-events-none fixed inset-0 -z-10 motion-safe:animate-[mox-breathe_5s_ease-in-out_infinite] [box-shadow:inset_0_0_0_1px_rgb(190_242_100/0.55),inset_0_0_0_2.5px_rgb(236_253_245/0.95),inset_0_0_0_4px_rgb(94_234_212/0.6),inset_0_0_10px_4px_rgb(0_208_132/0.8),inset_0_0_36px_12px_rgb(0_208_132/0.38)] [mask-image:radial-gradient(ellipse_80%_70%_at_0_0,#000_0%,rgb(0_0_0/0.85)_12%,rgb(0_0_0/0.35)_35%,transparent_62%)]"
+      />
+      <div
+        aria-hidden
+        className="pointer-events-none fixed inset-0 -z-10 [box-shadow:inset_0_0_0_2px_rgb(255_255_255/0.9)] [mask-image:radial-gradient(circle_120px_at_26px_26px,#000,rgb(0_0_0/0.6)_40%,transparent)]"
       />
       {/* A phone gets the phone app's layout; a computer the iPad's — the
           featured picture across the whole width, wide cards, and only the

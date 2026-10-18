@@ -122,3 +122,8 @@
     flex: none;
   }
 }
+
+/* The home screen's edge light, dimming a little and coming back. */
+@keyframes mox-breathe {
+  50% { opacity: 0.7; }
+}
