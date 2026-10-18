@@ -73,6 +73,11 @@ extension View {
 /// it dies away along both edges, leaves a dark gap, and a soft glow has
 /// spilled into the app beyond it.
 struct CornerGlow: View {
+    /// What to draw. On an iPad the sidebar sits right on the corner the
+    /// light comes from, so there the rim is laid over everything, like light
+    /// in the screen's own glass, and only the soft glow stays behind.
+    enum Part { case all, back, rim }
+    var part: Part = .all
     /// Breathing: the light dims a little and comes back, slowly.
     @State private var dim = false
     /// The screen's own corner, near enough on every current iPhone and iPad.
@@ -89,13 +94,28 @@ struct CornerGlow: View {
             let stops: [Gradient.Stop] = [.init(color: .white, location: 0), .init(color: .white.opacity(0.85), location: 0.12),
                                           .init(color: .white.opacity(0.35), location: 0.35), .init(color: .clear, location: 0.62)]
             ZStack {
-                Color.black
-                // The glow inside, set in from the corner so there is a gap
-                // between it and the edge.
-                RadialGradient(colors: [Theme.green.opacity(0.15), Theme.green.opacity(0.05), .clear],
-                               center: UnitPoint(x: 0.3, y: 0.2), startRadius: 0, endRadius: max(w, h) * 0.38)
-                    .mask(RadialGradient(colors: [.clear, .clear, .white], center: .topLeading,
-                                         startRadius: 0, endRadius: 240))
+                if part != .rim {
+                    Color.black
+                    // The glow inside, set in from the corner so there is a gap
+                    // between it and the edge.
+                    RadialGradient(colors: [Theme.green.opacity(0.15), Theme.green.opacity(0.05), .clear],
+                                   center: UnitPoint(x: 0.3, y: 0.2), startRadius: 0, endRadius: max(w, h) * 0.38)
+                        .mask(RadialGradient(colors: [.clear, .clear, .white], center: .topLeading,
+                                             startRadius: 0, endRadius: 240))
+                }
+                if part != .back { rimLight(w: w, h: h, stops: stops) }
+            }
+            .frame(width: w, height: h)
+            .onAppear {
+                withAnimation(.easeInOut(duration: 2.5).repeatForever(autoreverses: true)) { dim = true }
+            }
+        }
+        .ignoresSafeArea()
+        .allowsHitTesting(false)
+    }
+
+    @ViewBuilder
+    private func rimLight(w: CGFloat, h: CGFloat, stops: [Gradient.Stop]) -> some View {
                 ZStack {
                     // Bloom: the light the rim throws into the glass.
                     rim(inset: 0, width: 26, color: Theme.green.opacity(0.45)).blur(radius: 22)
@@ -112,14 +132,6 @@ struct CornerGlow: View {
                 rim(inset: 0.5, width: 2.5, color: .white)
                     .blur(radius: 0.6)
                     .mask(RadialGradient(colors: [.white, .white.opacity(0.6), .clear], center: UnitPoint(x: 26 / w, y: 26 / h), startRadius: 0, endRadius: 120))
-            }
-            .frame(width: w, height: h)
-            .onAppear {
-                withAnimation(.easeInOut(duration: 2.5).repeatForever(autoreverses: true)) { dim = true }
-            }
-        }
-        .ignoresSafeArea()
-        .allowsHitTesting(false)
     }
 
     /// How far along the edges the light reaches. On a phone, a share of the

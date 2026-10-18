@@ -297,7 +297,7 @@ struct IPadHome: View {
             .padding(.bottom, 60)
         }
         .scrollIndicators(.hidden)
-        .background { CornerGlow() }
+        .background { CornerGlow(part: .back) }
         // Your photo up in the tab bar's row, at the screen's top corner —
         // not down over the pictures.
         .overlay(alignment: .topTrailing) {
