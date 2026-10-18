@@ -88,8 +88,10 @@ nonisolated struct HomePayload: Codable, Sendable {
     let fromPeople: [PersonNews]?
     /// New on your services this month, most watched first. Optional: older servers leave it out.
     let fresh: [Card]?
-    /// Coming in the next three months, soonest first.
+    /// Coming in the next three months, the most anticipated first.
     let coming: [Card]?
+    /// What your ratings recommend, with why.
+    let picks: [Card]?
 }
 
 nonisolated struct TodayPayload: Codable, Sendable {

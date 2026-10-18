@@ -326,6 +326,10 @@ struct HomeView: View {
             if let fresh = payload.fresh, !fresh.isEmpty {
                 PosterRail(title: "Just landed", detail: "on your services", cards: fresh) { router.title = $0 }
             }
+            // The point of MOX: what to watch, from what you have rated.
+            if let picks = payload.picks, !picks.isEmpty {
+                PosterRail(title: "Picked for you", detail: "from your ratings", cards: picks) { router.title = $0 }
+            }
             if payload.user == nil || !payload.forYou.isEmpty {
                 forYou(payload)
             }
@@ -334,7 +338,7 @@ struct HomeView: View {
                 PosterRail(title: "Everyone's watching", detail: "this week", cards: rest) { router.title = $0 }
             }
             if let coming = payload.coming, !coming.isEmpty {
-                PosterRail(title: "Coming soon", cards: coming) { router.title = $0 }
+                PosterRail(title: "Coming soon", detail: "most anticipated", cards: coming) { router.title = $0 }
             }
             if let news = payload.fromPeople, !news.isEmpty {
                 PosterRail(title: "From people you follow", cards: news.map(\.title),

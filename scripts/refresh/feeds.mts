@@ -18,6 +18,7 @@ import type { Feed, MediaKind } from "../../src/db/schema";
 import { FEEDS } from "../../src/db/schema";
 import { LIMIT, selectFeed, windowFor, type Candidate } from "../../src/lib/feeds";
 import { tmdb } from "../../src/lib/tmdb";
+import { rememberTitles } from "../../src/lib/catalog";
 
 /**
  * TMDB pages are 20 items; this is a ceiling, not a target.
@@ -31,6 +32,13 @@ const MAX_PAGES = 10;
 
 type Listed = {
   id: number;
+  title?: string;
+  name?: string;
+  poster_path?: string | null;
+  backdrop_path?: string | null;
+  overview?: string;
+  vote_average?: number;
+  vote_count?: number;
   media_type?: string;
   release_date?: string;
   first_air_date?: string;
@@ -55,6 +63,9 @@ async function pages(
   const out: Candidate[] = [];
   for (let page = 1; page <= MAX_PAGES; page++) {
     const body = await tmdb<Page>(path, { ...params, page });
+    // Kept in the catalogue too: its popularity is how home ranks what is
+    // coming by anticipation, and its picture and blurb fill the cards.
+    rememberTitles(body.results.map((r) => ({ item: r, kind })));
     out.push(...body.results.map((r) => toCandidate(r, kind)));
     if (page >= body.total_pages) break;
   }
@@ -64,6 +75,11 @@ async function pages(
 async function gather(feed: Feed, today: string, services: ReturnType<typeof catalogue>) {
   if (feed === "trending") {
     const body = await tmdb<Page>("/trending/all/week", {});
+    rememberTitles(
+      body.results
+        .filter((r) => r.media_type === "movie" || r.media_type === "tv")
+        .map((r) => ({ item: r, kind: r.media_type as MediaKind })),
+    );
     return body.results
       .filter((r) => r.media_type === "movie" || r.media_type === "tv")
       .map((r) => toCandidate(r, r.media_type as MediaKind));

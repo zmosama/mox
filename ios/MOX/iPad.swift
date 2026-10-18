@@ -232,6 +232,9 @@ struct IPadHome: View {
                     if let fresh = payload.fresh, !fresh.isEmpty {
                         WideShelf(title: "Just landed", detail: "on your services", cards: fresh) { router.title = $0 }
                     }
+                    if let picks = payload.picks, !picks.isEmpty {
+                        WideShelf(title: "Picked for you", detail: "from your ratings", cards: picks) { router.title = $0 }
+                    }
                     if payload.user == nil {
                         SignInPrompt(text: "Sign in to see the new episodes of shows you follow.") { router.settings = true }
                             .padding(.horizontal, IPad.margin - 20)
@@ -249,7 +252,7 @@ struct IPadHome: View {
                         WideShelf(title: "Everyone's watching", detail: "this week", cards: payload.trending) { router.title = $0 }
                     }
                     if let coming = payload.coming, !coming.isEmpty {
-                        WideShelf(title: "Coming soon", detail: "next three months", cards: coming) { router.title = $0 }
+                        WideShelf(title: "Coming soon", detail: "most anticipated", cards: coming) { router.title = $0 }
                     }
                     AiringSection(episodes: payload.calendar, today: payload.today, signedIn: payload.user != nil)
                         .padding(.horizontal, IPad.margin - 20)

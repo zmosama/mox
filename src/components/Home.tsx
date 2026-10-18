@@ -16,7 +16,7 @@ import { cn } from "@/lib/cn";
 import { dayLabel } from "@/lib/dates";
 import type { CalendarEpisode, FreshEpisode } from "@/lib/queries";
 import type { PersonNews } from "@/lib/people";
-import type { MediaKind } from "@/db/schema";
+import type { MediaKind, Verdict } from "@/db/schema";
 
 type Ref = { tmdbId: number; kind: MediaKind };
 type SearchPerson = { id: number; name: string; profile: string | null; department: string | null; knownFor: string[] };
@@ -40,6 +40,7 @@ export function Home({
   trending,
   fresh,
   coming,
+  picks,
   fromPeople,
   needsServices,
 }: {
@@ -51,6 +52,8 @@ export function Home({
   /** New on your services this month, most watched first. */
   fresh: CardTitle[];
   coming: CardTitle[];
+  /** What your ratings recommend, with why. */
+  picks: CardTitle[];
   /** New work from the actors and directors you follow. */
   fromPeople: PersonNews[];
   needsServices: boolean;
@@ -122,17 +125,16 @@ export function Home({
        mean the viewport. */
     <div className="relative mx-[calc(50%-50vw)] overflow-x-clip">
       <div aria-hidden className="fixed inset-0 -z-10 bg-black" />
-      {/* Green light caught in the screen's glass, like a prism at its edge:
-          the rim lit hardest at the top corner and split like a prism — lime,
-          a white-mint core, teal — dying away along both edges, a dark gap,
-          then a soft glow that has spilled into the page. */}
+      {/* Green light caught in the screen's glass: a fine bright line at the
+          edge and light that melts inward from it — heaviest at the top
+          corner, dying away along both edges — with a soft glow beyond. */}
       <div
         aria-hidden
-        className="pointer-events-none fixed inset-0 -z-10 [box-shadow:inset_0_0_0_1px_rgb(190_242_100/0.55),inset_0_0_0_2.5px_rgb(236_253_245/0.95),inset_0_0_0_4px_rgb(94_234_212/0.6),inset_0_0_10px_4px_rgb(0_208_132/0.8),inset_0_0_36px_12px_rgb(0_208_132/0.38)] [mask-image:radial-gradient(ellipse_80%_70%_at_0_0,#000_0%,rgb(0_0_0/0.85)_12%,rgb(0_0_0/0.35)_35%,transparent_62%)]"
+        className="pointer-events-none fixed inset-0 -z-10 [background:radial-gradient(circle_at_26%_18%,rgb(0_208_132/0.18),rgb(0_208_132/0.06)_35%,transparent_55%)]"
       />
       <div
         aria-hidden
-        className="pointer-events-none fixed start-[6vmax] top-[4vmax] -z-10 size-[56vmax] rounded-full blur-3xl [background:radial-gradient(closest-side,rgb(0_208_132/0.16),rgb(0_208_132/0.05)_55%,transparent)]"
+        className="pointer-events-none fixed inset-0 -z-10 [box-shadow:inset_0_0_0_2px_rgb(167_243_208/0.75),inset_0_0_18px_6px_rgb(0_208_132/0.85),inset_0_0_60px_20px_rgb(0_208_132/0.35),inset_0_0_120px_40px_rgb(0_208_132/0.12)] [mask-image:radial-gradient(ellipse_85%_60%_at_0_0,#000_0%,rgb(0_0_0/0.85)_12%,rgb(0_0_0/0.35)_35%,transparent_62%)]"
       />
       {/* A phone gets the phone app's layout; a computer the iPad's — the
           featured picture across the whole width, wide cards, and only the
@@ -142,10 +144,10 @@ export function Home({
             the picture steps aside and the bar rises to the top. Only the
             picture comes and goes, so the field never loses focus. */}
         {!asking && spots.length ? (
-          <div className="relative z-10 pt-4 sm:pt-6 lg:pt-0">
+          <div className="relative z-10 pt-4 sm:pt-6">
             <Spotlight spots={spots} signedIn={user !== null} onOpen={setOpen} />
             {/* Your photo in the top corner, over the picture, as on the iPad. */}
-            <div className="absolute end-3 top-7 z-20 sm:top-9 lg:end-0 lg:top-4">
+            <div className="absolute end-3 top-7 z-20 sm:end-4 sm:top-10">
               <Avatar user={user} />
             </div>
           </div>
@@ -203,6 +205,7 @@ export function Home({
               trending={restTrending}
               fresh={fresh}
               coming={coming}
+              picks={picks}
               fromPeople={fromPeople}
               onOpen={setOpen}
             />
@@ -368,6 +371,7 @@ function Board({
   trending,
   fresh,
   coming,
+  picks,
   fromPeople,
   onOpen,
 }: {
@@ -379,6 +383,7 @@ function Board({
   trending: Spot[];
   fresh: CardTitle[];
   coming: CardTitle[];
+  picks: CardTitle[];
   fromPeople: PersonNews[];
   onOpen: (r: Ref) => void;
 }) {
@@ -402,6 +407,11 @@ function Board({
         <Shelf title="Just landed" detail="on your services" more="/new" cards={fresh} signedIn={signedIn} onOpen={onOpen} />
       ) : null}
 
+      {/* The point of MOX: what to watch, from what you have rated. */}
+      {picks.length ? (
+        <Shelf title="Picked for you" detail="from your ratings" cards={picks} signedIn={signedIn} onOpen={onOpen} />
+      ) : null}
+
       {forYou.length || !signedIn ? <ForYou items={forYou} today={today} signedIn={signedIn} onOpen={onOpen} /> : null}
 
       {trending.length ? (
@@ -409,7 +419,7 @@ function Board({
       ) : null}
 
       {coming.length ? (
-        <Shelf title="Coming soon" detail="next three months" more="/new" cards={coming} signedIn={signedIn} onOpen={onOpen} />
+        <Shelf title="Coming soon" detail="most anticipated" more="/new" cards={coming} signedIn={signedIn} onOpen={onOpen} />
       ) : null}
 
       {fromPeople.length ? (
@@ -454,6 +464,27 @@ function Spotlight({ spots, signedIn, onOpen }: { spots: Spot[]; signedIn: boole
     el.scrollTo({ left: n * el.clientWidth * (document.dir === "rtl" ? -1 : 1), behavior: "smooth" });
   }, [spots.length]);
 
+  // A resized window keeps its old scroll offset, which left the picture
+  // stopped halfway between two slides: put it back on the current one.
+  // Only when the width really changes — not on every slide, which would
+  // snap a swipe in the middle of it.
+  const atRef = useRef(at);
+  useEffect(() => {
+    atRef.current = at;
+  }, [at]);
+  useEffect(() => {
+    const el = strip.current;
+    if (!el) return;
+    let width = el.clientWidth;
+    const watch = new ResizeObserver(() => {
+      if (el.clientWidth === width) return;
+      width = el.clientWidth;
+      el.scrollTo({ left: atRef.current * width * (document.dir === "rtl" ? -1 : 1), behavior: "instant" });
+    });
+    watch.observe(el);
+    return () => watch.disconnect();
+  }, []);
+
   useEffect(() => {
     if (held || spots.length < 2) return;
     const timer = setTimeout(() => go(at + 1), 7000);
@@ -464,7 +495,7 @@ function Spotlight({ spots, signedIn, onOpen }: { spots: Spot[]; signedIn: boole
     <section
       aria-roledescription="carousel"
       aria-label="Big this week"
-      className="relative lg:mx-[-2.5rem]"
+      className="relative"
       onMouseEnter={() => setHeld(true)}
       onMouseLeave={() => setHeld(false)}
       onTouchStart={() => setHeld(true)}
@@ -475,7 +506,7 @@ function Spotlight({ spots, signedIn, onOpen }: { spots: Spot[]; signedIn: boole
           const el = e.currentTarget;
           setAt(Math.round(Math.abs(el.scrollLeft) / el.clientWidth));
         }}
-        className="flex snap-x snap-mandatory overflow-x-auto rounded-[24px] [scrollbar-width:none] lg:rounded-none [&::-webkit-scrollbar]:hidden"
+        className="flex snap-x snap-mandatory overflow-x-auto rounded-[24px] [scrollbar-width:none] lg:rounded-[28px] [&::-webkit-scrollbar]:hidden"
       >
         {spots.map((t, i) => (
           <SpotSlide key={`${t.kind}-${t.tmdbId}`} spot={t} rank={i + 1} signedIn={signedIn} onOpen={onOpen} />
@@ -618,17 +649,41 @@ export function SaveButton({ item, large }: { item: CardTitle; large?: boolean }
   );
 }
 
-/** The iPad's card: a wide picture, its name and where it streams under it. */
-function WideCard({ item, signedIn, onOpen }: { item: CardTitle; signedIn: boolean; onOpen: (r: Ref) => void }) {
+/** The iPad's card: a wide picture, its name and where it streams under it.
+ * Hovered on a computer, it turns over to what it is about and one-tap
+ * answers — love, like, not for me, save — and Play, without opening it. */
+function WideCard({ item, signedIn, onOpen }: { item: CardTitle & { overview?: string | null }; signedIn: boolean; onOpen: (r: Ref) => void }) {
+  const [verdict, setVerdict] = useState<Verdict | null>(item.verdict);
   const tag = item.releaseLabel ?? item.episodeLabel;
   const caption = item.reason ?? item.platforms[0]?.name ?? (item.year ? String(item.year) : "");
+  const where = item.platforms[0];
+
+  const answer = async (v: Verdict) => {
+    const next = verdict === v ? null : v;
+    const was = verdict;
+    setVerdict(next);
+    try {
+      const res = await fetch("/api/verdict", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ tmdbId: item.tmdbId, kind: item.kind, verdict: next }),
+      });
+      if (!res.ok) setVerdict(was);
+    } catch {
+      setVerdict(was);
+    }
+  };
+
   return (
     <div className="group relative w-[300px] shrink-0 snap-start xl:w-[340px]">
-      <button
-        type="button"
-        onClick={() => onOpen(item)}
-        aria-label={`Open ${item.title}`}
-        className="relative block aspect-video w-full overflow-hidden rounded-[14px] bg-surface focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-love"
+      <div
+        className={cn(
+          "relative aspect-video w-full overflow-hidden rounded-[14px] bg-surface",
+          verdict && verdict !== "watchlist" && "ring-2 ring-inset",
+          verdict === "love" && "ring-love",
+          verdict === "like" && "ring-like",
+          verdict === "dislike" && "opacity-50 ring-against",
+        )}
       >
         <Thumb src={item.backdrop ?? item.poster} className="absolute inset-0 size-full transition-transform duration-300 group-hover:scale-[1.04]" />
         {tag ? (
@@ -636,15 +691,92 @@ function WideCard({ item, signedIn, onOpen }: { item: CardTitle; signedIn: boole
             {tag}
           </span>
         ) : null}
-      </button>
-      {signedIn && (!item.verdict || item.verdict === "watchlist") ? (
-        <div className="absolute end-2.5 top-2.5 z-10 opacity-0 transition group-hover:opacity-100 has-[[aria-pressed=true]]:opacity-100">
-          <SaveButton item={item} />
+        <button type="button" onClick={() => onOpen(item)} aria-label={`Open ${item.title}`} className="absolute inset-0" />
+        {/* Turned over on hover, after a beat so a passing pointer doesn't flicker it. */}
+        <div className="pointer-events-none absolute inset-0 flex flex-col justify-end bg-gradient-to-t from-black via-black/75 to-black/20 p-3 opacity-0 transition-opacity delay-0 duration-200 group-hover:pointer-events-auto group-hover:opacity-100 group-hover:delay-300 group-focus-within:pointer-events-auto group-focus-within:opacity-100">
+          {item.overview ? (
+            <button type="button" onClick={() => onOpen(item)} className="mb-2 line-clamp-3 text-start text-[12.5px] leading-snug text-white/85">
+              {item.overview}
+            </button>
+          ) : null}
+          <div className="flex items-center gap-1.5">
+            {where?.url ? (
+              <a
+                href={where.url}
+                target="_blank"
+                rel="noreferrer"
+                className="flex h-8 items-center gap-1.5 rounded-full bg-ink px-3 text-[12.5px] font-semibold text-bg transition hover:opacity-90"
+              >
+                <svg viewBox="0 0 24 24" className="size-3.5 fill-current" aria-hidden>
+                  <path d="M7 4v16l13-8z" />
+                </svg>
+                Play
+              </a>
+            ) : null}
+            {signedIn ? (
+              <>
+                <Quick label="Love it" on={verdict === "love"} tone="text-love" onClick={() => answer("love")}>
+                  <path d="M12 21s-7.5-4.6-9.6-9.2C.9 8.4 3 5 6.4 5c2 0 3.6 1.1 4.6 2.6l1 1.4 1-1.4C14 6.1 15.6 5 17.6 5 21 5 23.1 8.4 21.6 11.8 19.5 16.4 12 21 12 21z" />
+                </Quick>
+                <Quick label="Like it" on={verdict === "like"} tone="text-like" onClick={() => answer("like")}>
+                  <path d="M2 10h4v11H2zm6 11h9.3a2 2 0 0 0 2-1.6l1.6-7.4A2 2 0 0 0 19 9.6h-5.4l.8-4.2a1.6 1.6 0 0 0-2.8-1.3L8 9z" />
+                </Quick>
+                <Quick label="Not for me" on={verdict === "dislike"} tone="text-against" onClick={() => answer("dislike")}>
+                  <path d="M22 14h-4V3h4zM16 3H6.7a2 2 0 0 0-2 1.6L3.1 12a2 2 0 0 0 1.9 2.4h5.4l-.8 4.2a1.6 1.6 0 0 0 2.8 1.3L16 15z" />
+                </Quick>
+                <Quick label={verdict === "watchlist" ? "Saved" : "Save for later"} on={verdict === "watchlist"} tone="text-want" onClick={() => answer("watchlist")}>
+                  {verdict === "watchlist" ? (
+                    <path d="M6 3h12a1 1 0 0 1 1 1v17l-7-4.2L5 21V4a1 1 0 0 1 1-1z" />
+                  ) : (
+                    <path d="M11 5h2v6h6v2h-6v6h-2v-6H5v-2h6z" />
+                  )}
+                </Quick>
+              </>
+            ) : null}
+            <Quick label="Details" onClick={() => onOpen(item)} className="ms-auto">
+              <path d="M11 10h2v8h-2zm0-4h2v2h-2z" />
+            </Quick>
+          </div>
         </div>
-      ) : null}
+      </div>
       <div className="mt-2 truncate text-[15px] font-semibold">{item.title}</div>
       <div className={cn("numeric truncate text-[12.5px]", item.reason ? "text-love-soft" : "text-ink-dim")}>{caption || "\u00a0"}</div>
     </div>
+  );
+}
+
+function Quick({
+  label,
+  on,
+  tone,
+  onClick,
+  className,
+  children,
+}: {
+  label: string;
+  on?: boolean;
+  tone?: string;
+  onClick: () => void;
+  className?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={label}
+      aria-pressed={on}
+      title={label}
+      className={cn(
+        "grid size-8 place-items-center rounded-full border border-white/15 backdrop-blur-xl transition",
+        on ? cn("bg-white/20", tone) : "bg-white/10 text-ink hover:bg-white/25",
+        className,
+      )}
+    >
+      <svg viewBox="0 0 24 24" className="size-4 fill-current" aria-hidden>
+        {children}
+      </svg>
+    </button>
   );
 }
 
@@ -697,10 +829,14 @@ function Shelf({
           ))}
         </Rail>
       </div>
-      <div className="strip -mx-10 hidden snap-x scroll-px-10 gap-5 px-10 pb-1 lg:flex">
-        {cards.map((c) => (
-          <WideCard key={`${c.kind}-${c.tmdbId}`} item={c} signedIn={Boolean(signedIn)} onOpen={onOpen} />
-        ))}
+      {/* The wrapper does the hiding: .strip sets its own display, which
+          beat `hidden` and showed both rows on a phone. */}
+      <div className="hidden lg:block">
+        <div className="strip -mx-10 snap-x scroll-px-10 gap-5 px-10 pb-1">
+          {cards.map((c) => (
+            <WideCard key={`${c.kind}-${c.tmdbId}`} item={c} signedIn={Boolean(signedIn)} onOpen={onOpen} />
+          ))}
+        </div>
       </div>
     </section>
   );

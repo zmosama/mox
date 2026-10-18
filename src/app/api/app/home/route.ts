@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { withBackdrops } from "@/lib/catalog";
 import { avatarUrl, currentUser } from "@/lib/auth";
 import { todayISO } from "@/lib/dates";
-import { calendar, comingSoon, feed, forYou, newOnServices, withReasons } from "@/lib/queries";
+import { calendar, comingSoon, feed, forYou, newOnServices, picksFor, withReasons, mineFirst } from "@/lib/queries";
 import { newFromPeople, within } from "@/lib/people";
 import { agedEpisodes, agedTitles, ageFilter } from "@/lib/age-filter";
 
@@ -27,11 +27,13 @@ export async function GET() {
         : null,
       forYou: id ? withBackdrops(await aged(forYou(id, today))) : [],
       calendar: await agedEpisodes(aged, calendar(id, 14)),
-      trending: withBackdrops(await aged(withReasons(id, feed("trending", id, 24)))),
+      trending: withBackdrops(await aged(withReasons(id, mineFirst(feed("trending", id, 40, false))))),
       /* New on your services this month, most watched first, and what is
          coming — optional to the app, which draws them when present. */
       fresh: withBackdrops(await aged(newOnServices(id, today))),
       coming: withBackdrops(await aged(comingSoon(id, today))),
+      /* What your ratings recommend, as last night's job chose it. */
+      picks: id ? withBackdrops(await aged(picksFor(id).slice(0, 20))) : [],
       fromPeople: id ? await agedTitles(aged, await within(2500, newFromPeople(id, today), [])) : [],
       /* The store shelf is gone — rent and buy now show on the title itself.
          Kept as an empty list because the shipped iPhone app decodes it as

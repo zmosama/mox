@@ -410,6 +410,11 @@ export function newTimeline(userId: number | null, today = todayISO()): ReleaseI
   return [...released, ...extra];
 }
 
+/** On your services first, then the rest, each in its own order. */
+export function mineFirst<T extends { platforms: unknown[] }>(items: T[]): T[] {
+  return [...items.filter((i) => i.platforms.length), ...items.filter((i) => !i.platforms.length)];
+}
+
 /** How much TMDB says people are looking at each title right now, by key. */
 function popularityOf(rows: { tmdbId: number; kind: MediaKind }[]): Map<string, number> {
   const ids = [...new Set(rows.map((r) => r.tmdbId))];
@@ -444,9 +449,10 @@ export function newOnServices(userId: number | null, today = todayISO(), limit =
 }
 
 /**
- * Coming in the next three months, soonest first — on your services or not,
- * since nothing has landed anywhere yet. Titles nobody is looking at are left
- * out: the raw window is mostly films with no poster and no votes.
+ * Coming in the next three months, the most anticipated first — what people
+ * are already looking at on TMDB — on your services or not, since nothing has
+ * landed anywhere yet. Titles nobody is looking at are left out: the raw
+ * window is mostly films with no poster and no votes.
  */
 export function comingSoon(userId: number | null, today = todayISO(), limit = 24): CardTitle[] {
   const rows = db
@@ -476,9 +482,15 @@ export function comingSoon(userId: number | null, today = todayISO(), limit = 24
       platforms: (avail.get(key(r.tmdbId, r.kind)) ?? []).map((p) => toService(p.name, lookup, t.title, p.deepLink)),
       releaseLabel: soonLabel(t.releaseDate, today),
     });
-    if (out.length >= limit) break;
   }
-  return out;
+  // By anticipation; the feed's own order (soonest first) breaks ties and
+  // places titles the catalogue has no popularity for yet.
+  const heat = popularityOf(out);
+  return out
+    .map((c, i) => ({ c, i, heat: heat.get(key(c.tmdbId, c.kind)) ?? 0 }))
+    .sort((a, b) => b.heat - a.heat || a.i - b.i)
+    .slice(0, limit)
+    .map(({ c }) => c);
 }
 
 /** "Tomorrow", "Fri 24", "12 Nov". */
@@ -535,7 +547,7 @@ export function storeOffer(
 }
 
 
-export function feed(name: Feed, userId: number | null, limit = 60): CardTitle[] {
+export function feed(name: Feed, userId: number | null, limit = 60, onlyMine = true): CardTitle[] {
   const rows = db
     .select({
       tmdbId: schema.feedItems.tmdbId,
@@ -563,7 +575,7 @@ export function feed(name: Feed, userId: number | null, limit = 60): CardTitle[]
     const platforms = (avail.get(key(r.tmdbId, r.kind)) ?? []).map((p) =>
       toService(p.name, lookup, t.title, p.deepLink),
     );
-    if (userId !== null && platforms.length === 0) continue;
+    if (onlyMine && userId !== null && platforms.length === 0) continue;
 
     out.push({
       tmdbId: t.tmdbId,
