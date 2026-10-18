@@ -229,6 +229,9 @@ struct IPadHome: View {
                     if !featured.isEmpty {
                         FeaturedCarousel(cards: featured) { router.title = $0 }
                     }
+                    if let fresh = payload.fresh, !fresh.isEmpty {
+                        WideShelf(title: "Just landed", detail: "on your services", cards: fresh) { router.title = $0 }
+                    }
                     if payload.user == nil {
                         SignInPrompt(text: "Sign in to see the new episodes of shows you follow.") { router.settings = true }
                             .padding(.horizontal, IPad.margin - 20)
@@ -243,7 +246,10 @@ struct IPadHome: View {
                                   caption: { card in news.first { $0.title.id == card.id }?.person.name }) { router.title = $0 }
                     }
                     if !payload.trending.isEmpty {
-                        WideShelf(title: "Trending", detail: "on your services", cards: payload.trending) { router.title = $0 }
+                        WideShelf(title: "Everyone's watching", detail: "this week", cards: payload.trending) { router.title = $0 }
+                    }
+                    if let coming = payload.coming, !coming.isEmpty {
+                        WideShelf(title: "Coming soon", detail: "next three months", cards: coming) { router.title = $0 }
                     }
                     AiringSection(episodes: payload.calendar, today: payload.today, signedIn: payload.user != nil)
                         .padding(.horizontal, IPad.margin - 20)
@@ -263,7 +269,7 @@ struct IPadHome: View {
         }
         .scrollIndicators(.hidden)
         .ignoresSafeArea(edges: .top)
-        .background(Theme.ink)
+        .background { CornerGlow() }
         .overlay(alignment: .topTrailing) { AccountButton().padding(.trailing, 24).padding(.top, 8) }
         .refreshable { await load() }
         .task(id: api.revision) { await load() }

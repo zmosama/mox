@@ -1,6 +1,6 @@
 import { Home } from "@/components/Home";
 import { avatarUrl, currentUser } from "@/lib/auth";
-import { APP_TIME_ZONE, todayISO } from "@/lib/dates";
+import { todayISO } from "@/lib/dates";
 import { calendar, comingSoon, feed, forYou, newOnServices, withReasons } from "@/lib/queries";
 import { withBackdrops } from "@/lib/catalog";
 import { newFromPeople, within } from "@/lib/people";
@@ -15,21 +15,17 @@ export default async function HomePage() {
   const id = user?.id ?? null;
   const today = todayISO();
   const aged = ageFilter(id);
-  const hour = Number(
-    new Intl.DateTimeFormat("en-GB", { hour: "numeric", hourCycle: "h23", timeZone: APP_TIME_ZONE }).format(new Date()),
-  );
 
   return (
     <Home
       today={today}
-      hour={hour}
       user={user ? { name: user.displayName ?? user.username, avatar: avatarUrl(user) } : null}
       forYou={id ? await aged(forYou(id, today)) : []}
       episodes={await agedEpisodes(aged, calendar(id, 14))}
       trending={withBackdrops(await aged(withReasons(id, feed("trending", id, 24))))}
-      fresh={await aged(newOnServices(id, today))}
-      coming={await aged(comingSoon(id, today))}
-      fromPeople={id ? await agedTitles(aged, await within(2500, newFromPeople(id, today), [])) : []}
+      fresh={withBackdrops(await aged(newOnServices(id, today)))}
+      coming={withBackdrops(await aged(comingSoon(id, today)))}
+      fromPeople={id ? (await agedTitles(aged, await within(2500, newFromPeople(id, today), []))).map((n) => ({ ...n, title: withBackdrops([n.title])[0] })) : []}
       needsServices={Boolean(user) && !hasPickedServices(user!.id)}
     />
   );

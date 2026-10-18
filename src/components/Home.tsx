@@ -3,9 +3,6 @@
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Ambient } from "./Ambient";
-import { useEngine } from "./engine";
-import { LivingRing } from "./LivingRing";
 import { AskBar, MOODS, MoodChips, type Mood } from "./AskBar";
 import { PeopleRow, type PersonChipData } from "./People";
 import { FriendsLine } from "./Friends";
@@ -37,7 +34,6 @@ type Spot = CardTitle & { backdrop: string | null; overview: string | null };
  */
 export function Home({
   today,
-  hour,
   user,
   forYou,
   episodes,
@@ -48,8 +44,6 @@ export function Home({
   needsServices,
 }: {
   today: string;
-  /** The hour in Cairo, from the server, so the greeting never flickers. */
-  hour: number;
   user: { name: string; avatar: string | null } | null;
   forYou: FreshEpisode[];
   episodes: CalendarEpisode[];
@@ -68,8 +62,6 @@ export function Home({
   const [searched, setSearched] = useState("");
   const [open, setOpen] = useState<Ref | null>(null);
   const [person, setPerson] = useState<number | null>(null);
-  const ring = useRef<HTMLDivElement>(null);
-  const engine = useEngine();
 
   const q = query.trim();
   const asking = q.length >= 2 || mood !== null;
@@ -118,9 +110,6 @@ export function Home({
   const people = !mood && searched === q ? (search.extra ?? []) : [];
   const looking = asking && results === null;
 
-  const greeting =
-    hour < 5 ? "Good evening" : hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
-
   return (
     /* Full-bleed and clipped at the screen's edges: the ring's light is wider
        than a phone, and left unclipped it made the browser widen the whole
@@ -128,14 +117,29 @@ export function Home({
        mean the viewport. */
     <div className="relative mx-[calc(50%-50vw)] overflow-x-clip">
       <div aria-hidden className="fixed inset-0 -z-10 bg-black" />
-      <Ambient ring={ring} ringSize={44} height="22rem" light={!asking} engine={engine} />
-      <div className="mx-auto max-w-[1180px] px-4 sm:px-6">
+      {/* Green light from the screen's top corner, under everything: the
+          ring's glow, now that the ring itself is only in the dock. */}
+      <div
+        aria-hidden
+        className="pointer-events-none fixed -start-[18vmax] -top-[22vmax] -z-10 size-[64vmax] rounded-full opacity-90 blur-3xl [background:radial-gradient(closest-side,rgb(0_208_132/0.34),rgb(0_208_132/0.12)_50%,transparent)]"
+      />
+      <div
+        aria-hidden
+        className="pointer-events-none fixed -start-[6vmax] -top-[8vmax] -z-10 size-[26vmax] rounded-full blur-2xl [background:radial-gradient(closest-side,rgb(167_243_208/0.22),transparent)]"
+      />
+      {/* A phone gets the phone app's layout; a computer the iPad's — the
+          featured picture across the whole width, wide cards, and only the
+          floating dock to move around. */}
+      <div className="mx-auto max-w-[1180px] px-4 sm:px-6 lg:max-w-none lg:px-10">
         {/* Ask MOX, along the top: there when you know what you want, out of
             the way when you came to see what is new. */}
-        <header className="relative z-10 flex items-center gap-3 pb-4 pt-4 sm:gap-4 sm:pt-6">
-          <div ref={ring} className="shrink-0" title={greeting}>
-            <LivingRing size={44} />
-          </div>
+        <header
+          className={cn(
+            "relative z-30 flex items-center gap-3 pb-4 pt-4 sm:gap-4 sm:pt-6",
+            // Over the featured picture on a computer, as on the iPad.
+            !asking && "lg:absolute lg:inset-x-10 lg:top-0",
+          )}
+        >
           <div className="flex min-w-0 flex-1 justify-center">
             <AskBar
               query={query}
@@ -178,7 +182,7 @@ export function Home({
             onOpenPerson={setPerson}
           />
         ) : (
-          <div className="relative z-10 mt-2">
+          <div className="relative z-10 mt-2 lg:mt-0">
             <Board
               today={today}
               signedIn={user !== null}
@@ -375,6 +379,9 @@ function Board({
 
   return (
     <div className="flex flex-col gap-10">
+
+      {spots.length ? <Spotlight spots={spots} signedIn={signedIn} onOpen={onOpen} /> : null}
+
       {needsServices ? (
         <Link
           href="/admin/services"
@@ -387,8 +394,6 @@ function Board({
           <span aria-hidden className="text-ink-dim">›</span>
         </Link>
       ) : null}
-
-      {spots.length ? <Spotlight spots={spots} signedIn={signedIn} onOpen={onOpen} /> : null}
 
       {fresh.length ? (
         <Shelf title="Just landed" detail="on your services" more="/new" cards={fresh} signedIn={signedIn} onOpen={onOpen} />
@@ -456,7 +461,7 @@ function Spotlight({ spots, signedIn, onOpen }: { spots: Spot[]; signedIn: boole
     <section
       aria-roledescription="carousel"
       aria-label="Big this week"
-      className="relative"
+      className="relative lg:mx-[-2.5rem]"
       onMouseEnter={() => setHeld(true)}
       onMouseLeave={() => setHeld(false)}
       onTouchStart={() => setHeld(true)}
@@ -467,7 +472,7 @@ function Spotlight({ spots, signedIn, onOpen }: { spots: Spot[]; signedIn: boole
           const el = e.currentTarget;
           setAt(Math.round(Math.abs(el.scrollLeft) / el.clientWidth));
         }}
-        className="flex snap-x snap-mandatory overflow-x-auto rounded-[24px] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        className="flex snap-x snap-mandatory overflow-x-auto rounded-[24px] [scrollbar-width:none] lg:rounded-none [&::-webkit-scrollbar]:hidden"
       >
         {spots.map((t, i) => (
           <SpotSlide key={`${t.kind}-${t.tmdbId}`} spot={t} rank={i + 1} signedIn={signedIn} onOpen={onOpen} />
@@ -490,7 +495,7 @@ function Spotlight({ spots, signedIn, onOpen }: { spots: Spot[]; signedIn: boole
             type="button"
             aria-label="Previous"
             onClick={() => go(at - 1)}
-            className="absolute start-3 top-1/2 hidden size-10 -translate-y-1/2 place-items-center rounded-full border border-white/15 bg-black/40 text-xl text-ink backdrop-blur-xl transition hover:bg-black/60 sm:grid"
+            className="absolute start-3 top-1/2 hidden size-10 lg:start-4 -translate-y-1/2 place-items-center rounded-full border border-white/15 bg-black/40 text-xl text-ink backdrop-blur-xl transition hover:bg-black/60 sm:grid"
           >
             ‹
           </button>
@@ -498,7 +503,7 @@ function Spotlight({ spots, signedIn, onOpen }: { spots: Spot[]; signedIn: boole
             type="button"
             aria-label="Next"
             onClick={() => go(at + 1)}
-            className="absolute end-3 top-1/2 hidden size-10 -translate-y-1/2 place-items-center rounded-full border border-white/15 bg-black/40 text-xl text-ink backdrop-blur-xl transition hover:bg-black/60 sm:grid"
+            className="absolute end-3 top-1/2 hidden size-10 lg:end-4 -translate-y-1/2 place-items-center rounded-full border border-white/15 bg-black/40 text-xl text-ink backdrop-blur-xl transition hover:bg-black/60 sm:grid"
           >
             ›
           </button>
@@ -511,15 +516,17 @@ function Spotlight({ spots, signedIn, onOpen }: { spots: Spot[]; signedIn: boole
 function SpotSlide({ spot, rank, signedIn, onOpen }: { spot: Spot; rank: number; signedIn: boolean; onOpen: (r: Ref) => void }) {
   const where = spot.platforms[0];
   return (
-    <article className="relative h-[420px] w-full shrink-0 snap-start overflow-hidden bg-surface sm:h-[460px]">
+    <article className="relative h-[420px] w-full shrink-0 snap-start overflow-hidden bg-surface sm:h-[460px] lg:h-[min(640px,78svh)]">
       <Thumb src={spot.backdrop} className="absolute inset-0 size-full" />
       <div className="absolute inset-0 bg-gradient-to-t from-black via-black/40 to-transparent" />
       <div className="absolute inset-0 bg-gradient-to-r from-black/70 via-transparent to-transparent" />
-      <div className="absolute inset-x-0 bottom-0 max-w-[700px] p-5 pb-10 sm:p-8 sm:px-16 sm:pb-12">
+      {/* Into the page's black at the bottom, so the shelves grow out of it. */}
+      <div className="absolute inset-x-0 bottom-0 hidden h-40 bg-gradient-to-t from-black to-transparent lg:block" />
+      <div className="absolute inset-x-0 bottom-0 max-w-[700px] p-5 pb-10 sm:p-8 sm:px-16 sm:pb-12 lg:px-10 lg:pb-16">
         <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-love-soft">
           #{rank} this week{where ? ` · ${where.name}` : ""}
         </div>
-        <h2 className="mt-1.5 text-[28px] font-bold leading-tight text-white sm:text-[40px]">{spot.title}</h2>
+        <h2 className="mt-1.5 text-[28px] font-bold leading-tight text-white sm:text-[40px] lg:text-[52px]">{spot.title}</h2>
         <div className="numeric mt-1 text-[13px] text-white/75">
           {[spot.year, spot.kind === "tv" ? "Series" : "Film", spot.rating ? `★ ${spot.rating.toFixed(1)}` : null]
             .filter(Boolean)
@@ -608,9 +615,39 @@ export function SaveButton({ item, large }: { item: CardTitle; large?: boolean }
   );
 }
 
+/** The iPad's card: a wide picture, its name and where it streams under it. */
+function WideCard({ item, signedIn, onOpen }: { item: CardTitle; signedIn: boolean; onOpen: (r: Ref) => void }) {
+  const tag = item.releaseLabel ?? item.episodeLabel;
+  const caption = item.reason ?? item.platforms[0]?.name ?? (item.year ? String(item.year) : "");
+  return (
+    <div className="group relative w-[300px] shrink-0 snap-start xl:w-[340px]">
+      <button
+        type="button"
+        onClick={() => onOpen(item)}
+        aria-label={`Open ${item.title}`}
+        className="relative block aspect-video w-full overflow-hidden rounded-[14px] bg-surface focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-love"
+      >
+        <Thumb src={item.backdrop ?? item.poster} className="absolute inset-0 size-full transition-transform duration-300 group-hover:scale-[1.04]" />
+        {tag ? (
+          <span className="numeric absolute start-2.5 top-2.5 rounded-full bg-black/65 px-2 py-1 text-[11px] font-semibold text-love-soft">
+            {tag}
+          </span>
+        ) : null}
+      </button>
+      {signedIn && (!item.verdict || item.verdict === "watchlist") ? (
+        <div className="absolute end-2.5 top-2.5 z-10 opacity-0 transition group-hover:opacity-100 has-[[aria-pressed=true]]:opacity-100">
+          <SaveButton item={item} />
+        </div>
+      ) : null}
+      <div className="mt-2 truncate text-[15px] font-semibold">{item.title}</div>
+      <div className={cn("numeric truncate text-[12.5px]", item.reason ? "text-love-soft" : "text-ink-dim")}>{caption || "\u00a0"}</div>
+    </div>
+  );
+}
+
 function Heading({ title, detail, more }: { title: string; detail?: string; more?: string }) {
   return (
-    <h2 className="mb-3 flex items-baseline gap-2 text-[20px] font-semibold tracking-tight">
+    <h2 className="mb-3 flex items-baseline gap-2 text-[20px] font-semibold tracking-tight lg:mb-4 lg:text-[24px] lg:font-bold">
       <span className="shrink-0">{title}</span>
       {detail ? <span className="min-w-0 truncate text-[13px] font-normal text-ink-dim">{detail}</span> : null}
       {more ? (
@@ -640,20 +677,28 @@ function Shelf({
   return (
     <section>
       <Heading title={title} detail={detail} more={more} />
-      <Rail>
+      {/* Posters on a phone, as in the app; wide pictures on a computer, as on the iPad. */}
+      <div className="lg:hidden">
+        <Rail>
+          {cards.map((c) => (
+            <RailItem key={`${c.kind}-${c.tmdbId}`}>
+              <div className="relative">
+                <TitleCard item={c} onOpen={onOpen} />
+                {signedIn && (!c.verdict || c.verdict === "watchlist") ? (
+                  <div className="absolute end-1.5 top-1.5 z-20">
+                    <SaveButton item={c} />
+                  </div>
+                ) : null}
+              </div>
+            </RailItem>
+          ))}
+        </Rail>
+      </div>
+      <div className="strip -mx-10 hidden snap-x scroll-px-10 gap-5 px-10 pb-1 lg:flex">
         {cards.map((c) => (
-          <RailItem key={`${c.kind}-${c.tmdbId}`}>
-            <div className="relative">
-              <TitleCard item={c} onOpen={onOpen} />
-              {signedIn && (!c.verdict || c.verdict === "watchlist") ? (
-                <div className="absolute end-1.5 top-1.5 z-20">
-                  <SaveButton item={c} />
-                </div>
-              ) : null}
-            </div>
-          </RailItem>
+          <WideCard key={`${c.kind}-${c.tmdbId}`} item={c} signedIn={Boolean(signedIn)} onOpen={onOpen} />
         ))}
-      </Rail>
+      </div>
     </section>
   );
 }

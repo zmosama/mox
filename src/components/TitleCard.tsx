@@ -12,6 +12,8 @@ export type CardTitle = {
   title: string;
   year: number | null;
   poster: string | null;
+  /** The wide picture, where one is known: the desktop's cards use it. */
+  backdrop?: string | null;
   rating: number | null;
   verdict: Verdict | null;
   platforms: { name: string; logo: string | null; url: string | null }[];

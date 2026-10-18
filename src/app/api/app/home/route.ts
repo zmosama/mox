@@ -31,7 +31,7 @@ export async function GET() {
       /* New on your services this month, most watched first, and what is
          coming — optional to the app, which draws them when present. */
       fresh: withBackdrops(await aged(newOnServices(id, today))),
-      coming: await aged(comingSoon(id, today)),
+      coming: withBackdrops(await aged(comingSoon(id, today))),
       fromPeople: id ? await agedTitles(aged, await within(2500, newFromPeople(id, today), [])) : [],
       /* The store shelf is gone — rent and buy now show on the title itself.
          Kept as an empty list because the shipped iPhone app decodes it as

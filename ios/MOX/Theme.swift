@@ -66,3 +66,22 @@ extension View {
             .glassEffect(tint.map { .regular.tint($0).interactive() } ?? .regular.interactive(), in: .circle)
     }
 }
+
+/// Green light from the screen's top corner, under everything — the glow the
+/// big ring used to give the home screen, now that the ring lives in the tab bar.
+struct CornerGlow: View {
+    var body: some View {
+        GeometryReader { geo in
+            let r = max(geo.size.width, geo.size.height) * 0.75
+            ZStack(alignment: .topLeading) {
+                Color.black
+                RadialGradient(colors: [Theme.green.opacity(0.34), Theme.green.opacity(0.12), .clear],
+                               center: .topLeading, startRadius: 0, endRadius: r)
+                RadialGradient(colors: [Theme.mint.opacity(0.18), .clear],
+                               center: .topLeading, startRadius: 0, endRadius: r * 0.4)
+            }
+        }
+        .ignoresSafeArea()
+        .allowsHitTesting(false)
+    }
+}

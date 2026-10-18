@@ -68,7 +68,7 @@ struct HomeView: View {
         }
         .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { viewport = $0 }
         .scrollDismissesKeyboard(.interactively)
-        .background(Color.black)
+        .background { CornerGlow() }
         .refreshable { await load() }
         .task(id: api.revision) { await load() }
         .task(id: trimmed) { await search() }
@@ -83,16 +83,14 @@ struct HomeView: View {
         return hour < 5 ? "Good evening" : hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening"
     }
 
-    /// Ask MOX along the top — the ring, the bar, your face — so the first
+    /// Ask MOX along the top — the bar and your face — so the first
     /// screen is what is new, not an empty question. The full-screen hero it
     /// replaced is kept below as `fullScreenHero`.
     private var hero: some View {
         VStack(spacing: 12) {
             HStack(spacing: 10) {
-                LivingRing(size: 40, active: ringVisible && router.tab == .home && phase == .active)
-                    .onScrollVisibilityChange(threshold: 0.05) { ringVisible = $0 }
-                    .padding(.leading, 20)
                 askBar
+                    .padding(.leading, 20)
                 avatar
                     .padding(.trailing, 20)
             }
@@ -585,47 +583,46 @@ struct AiringSection: View {
 struct Spotlight: View {
     let spots: [Card]
     let open: (TitleRef) -> Void
-    @State private var at: Card.ID?
+    @State private var at = 0
     @Environment(\.horizontalSizeClass) private var size
 
     var body: some View {
         VStack(spacing: 10) {
-            ScrollView(.horizontal) {
-                LazyHStack(spacing: 0) {
-                    ForEach(Array(spots.enumerated()), id: \.element.id) { i, card in
-                        slide(card, rank: i + 1)
-                            .containerRelativeFrame(.horizontal)
-                            .id(card.id)
-                    }
+            // A paging TabView rather than a lazy scroll row: the row only
+            // drew slides it had scrolled past, so moving on by itself landed
+            // on a black one.
+            TabView(selection: $at) {
+                ForEach(Array(spots.enumerated()), id: \.element.id) { i, card in
+                    slide(card, rank: i + 1).tag(i)
                 }
-                .scrollTargetLayout()
             }
-            .scrollTargetBehavior(.paging)
-            .scrollPosition(id: $at)
-            .scrollIndicators(.hidden)
+            .tabViewStyle(.page(indexDisplayMode: .never))
             .frame(height: size == .regular ? 460 : 400)
 
             HStack(spacing: 6) {
-                ForEach(spots) { card in
+                ForEach(spots.indices, id: \.self) { i in
                     Capsule()
-                        .fill(Theme.paper.opacity(card.id == (at ?? spots.first?.id) ? 1 : 0.35))
-                        .frame(width: card.id == (at ?? spots.first?.id) ? 18 : 6, height: 6)
+                        .fill(Theme.paper.opacity(i == at ? 1 : 0.35))
+                        .frame(width: i == at ? 18 : 6, height: 6)
                 }
             }
             .animation(.smooth, value: at)
         }
         .task(id: at) {
             try? await Task.sleep(for: .seconds(7))
-            guard !Task.isCancelled, let i = spots.firstIndex(where: { $0.id == (at ?? spots.first?.id) }) else { return }
-            withAnimation(.smooth) { at = spots[(i + 1) % spots.count].id }
+            guard !Task.isCancelled, !spots.isEmpty else { return }
+            withAnimation(.smooth) { at = (at + 1) % spots.count }
         }
     }
 
     private func slide(_ card: Card, rank: Int) -> some View {
         Button { open(card.ref) } label: {
             ZStack(alignment: .bottomLeading) {
-                RemoteImage(url: card.backdrop)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                // The picture fills the slide but never sizes it: left to
+                // itself, a backdrop wider than the phone made the slide —
+                // and every rail under it — wider than the screen.
+                Color.clear
+                    .overlay { RemoteImage(url: card.backdrop) }
                     .clipped()
                 LinearGradient(colors: [.clear, .black.opacity(0.45), .black.opacity(0.95)], startPoint: .top, endPoint: .bottom)
                 VStack(alignment: .leading, spacing: 6) {
@@ -648,8 +645,10 @@ struct Spotlight: View {
                     }
                 }
                 .multilineTextAlignment(.leading)
+                .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(20)
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
             .clipShape(.rect(cornerRadius: 24))
             .padding(.horizontal, 20)
         }
