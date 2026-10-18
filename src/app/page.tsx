@@ -1,7 +1,8 @@
 import { Home } from "@/components/Home";
 import { avatarUrl, currentUser } from "@/lib/auth";
 import { APP_TIME_ZONE, todayISO } from "@/lib/dates";
-import { calendar, feed, forYou, withReasons } from "@/lib/queries";
+import { calendar, comingSoon, feed, forYou, newOnServices, withReasons } from "@/lib/queries";
+import { withBackdrops } from "@/lib/catalog";
 import { newFromPeople, within } from "@/lib/people";
 import { hasPickedServices } from "@/lib/services";
 import { agedEpisodes, agedTitles, ageFilter } from "@/lib/age-filter";
@@ -25,7 +26,9 @@ export default async function HomePage() {
       user={user ? { name: user.displayName ?? user.username, avatar: avatarUrl(user) } : null}
       forYou={id ? await aged(forYou(id, today)) : []}
       episodes={await agedEpisodes(aged, calendar(id, 14))}
-      trending={await aged(withReasons(id, feed("trending", id, 24)))}
+      trending={withBackdrops(await aged(withReasons(id, feed("trending", id, 24))))}
+      fresh={await aged(newOnServices(id, today))}
+      coming={await aged(comingSoon(id, today))}
       fromPeople={id ? await agedTitles(aged, await within(2500, newFromPeople(id, today), [])) : []}
       needsServices={Boolean(user) && !hasPickedServices(user!.id)}
     />

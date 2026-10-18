@@ -2,7 +2,8 @@ import { ageFilter } from "@/lib/age-filter";
 import { rememberPeople, rememberTitles, searchCatalog, searchPeople, withBackdrops } from "@/lib/catalog";
 import { NextResponse } from "next/server";
 import { currentUser } from "@/lib/auth";
-import { cardsFor } from "@/lib/queries";
+import { availabilityFor, cardsFor } from "@/lib/queries";
+import { matchQuality, rankResults } from "@/lib/search-rank";
 import { tmdb } from "@/lib/tmdb";
 import { profileUrl } from "@/lib/people";
 import { PAGE, pageParam, slice, tmdbPage, toHit, type TmdbListItem } from "@/lib/paging";
@@ -40,11 +41,17 @@ export async function GET(req: Request) {
   const user = await currentUser();
   const apply = ageFilter(user?.id ?? null);
 
-  const local = await searchCatalog(query, LOCAL_LIMIT);
-  if (local?.length) {
+  const found = await searchCatalog(query, LOCAL_LIMIT);
+  if (found?.length) {
+    // What you can watch tonight comes before what you cannot, at the same match.
+    const avail = availabilityFor(found.map((f) => f.tmdbId), user?.id ?? null);
+    const local = rankResults(found.map((f) => ({ ...f, mine: avail.has(`${f.tmdbId}:${f.kind}`) })), query)
+      .map(({ tmdbId, kind, title, year, poster, rating }) => ({ tmdbId, kind, title, year, poster, rating }));
     const items = local.slice((page - 1) * PAGE, page * PAGE);
     const next = local.length > page * PAGE ? page + 1 : null;
-    const people = page !== 1 ? [] : searchPeople(query).map((p) => ({
+    // A name that answers what was typed, not one that merely holds its
+    // letters: "the love h" found Gunther Love.
+    const people = page !== 1 ? [] : searchPeople(query).filter((p) => matchQuality(p.name, query) >= 2).map((p) => ({
       id: p.id,
       name: p.name,
       profile: profileUrl(p.profilePath),
@@ -77,9 +84,11 @@ export async function GET(req: Request) {
   );
   rememberPeople((remote.results ?? []).filter((r) => r.media_type === "person"));
 
-  const titles = (remote.results ?? [])
+  // TMDB's pages are its own; within one, the best match leads.
+  const listed = (remote.results ?? [])
     .filter((r) => r.media_type === "movie" || r.media_type === "tv")
-    .map((r) => toHit(r, r.media_type as MediaKind));
+    .map((r) => ({ ...toHit(r, r.media_type as MediaKind), votes: r.vote_count ?? null }));
+  const titles = rankResults(listed, query).map(({ tmdbId, kind, title, year, poster, rating }) => ({ tmdbId, kind, title, year, poster, rating }));
   const { items, next } = slice(titles, page, remote.total_pages ?? 1);
 
   /* People too: an actor or director is as good a way into a film as its

@@ -410,6 +410,87 @@ export function newTimeline(userId: number | null, today = todayISO()): ReleaseI
   return [...released, ...extra];
 }
 
+/** How much TMDB says people are looking at each title right now, by key. */
+function popularityOf(rows: { tmdbId: number; kind: MediaKind }[]): Map<string, number> {
+  const ids = [...new Set(rows.map((r) => r.tmdbId))];
+  const out = new Map<string, number>();
+  if (!ids.length) return out;
+  for (const r of db
+    .select({ tmdbId: schema.catalogTitles.tmdbId, kind: schema.catalogTitles.kind, popularity: schema.catalogTitles.popularity, votes: schema.catalogTitles.votes })
+    .from(schema.catalogTitles)
+    .where(inArray(schema.catalogTitles.tmdbId, ids))
+    .all()) {
+    out.set(key(r.tmdbId, r.kind), r.popularity ?? Math.log10((r.votes ?? 0) + 1));
+  }
+  return out;
+}
+
+/**
+ * What just landed on your services, the ones everybody is watching first —
+ * the home page's lead. /new answers "what came out on which day"; this
+ * answers "what is the new thing I should know about", so it is ordered by
+ * how much attention a title is getting, not by its date, and reaches back a
+ * month rather than two.
+ */
+export function newOnServices(userId: number | null, today = todayISO(), limit = 24): (CardTitle & { date: string })[] {
+  const since = addDaysISO(today, -30);
+  const recent = datedFeed("new", userId).filter((r) => r.date >= since);
+  const heat = popularityOf(recent);
+  return recent
+    .map((r, i) => ({ r, i, heat: heat.get(key(r.tmdbId, r.kind)) ?? 0 }))
+    .sort((a, b) => b.heat - a.heat || a.i - b.i)
+    .slice(0, limit)
+    .map(({ r }) => ({ ...r, releaseLabel: undefined }));
+}
+
+/**
+ * Coming in the next three months, soonest first — on your services or not,
+ * since nothing has landed anywhere yet. Titles nobody is looking at are left
+ * out: the raw window is mostly films with no poster and no votes.
+ */
+export function comingSoon(userId: number | null, today = todayISO(), limit = 24): CardTitle[] {
+  const rows = db
+    .select({ tmdbId: schema.feedItems.tmdbId, kind: schema.feedItems.kind })
+    .from(schema.feedItems)
+    .where(eq(schema.feedItems.feed, "upcoming"))
+    .orderBy(schema.feedItems.position)
+    .all();
+  const titles = titlesByIds(rows);
+  const avail = availabilityFor(rows.map((r) => r.tmdbId), userId);
+  const lookup = serviceLookup();
+  const verdicts = userId ? verdictsFor(userId) : new Map<string, Verdict>();
+  const out: CardTitle[] = [];
+  for (const r of rows) {
+    const t = titles.get(key(r.tmdbId, r.kind));
+    if (!t?.poster || !t.releaseDate || t.releaseDate <= today) continue;
+    const verdict = verdicts.get(key(r.tmdbId, r.kind)) ?? null;
+    if (verdict && verdict !== "watchlist") continue;
+    out.push({
+      tmdbId: t.tmdbId,
+      kind: t.kind,
+      title: t.title,
+      year: t.year,
+      poster: t.poster,
+      rating: t.rating,
+      verdict,
+      platforms: (avail.get(key(r.tmdbId, r.kind)) ?? []).map((p) => toService(p.name, lookup, t.title, p.deepLink)),
+      releaseLabel: soonLabel(t.releaseDate, today),
+    });
+    if (out.length >= limit) break;
+  }
+  return out;
+}
+
+/** "Tomorrow", "Fri 24", "12 Nov". */
+function soonLabel(date: string, today: string): string {
+  if (date === addDaysISO(today, 1)) return "Tomorrow";
+  const d = new Date(`${date}T12:00:00Z`);
+  if (date <= addDaysISO(today, 6)) {
+    return d.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", timeZone: "UTC" });
+  }
+  return d.toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "UTC" });
+}
+
 /** Apple's store on TMDB and in `store_items`. */
 export const APPLE_TV_STORE = 2;
 

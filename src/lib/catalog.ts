@@ -17,12 +17,13 @@
  * studios, certificates, IMDb ids — and not just names and posters.
  */
 import { deflateRawSync, inflateRawSync } from "node:zlib";
-import { and, eq, inArray, isNull, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import { db, schema } from "@/db";
 import type { MediaKind } from "@/db/schema";
 import { ageLevel, certAppend, type AgeLevel, type CertSource } from "./ratings";
 import { posterPath, tmdb } from "./tmdb";
 import { searchImdb, topImdbTitles } from "./imdb";
+import { matchQuality, normalise, rankResults } from "./search-rank";
 
 /** Full records are kept deflated: a quarter of the size, unpacked in well under a millisecond. */
 const pack = (value: unknown) => deflateRawSync(JSON.stringify(value));
@@ -584,12 +585,17 @@ export function peopleFromRecords(): number {
  */
 const MUST_COVER = 40;
 const MAP_NOW = 8;
-export async function searchCatalog(typed: string, limit: number): Promise<{ tmdbId: number; kind: MediaKind; title: string; year: number | null; poster: string | null; rating: number | null }[] | null> {
+export type CatalogHit = { tmdbId: number; kind: MediaKind; title: string; originalTitle: string | null; year: number | null; poster: string | null; rating: number | null; votes: number | null };
+
+export async function searchCatalog(typed: string, limit: number): Promise<CatalogHit[] | null> {
   // IMDb barely knows Egyptian and Arab work by its Arabic name — "الاختيار"
   // found an Indian series whose Arabic title is the same — and the
   // catalogue holds too little of it yet. TMDB answers Arabic for now.
   if (/\p{Script=Arabic}/u.test(typed)) return null;
-  const found = searchImdb(typed, limit);
+  // A wide net, then the names that answer what was typed best: IMDb's own
+  // order is most-voted, which buried a new film under every classic that
+  // merely shares its words.
+  const found = rankResults(searchImdb(typed, limit * 3), typed).slice(0, limit);
   if (!found.length) return null;
   const ids = found.map((f) => f.tconst);
   const settled = new Map<string, { tmdbId: number | null; kind: MediaKind | null }>();
@@ -618,20 +624,49 @@ export async function searchCatalog(typed: string, limit: number): Promise<{ tmd
     return s?.tmdbId && s.kind ? [{ tmdbId: s.tmdbId, kind: s.kind }] : [];
   });
   const rows = catalogued(refs);
+  const votes = new Map(found.map((f) => [f.tconst, f.votes]));
   const seen = new Set<string>();
-  return refs.flatMap((r) => {
+  const hit = (row: typeof schema.catalogTitles.$inferSelect, imdbVotes?: number): CatalogHit => ({
+    tmdbId: row.tmdbId,
+    kind: row.kind,
+    title: row.title!,
+    originalTitle: row.originalTitle,
+    year: row.year,
+    poster: posterPath(row.posterPath),
+    rating: row.rating ? Math.round(row.rating * 10) / 10 : null,
+    votes: imdbVotes ?? row.votes,
+  });
+  const out = refs.flatMap((r) => {
     const row = rows.get(key(r.tmdbId, r.kind));
     if (!row?.title || seen.has(key(r.tmdbId, r.kind))) return [];
     seen.add(key(r.tmdbId, r.kind));
-    return [{
-      tmdbId: r.tmdbId,
-      kind: r.kind,
-      title: row.title,
-      year: row.year,
-      poster: posterPath(row.posterPath),
-      rating: row.rating ? Math.round(row.rating * 10) / 10 : null,
-    }];
+    return [hit(row, row.imdbId ? votes.get(row.imdbId) : undefined)];
   });
+
+  /* IMDb's files are a week old and keep only titles with 100 votes, so what
+     came out this month — the thing most often searched for — is not in them.
+     The catalogue has it: the nightly feeds keep everything new on a service. */
+  const phrase = normalise(typed);
+  if (phrase.length >= 2) {
+    const recent = db
+      .select()
+      .from(schema.catalogTitles)
+      .where(and(
+        sql`${schema.catalogTitles.year} >= ${new Date().getFullYear() - 1}`,
+        sql`${schema.catalogTitles.posterPath} is not null`,
+        sql`(lower(${schema.catalogTitles.title}) like ${`%${phrase.split(" ")[0]}%`} or lower(${schema.catalogTitles.originalTitle}) like ${`%${phrase.split(" ")[0]}%`})`,
+      ))
+      .orderBy(desc(schema.catalogTitles.popularity))
+      .limit(300)
+      .all();
+    for (const row of recent) {
+      if (!row.title || seen.has(key(row.tmdbId, row.kind))) continue;
+      if (Math.max(matchQuality(row.title, typed), row.originalTitle ? matchQuality(row.originalTitle, typed) : 0) < 2) continue;
+      seen.add(key(row.tmdbId, row.kind));
+      out.push(hit(row));
+    }
+  }
+  return out;
 }
 
 /** People in the catalogue whose name matches, with a face, best known first. */

@@ -48,6 +48,7 @@ export type TmdbListItem = {
   first_air_date?: string;
   poster_path?: string | null;
   vote_average?: number;
+  vote_count?: number;
 };
 
 export function toHit(r: TmdbListItem, kind: MediaKind): Hit {

@@ -1,11 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Ambient } from "./Ambient";
 import { useEngine } from "./engine";
 import { LivingRing } from "./LivingRing";
+import { AskBar, MOODS, MoodChips, type Mood } from "./AskBar";
 import { PeopleRow, type PersonChipData } from "./People";
 import { FriendsLine } from "./Friends";
 import { usePaged } from "./usePaged";
@@ -20,27 +21,19 @@ import type { CalendarEpisode, FreshEpisode } from "@/lib/queries";
 import type { PersonNews } from "@/lib/people";
 import type { MediaKind } from "@/db/schema";
 
-/** Ask MOX's moods, before an AI model is connected. Same list as the app. */
-const MOODS = [
-  ["comedy", "Something funny"],
-  ["action", "Action"],
-  ["drama", "Drama"],
-  ["thriller", "Thriller"],
-  ["scifi", "Sci‑fi"],
-  ["horror", "Horror"],
-  ["romance", "Romance"],
-  ["animation", "Animation"],
-  ["crime", "Crime"],
-  ["documentary", "Documentary"],
-] as const;
-type Mood = (typeof MOODS)[number][0];
-
 type Ref = { tmdbId: number; kind: MediaKind };
 type SearchPerson = { id: number; name: string; profile: string | null; department: string | null; knownFor: string[] };
 
+type Spot = CardTitle & { backdrop: string | null; overview: string | null };
+
 /**
- * Home, as in the iPhone app: the ring and the question fill the first screen,
- * Ask MOX sits at the bottom of it, and the board is one scroll below.
+ * Home: where you find out what is new before anybody tells you.
+ *
+ * It used to open on the ring and a question, a whole screen with nothing to
+ * watch in it — search first, as if you already knew what you were looking
+ * for. Now Ask MOX is a bar along the top and the first screen is the news:
+ * what everybody is watching this week, what just landed on your services,
+ * and what is coming. (The full-screen hero is kept as AskHero.)
  */
 export function Home({
   today,
@@ -49,6 +42,8 @@ export function Home({
   forYou,
   episodes,
   trending,
+  fresh,
+  coming,
   fromPeople,
   needsServices,
 }: {
@@ -58,7 +53,10 @@ export function Home({
   user: { name: string; avatar: string | null } | null;
   forYou: FreshEpisode[];
   episodes: CalendarEpisode[];
-  trending: CardTitle[];
+  trending: Spot[];
+  /** New on your services this month, most watched first. */
+  fresh: CardTitle[];
+  coming: CardTitle[];
   /** New work from the actors and directors you follow. */
   fromPeople: PersonNews[];
   needsServices: boolean;
@@ -72,12 +70,9 @@ export function Home({
   const [person, setPerson] = useState<number | null>(null);
   const ring = useRef<HTMLDivElement>(null);
   const engine = useEngine();
-  // A larger ring on a large screen; the phone size everywhere else.
-  const wide = useSyncExternalStore(subscribeWide, isWide, () => false);
 
   const q = query.trim();
   const asking = q.length >= 2 || mood !== null;
-  const ringSize = asking ? 56 : wide ? 232 : 176;
 
   // Asked for once typing pauses, not on every letter.
   useEffect(() => {
@@ -129,252 +124,81 @@ export function Home({
   return (
     /* Full-bleed and clipped at the screen's edges: the ring's light is wider
        than a phone, and left unclipped it made the browser widen the whole
-       page — which pushed the glass bar off the bottom of the screen. Margins
-       rather than a transform, so fixed-position children still mean the
-       viewport. */
+       page. Margins rather than a transform, so fixed-position children still
+       mean the viewport. */
     <div className="relative mx-[calc(50%-50vw)] overflow-x-clip">
-      {/* Home is black edge to edge, like the ring's own background. */}
       <div aria-hidden className="fixed inset-0 -z-10 bg-black" />
-      <Ambient ring={ring} ringSize={ringSize} height="calc(100svh + 12rem)" light={!asking} engine={engine} />
-      {/* In the screen's corner, as in the app — not the content column's. */}
-      <div className="absolute end-4 top-0 z-10 sm:end-6">
-        <Avatar user={user} />
-      </div>
+      <Ambient ring={ring} ringSize={44} height="22rem" light={!asking} engine={engine} />
       <div className="mx-auto max-w-[1180px] px-4 sm:px-6">
-
-      {/* One hero for both states. The ask bar has to stay the same element
-          while the layout around it changes, or the field loses focus — and
-          the phone its keyboard — on the second letter typed. */}
-      <section
-        className={cn(
-          "relative flex flex-col items-center",
-          /* Not asking: a little under one screen tall, so the top of the board
-             — the "New for you" heading and the edge of its first card — shows
-             above the glass bar, the way the app lets it peek: the only sign
-             that there is more below. The bar's fade (GlassBar) keeps what
-             passes under it from looking cluttered. */
-          asking
-            ? "pb-6 pt-12"
-            : "min-h-[calc(100svh-0.75rem-env(safe-area-inset-top)-11rem)] pt-12",
-        )}
-      >
-        <div className={asking ? "" : "flex-1"} />
-
-        <div ref={ring}>
-          <LivingRing size={ringSize} />
-        </div>
-
-        {!asking ? (
-          <div className="relative z-10 text-center">
-            <h1 className="mt-3 text-[28px] font-medium tracking-tight lg:text-[36px]">{greeting}</h1>
-            <p className="mt-2.5 text-[17px] text-ink/70 lg:text-[20px]">What are we watching tonight?</p>
+        {/* Ask MOX, along the top: there when you know what you want, out of
+            the way when you came to see what is new. */}
+        <header className="relative z-10 flex items-center gap-3 pb-4 pt-4 sm:gap-4 sm:pt-6">
+          <div ref={ring} className="shrink-0" title={greeting}>
+            <LivingRing size={44} />
           </div>
-        ) : null}
-
-        <div className={asking ? "h-3" : "flex-1"} />
-
+          <div className="flex min-w-0 flex-1 justify-center">
+            <AskBar
+              query={query}
+              onQuery={(v) => {
+                setQuery(v);
+                if (v) setMood(null);
+              }}
+              looking={looking}
+              asking={asking}
+              showMoods={showMoods}
+              onToggleMoods={() => setShowMoods(!showMoods)}
+              onClear={() => {
+                setQuery("");
+                setMood(null);
+              }}
+            />
+          </div>
+          <Avatar user={user} />
+        </header>
         {showMoods || mood ? (
-          <div className="strip relative z-10 -mx-4 mb-3 w-[calc(100%+2rem)] max-w-[680px] gap-2 px-4">
-            {MOODS.map(([id, label]) => (
-              <button
-                key={id}
-                type="button"
-                onClick={() => {
-                  setMood(mood === id ? null : id);
-                  setQuery("");
-                }}
-                className={cn(
-                  "rounded-full px-3.5 py-2 text-[13px] font-medium transition",
-                  mood === id ? "bg-love text-bg" : "bg-card/70 text-ink hover:bg-raised",
-                )}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
+          <MoodChips
+            mood={mood}
+            onMood={(m) => {
+              setMood(m);
+              setQuery("");
+            }}
+            className="mx-auto mb-4"
+          />
         ) : null}
 
-        <AskBar
-          query={query}
-          onQuery={(v) => {
-            setQuery(v);
-            if (v) setMood(null);
-          }}
-          looking={looking}
-          asking={asking}
-          showMoods={showMoods}
-          onToggleMoods={() => setShowMoods(!showMoods)}
-          onClear={() => {
-            setQuery("");
-            setMood(null);
-          }}
-        />
-      </section>
-
-      {asking ? (
-        <Answers
-          mood={mood ? MOODS.find(([id]) => id === mood)![1] : null}
-          query={q}
-          results={results}
-          people={people}
-          more={!mood && search.more}
-          sentinel={mood ? null : searchEnd}
-          onOpen={setOpen}
-          onOpenPerson={setPerson}
-        />
-      ) : (
-        <div className="relative z-10 mt-6">
-          <Board
-            today={today}
-            signedIn={user !== null}
-            needsServices={needsServices}
-            forYou={forYou}
-            episodes={episodes}
-            trending={trending}
-            fromPeople={fromPeople}
+        {asking ? (
+          <Answers
+            mood={mood ? MOODS.find(([id]) => id === mood)![1] : null}
+            query={q}
+            results={results}
+            people={people}
+            more={!mood && search.more}
+            sentinel={mood ? null : searchEnd}
             onOpen={setOpen}
+            onOpenPerson={setPerson}
           />
-        </div>
-      )}
-
+        ) : (
+          <div className="relative z-10 mt-2">
+            <Board
+              today={today}
+              signedIn={user !== null}
+              needsServices={needsServices}
+              forYou={forYou}
+              episodes={episodes}
+              trending={trending}
+              fresh={fresh}
+              coming={coming}
+              fromPeople={fromPeople}
+              onOpen={setOpen}
+            />
+          </div>
+        )}
       </div>
 
       {open ? (
         <TitleSheet tmdbId={open.tmdbId} kind={open.kind} signedIn={user !== null} onClose={() => setOpen(null)} />
       ) : null}
       {person !== null ? <PersonSheet id={person} signedIn={user !== null} onClose={() => setPerson(null)} /> : null}
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------- ask bar
-
-type Recognition = {
-  lang: string;
-  interimResults: boolean;
-  continuous: boolean;
-  start: () => void;
-  stop: () => void;
-  onresult: ((e: { results: ArrayLike<ArrayLike<{ transcript: string }>> }) => void) | null;
-  onend: (() => void) | null;
-  onerror: (() => void) | null;
-};
-
-const noSubscribe = () => () => {};
-const WIDE = "(min-width: 1024px)";
-const subscribeWide = (change: () => void) => {
-  const query = window.matchMedia(WIDE);
-  query.addEventListener("change", change);
-  return () => query.removeEventListener("change", change);
-};
-const isWide = () => window.matchMedia(WIDE).matches;
-const speechSupported = () => {
-  const w = window as unknown as { SpeechRecognition?: unknown; webkitSpeechRecognition?: unknown };
-  return Boolean(w.SpeechRecognition ?? w.webkitSpeechRecognition);
-};
-
-/** "+" for moods, the question, and the mic — the mockup's bar. */
-function AskBar({
-  query,
-  onQuery,
-  looking,
-  asking,
-  showMoods,
-  onToggleMoods,
-  onClear,
-}: {
-  query: string;
-  onQuery: (v: string) => void;
-  looking: boolean;
-  asking: boolean;
-  showMoods: boolean;
-  onToggleMoods: () => void;
-  onClear: () => void;
-}) {
-  const [listening, setListening] = useState(false);
-  // False on the server and in the first render; a mic the browser cannot
-  // use is worse than none.
-  const canListen = useSyncExternalStore(noSubscribe, speechSupported, () => false);
-  const recognition = useRef<Recognition | null>(null);
-
-  useEffect(() => () => recognition.current?.stop(), []);
-
-  const toggleMic = () => {
-    if (listening) {
-      recognition.current?.stop();
-      return;
-    }
-    const w = window as unknown as { SpeechRecognition?: new () => Recognition; webkitSpeechRecognition?: new () => Recognition };
-    const Ctor = w.SpeechRecognition ?? w.webkitSpeechRecognition;
-    if (!Ctor) return;
-    const r = new Ctor();
-    r.lang = navigator.language;
-    r.interimResults = true;
-    r.continuous = false;
-    r.onresult = (e) => {
-      const text = Array.from(e.results).map((res) => res[0].transcript).join("");
-      onQuery(text);
-    };
-    r.onend = () => setListening(false);
-    r.onerror = () => setListening(false);
-    recognition.current = r;
-    setListening(true);
-    r.start();
-  };
-
-  return (
-    <div className="relative z-10 flex h-14 w-full max-w-[640px] items-center lg:h-16 lg:max-w-[720px] lg:px-2.5 gap-2.5 rounded-full border border-white/10 bg-white/[0.06] px-2 shadow-pop backdrop-blur-2xl">
-      <button
-        type="button"
-        onClick={onToggleMoods}
-        aria-label={showMoods ? "Hide moods" : "Pick a mood"}
-        className="grid size-[38px] shrink-0 place-items-center rounded-full bg-ink/10 text-ink transition hover:bg-ink/15"
-      >
-        <svg viewBox="0 0 24 24" className={cn("size-[18px] fill-current transition-transform", showMoods && "rotate-45")} aria-hidden>
-          <path d="M11 5h2v6h6v2h-6v6h-2v-6H5v-2h6z" />
-        </svg>
-      </button>
-
-      <input
-        value={query}
-        onChange={(e) => onQuery(e.target.value)}
-        placeholder={listening ? "Listening…" : "Ask MOX anything…"}
-        aria-label="Ask MOX"
-        enterKeyHint="search"
-        autoComplete="off"
-        className="min-w-0 flex-1 bg-transparent text-base text-ink outline-none placeholder:text-ink-dim lg:text-[17px]"
-      />
-
-      {looking ? (
-        <span aria-label="Searching" className="size-4 shrink-0 animate-spin rounded-full border-2 border-ink-dim border-t-transparent" />
-      ) : asking ? (
-        <button
-          type="button"
-          onClick={onClear}
-          aria-label="Clear"
-          className="grid size-6 shrink-0 place-items-center rounded-full bg-ink-dim/60 text-[13px] leading-none text-bg"
-        >
-          ×
-        </button>
-      ) : null}
-
-      {canListen ? (
-        <button
-          type="button"
-          onClick={toggleMic}
-          aria-label={listening ? "Stop listening" : "Speak"}
-          className={cn(
-            "grid size-[38px] shrink-0 place-items-center rounded-full transition",
-            listening ? "animate-pulse bg-love/30 text-love" : "bg-ink/10 text-ink hover:bg-ink/15",
-          )}
-        >
-          <svg viewBox="0 0 24 24" className="size-[18px] fill-current" aria-hidden>
-            <path d="M12 14a3 3 0 0 0 3-3V5a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.9V21h2v-3.1A7 7 0 0 0 19 11h-2z" />
-          </svg>
-        </button>
-      ) : (
-        <span className="w-1" />
-      )}
     </div>
   );
 }
@@ -527,6 +351,8 @@ function Board({
   forYou,
   episodes,
   trending,
+  fresh,
+  coming,
   fromPeople,
   onOpen,
 }: {
@@ -535,10 +361,18 @@ function Board({
   needsServices: boolean;
   forYou: FreshEpisode[];
   episodes: CalendarEpisode[];
-  trending: CardTitle[];
+  trending: Spot[];
+  fresh: CardTitle[];
+  coming: CardTitle[];
   fromPeople: PersonNews[];
   onOpen: (r: Ref) => void;
 }) {
+  // The biggest titles of the week lead, with their pictures; the rest of
+  // the week's list follows as a rail.
+  const spots = trending.filter((t) => t.backdrop).slice(0, 6);
+  const shown = new Set(spots.map((s) => `${s.kind}-${s.tmdbId}`));
+  const restTrending = trending.filter((t) => !shown.has(`${t.kind}-${t.tmdbId}`));
+
   return (
     <div className="flex flex-col gap-10">
       {needsServices ? (
@@ -554,20 +388,31 @@ function Board({
         </Link>
       ) : null}
 
-      <ForYou items={forYou} today={today} signedIn={signedIn} onOpen={onOpen} />
+      {spots.length ? <Spotlight spots={spots} signedIn={signedIn} onOpen={onOpen} /> : null}
+
+      {fresh.length ? (
+        <Shelf title="Just landed" detail="on your services" more="/new" cards={fresh} signedIn={signedIn} onOpen={onOpen} />
+      ) : null}
+
+      {forYou.length || !signedIn ? <ForYou items={forYou} today={today} signedIn={signedIn} onOpen={onOpen} /> : null}
+
+      {restTrending.length ? (
+        <Shelf title="Everyone's watching" detail="this week" cards={restTrending} signedIn={signedIn} onOpen={onOpen} />
+      ) : null}
+
+      {coming.length ? (
+        <Shelf title="Coming soon" detail="next three months" more="/new" cards={coming} signedIn={signedIn} onOpen={onOpen} />
+      ) : null}
 
       {fromPeople.length ? (
         <Shelf
           title="From people you follow"
           cards={fromPeople.map((n) => ({ ...n.title, reason: `${n.person.name} · ${n.title.platforms[0]?.name ?? ""}` }))}
+          signedIn={signedIn}
           onOpen={onOpen}
         />
       ) : null}
       <Airing episodes={episodes} today={today} signedIn={signedIn} onOpen={onOpen} />
-
-      {trending.length ? (
-        <Shelf title="Trending" detail="on your services" cards={trending} onOpen={onOpen} />
-      ) : null}
 
       {/* Universes stay on the website only, for now. */}
       <Link
@@ -584,11 +429,195 @@ function Board({
   );
 }
 
-function Heading({ title, detail }: { title: string; detail?: string }) {
+/**
+ * The week's biggest titles, one screen-wide picture at a time: swiped on a
+ * phone, arrows and dots on a computer, and on to the next by itself every
+ * few seconds until you touch it.
+ */
+function Spotlight({ spots, signedIn, onOpen }: { spots: Spot[]; signedIn: boolean; onOpen: (r: Ref) => void }) {
+  const strip = useRef<HTMLDivElement>(null);
+  const [at, setAt] = useState(0);
+  const [held, setHeld] = useState(false);
+
+  const go = useCallback((i: number) => {
+    const el = strip.current;
+    if (!el) return;
+    const n = (i + spots.length) % spots.length;
+    el.scrollTo({ left: n * el.clientWidth * (document.dir === "rtl" ? -1 : 1), behavior: "smooth" });
+  }, [spots.length]);
+
+  useEffect(() => {
+    if (held || spots.length < 2) return;
+    const timer = setTimeout(() => go(at + 1), 7000);
+    return () => clearTimeout(timer);
+  }, [at, held, go, spots.length]);
+
+  return (
+    <section
+      aria-roledescription="carousel"
+      aria-label="Big this week"
+      className="relative"
+      onMouseEnter={() => setHeld(true)}
+      onMouseLeave={() => setHeld(false)}
+      onTouchStart={() => setHeld(true)}
+    >
+      <div
+        ref={strip}
+        onScroll={(e) => {
+          const el = e.currentTarget;
+          setAt(Math.round(Math.abs(el.scrollLeft) / el.clientWidth));
+        }}
+        className="flex snap-x snap-mandatory overflow-x-auto rounded-[24px] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+      >
+        {spots.map((t, i) => (
+          <SpotSlide key={`${t.kind}-${t.tmdbId}`} spot={t} rank={i + 1} signedIn={signedIn} onOpen={onOpen} />
+        ))}
+      </div>
+      {spots.length > 1 ? (
+        <>
+          <div className="pointer-events-none absolute inset-x-0 bottom-3 flex justify-center gap-1.5">
+            {spots.map((t, i) => (
+              <button
+                key={t.tmdbId}
+                type="button"
+                aria-label={`Show ${t.title}`}
+                onClick={() => go(i)}
+                className={cn("pointer-events-auto h-1.5 rounded-full transition-all", i === at ? "w-5 bg-ink" : "w-1.5 bg-ink/40")}
+              />
+            ))}
+          </div>
+          <button
+            type="button"
+            aria-label="Previous"
+            onClick={() => go(at - 1)}
+            className="absolute start-3 top-1/2 hidden size-10 -translate-y-1/2 place-items-center rounded-full border border-white/15 bg-black/40 text-xl text-ink backdrop-blur-xl transition hover:bg-black/60 sm:grid"
+          >
+            ‹
+          </button>
+          <button
+            type="button"
+            aria-label="Next"
+            onClick={() => go(at + 1)}
+            className="absolute end-3 top-1/2 hidden size-10 -translate-y-1/2 place-items-center rounded-full border border-white/15 bg-black/40 text-xl text-ink backdrop-blur-xl transition hover:bg-black/60 sm:grid"
+          >
+            ›
+          </button>
+        </>
+      ) : null}
+    </section>
+  );
+}
+
+function SpotSlide({ spot, rank, signedIn, onOpen }: { spot: Spot; rank: number; signedIn: boolean; onOpen: (r: Ref) => void }) {
+  const where = spot.platforms[0];
+  return (
+    <article className="relative h-[420px] w-full shrink-0 snap-start overflow-hidden bg-surface sm:h-[460px]">
+      <Thumb src={spot.backdrop} className="absolute inset-0 size-full" />
+      <div className="absolute inset-0 bg-gradient-to-t from-black via-black/40 to-transparent" />
+      <div className="absolute inset-0 bg-gradient-to-r from-black/70 via-transparent to-transparent" />
+      <div className="absolute inset-x-0 bottom-0 max-w-[700px] p-5 pb-10 sm:p-8 sm:px-16 sm:pb-12">
+        <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-love-soft">
+          #{rank} this week{where ? ` · ${where.name}` : ""}
+        </div>
+        <h2 className="mt-1.5 text-[28px] font-bold leading-tight text-white sm:text-[40px]">{spot.title}</h2>
+        <div className="numeric mt-1 text-[13px] text-white/75">
+          {[spot.year, spot.kind === "tv" ? "Series" : "Film", spot.rating ? `★ ${spot.rating.toFixed(1)}` : null]
+            .filter(Boolean)
+            .join(" · ")}
+        </div>
+        {spot.overview ? (
+          <p className="mt-2 line-clamp-2 text-[14px] leading-snug text-white/80 sm:line-clamp-3 sm:text-[15px]">{spot.overview}</p>
+        ) : null}
+        <div className="mt-4 flex items-center gap-2.5">
+          {where?.url ? (
+            <a
+              href={where.url}
+              target="_blank"
+              rel="noreferrer"
+              className="flex h-[42px] items-center gap-2 rounded-full bg-ink px-[22px] text-[15px] font-semibold text-bg transition hover:opacity-90"
+            >
+              <svg viewBox="0 0 24 24" className="size-4 fill-current" aria-hidden>
+                <path d="M7 4v16l13-8z" />
+              </svg>
+              Play
+            </a>
+          ) : null}
+          <button
+            type="button"
+            onClick={() => onOpen(spot)}
+            className={cn(
+              "flex h-[42px] items-center rounded-full px-[22px] text-[15px] font-semibold transition",
+              where?.url ? "border border-white/15 bg-white/10 text-ink backdrop-blur-xl hover:bg-white/20" : "bg-ink text-bg hover:opacity-90",
+            )}
+          >
+            Details
+          </button>
+          {signedIn ? <SaveButton item={spot} large /> : null}
+        </div>
+      </div>
+    </article>
+  );
+}
+
+/**
+ * Save for later in one tap, without opening the title. A saved title is
+ * followed, so its arrival on a service turns up in New for you.
+ */
+export function SaveButton({ item, large }: { item: CardTitle; large?: boolean }) {
+  const [saved, setSaved] = useState(item.verdict === "watchlist");
+  const [busy, setBusy] = useState(false);
+  const toggle = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (busy) return;
+    const next = !saved;
+    setSaved(next);
+    setBusy(true);
+    try {
+      const res = await fetch("/api/verdict", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ tmdbId: item.tmdbId, kind: item.kind, verdict: next ? "watchlist" : null }),
+      });
+      if (!res.ok) setSaved(!next);
+    } catch {
+      setSaved(!next);
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <button
+      type="button"
+      onClick={toggle}
+      aria-pressed={saved}
+      aria-label={saved ? `Remove ${item.title} from your list` : `Save ${item.title} for later`}
+      className={cn(
+        "grid place-items-center rounded-full border backdrop-blur-xl transition",
+        large ? "size-[42px]" : "size-8",
+        saved ? "border-want/60 bg-want/25 text-want" : "border-white/15 bg-black/45 text-ink hover:bg-black/65",
+      )}
+    >
+      <svg viewBox="0 0 24 24" className={cn("fill-current", large ? "size-[18px]" : "size-4")} aria-hidden>
+        {saved ? (
+          <path d="M6 3h12a1 1 0 0 1 1 1v17l-7-4.2L5 21V4a1 1 0 0 1 1-1z" />
+        ) : (
+          <path d="M11 5h2v6h6v2h-6v6h-2v-6H5v-2h6z" />
+        )}
+      </svg>
+    </button>
+  );
+}
+
+function Heading({ title, detail, more }: { title: string; detail?: string; more?: string }) {
   return (
     <h2 className="mb-3 flex items-baseline gap-2 text-[20px] font-semibold tracking-tight">
-      {title}
-      {detail ? <span className="text-[13px] font-normal text-ink-dim">{detail}</span> : null}
+      <span className="shrink-0">{title}</span>
+      {detail ? <span className="min-w-0 truncate text-[13px] font-normal text-ink-dim">{detail}</span> : null}
+      {more ? (
+        <Link href={more} className="ms-auto shrink-0 text-[13px] font-medium text-love-soft hover:underline">
+          See all
+        </Link>
+      ) : null}
     </h2>
   );
 }
@@ -596,21 +625,32 @@ function Heading({ title, detail }: { title: string; detail?: string }) {
 function Shelf({
   title,
   detail,
+  more,
   cards,
+  signedIn,
   onOpen,
 }: {
   title: string;
   detail?: string;
+  more?: string;
   cards: CardTitle[];
+  signedIn?: boolean;
   onOpen: (r: Ref) => void;
 }) {
   return (
     <section>
-      <Heading title={title} detail={detail} />
+      <Heading title={title} detail={detail} more={more} />
       <Rail>
         {cards.map((c) => (
           <RailItem key={`${c.kind}-${c.tmdbId}`}>
-            <TitleCard item={c} onOpen={onOpen} />
+            <div className="relative">
+              <TitleCard item={c} onOpen={onOpen} />
+              {signedIn && (!c.verdict || c.verdict === "watchlist") ? (
+                <div className="absolute end-1.5 top-1.5 z-20">
+                  <SaveButton item={c} />
+                </div>
+              ) : null}
+            </div>
           </RailItem>
         ))}
       </Rail>

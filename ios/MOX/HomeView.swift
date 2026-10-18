@@ -83,9 +83,30 @@ struct HomeView: View {
         return hour < 5 ? "Good evening" : hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening"
     }
 
-    /// The ring and the question fill the first screen; while asking, the ring
-    /// shrinks and the bar moves up, with answers underneath.
+    /// Ask MOX along the top — the ring, the bar, your face — so the first
+    /// screen is what is new, not an empty question. The full-screen hero it
+    /// replaced is kept below as `fullScreenHero`.
     private var hero: some View {
+        VStack(spacing: 12) {
+            HStack(spacing: 10) {
+                LivingRing(size: 40, active: ringVisible && router.tab == .home && phase == .active)
+                    .onScrollVisibilityChange(threshold: 0.05) { ringVisible = $0 }
+                    .padding(.leading, 20)
+                askBar
+                avatar
+                    .padding(.trailing, 20)
+            }
+            .padding(.top, 4)
+            if showMoods || mood != nil {
+                moodChips
+                    .transition(.move(edge: .top).combined(with: .opacity))
+            }
+        }
+    }
+
+    /// The original hero, kept for reuse: the ring and the question fill the first screen; while asking, the ring
+    /// shrinks and the bar moves up, with answers underneath.
+    private var fullScreenHero: some View {
         VStack(spacing: 0) {
             HStack {
                 Spacer()
@@ -118,6 +139,8 @@ struct HomeView: View {
                     .transition(.move(edge: .bottom).combined(with: .opacity))
             }
             askBar
+                .padding(.horizontal, 20)
+                .readableWidth(760)
         }
         .frame(height: asking ? nil : max(viewport - 84, 500))
     }
@@ -203,8 +226,6 @@ struct HomeView: View {
         .padding(.trailing, 8)
         .frame(height: 56)
         .glassEffect(.regular.interactive(), in: .capsule)
-        .padding(.horizontal, 20)
-        .readableWidth(760)
     }
 
     private var moodChips: some View {
@@ -279,7 +300,24 @@ struct HomeView: View {
             }
             .padding(.horizontal, 32)
         } else if let payload {
-            forYou(payload)
+            let spots = Array(payload.trending.filter { $0.backdrop != nil }.prefix(6))
+            let spotIds = Set(spots.map(\.id))
+            if !spots.isEmpty {
+                Spotlight(spots: spots) { router.title = $0 }
+            }
+            if let fresh = payload.fresh, !fresh.isEmpty {
+                PosterRail(title: "Just landed", detail: "on your services", cards: fresh) { router.title = $0 }
+            }
+            if payload.user == nil || !payload.forYou.isEmpty {
+                forYou(payload)
+            }
+            let rest = payload.trending.filter { !spotIds.contains($0.id) }
+            if !rest.isEmpty {
+                PosterRail(title: "Everyone's watching", detail: "this week", cards: rest) { router.title = $0 }
+            }
+            if let coming = payload.coming, !coming.isEmpty {
+                PosterRail(title: "Coming soon", cards: coming) { router.title = $0 }
+            }
             if let news = payload.fromPeople, !news.isEmpty {
                 PosterRail(title: "From people you follow", cards: news.map(\.title),
                            caption: { card in
@@ -288,9 +326,6 @@ struct HomeView: View {
                            }) { router.title = $0 }
             }
             AiringSection(episodes: payload.calendar, today: payload.today, signedIn: payload.user != nil)
-            if !payload.trending.isEmpty {
-                PosterRail(title: "Trending", detail: "on your services", cards: payload.trending) { router.title = $0 }
-            }
             if !payload.inStore.isEmpty {
                 PosterRail(title: "New in the store", cards: payload.inStore, caption: { $0.price }) { router.title = $0 }
             }
@@ -542,5 +577,82 @@ struct AiringSection: View {
                 }
             }
         }
+    }
+}
+
+/// The week's biggest titles, one wide picture at a time, swiped or moving on
+/// by itself every few seconds.
+struct Spotlight: View {
+    let spots: [Card]
+    let open: (TitleRef) -> Void
+    @State private var at: Card.ID?
+    @Environment(\.horizontalSizeClass) private var size
+
+    var body: some View {
+        VStack(spacing: 10) {
+            ScrollView(.horizontal) {
+                LazyHStack(spacing: 0) {
+                    ForEach(Array(spots.enumerated()), id: \.element.id) { i, card in
+                        slide(card, rank: i + 1)
+                            .containerRelativeFrame(.horizontal)
+                            .id(card.id)
+                    }
+                }
+                .scrollTargetLayout()
+            }
+            .scrollTargetBehavior(.paging)
+            .scrollPosition(id: $at)
+            .scrollIndicators(.hidden)
+            .frame(height: size == .regular ? 460 : 400)
+
+            HStack(spacing: 6) {
+                ForEach(spots) { card in
+                    Capsule()
+                        .fill(Theme.paper.opacity(card.id == (at ?? spots.first?.id) ? 1 : 0.35))
+                        .frame(width: card.id == (at ?? spots.first?.id) ? 18 : 6, height: 6)
+                }
+            }
+            .animation(.smooth, value: at)
+        }
+        .task(id: at) {
+            try? await Task.sleep(for: .seconds(7))
+            guard !Task.isCancelled, let i = spots.firstIndex(where: { $0.id == (at ?? spots.first?.id) }) else { return }
+            withAnimation(.smooth) { at = spots[(i + 1) % spots.count].id }
+        }
+    }
+
+    private func slide(_ card: Card, rank: Int) -> some View {
+        Button { open(card.ref) } label: {
+            ZStack(alignment: .bottomLeading) {
+                RemoteImage(url: card.backdrop)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .clipped()
+                LinearGradient(colors: [.clear, .black.opacity(0.45), .black.opacity(0.95)], startPoint: .top, endPoint: .bottom)
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(["#\(rank) this week", card.platforms.first?.name].compactMap { $0 }.joined(separator: " · ").uppercased())
+                        .font(.sora(11, .semibold))
+                        .tracking(1.4)
+                        .foregroundStyle(Theme.green)
+                    Text(card.title)
+                        .font(.sora(28, .bold, relativeTo: .title))
+                        .foregroundStyle(.white)
+                        .lineLimit(2)
+                    Text([card.year.map(String.init), card.kind == "tv" ? "Series" : "Film", card.rating.map { String(format: "★ %.1f", $0) }].compactMap { $0 }.joined(separator: " · "))
+                        .font(.sora(13))
+                        .foregroundStyle(.white.opacity(0.75))
+                    if let overview = card.overview {
+                        Text(overview)
+                            .font(.sora(14))
+                            .foregroundStyle(.white.opacity(0.8))
+                            .lineLimit(2)
+                    }
+                }
+                .multilineTextAlignment(.leading)
+                .padding(20)
+            }
+            .clipShape(.rect(cornerRadius: 24))
+            .padding(.horizontal, 20)
+        }
+        .buttonStyle(.plain)
     }
 }
