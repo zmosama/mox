@@ -534,7 +534,9 @@ function Spotlight({ spots, signedIn, onOpen }: { spots: Spot[]; signedIn: boole
               key={`${t.kind}-${t.tmdbId}-${i}`}
               spot={t}
               rank={(i % n) + 1}
-              current={i === at}
+              // By the picture, not the copy: moving back to the middle set
+              // swaps copies, and comparing copies made it dim and relight.
+              current={i % n === at % n}
               signedIn={signedIn}
               onOpen={onOpen}
             />
