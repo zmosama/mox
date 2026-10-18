@@ -86,11 +86,8 @@ struct CornerGlow: View {
             let h = geo.size.height
             // Along the edges from the corner: whole at the corner, half by a
             // quarter of the way, gone a little past halfway.
-            let fade = EllipticalGradient(
-                stops: [.init(color: .white, location: 0), .init(color: .white.opacity(0.85), location: 0.12),
-                        .init(color: .white.opacity(0.35), location: 0.35), .init(color: .clear, location: 0.62)],
-                center: .topLeading, startRadiusFraction: 0, endRadiusFraction: 1
-            )
+            let stops: [Gradient.Stop] = [.init(color: .white, location: 0), .init(color: .white.opacity(0.85), location: 0.12),
+                                          .init(color: .white.opacity(0.35), location: 0.35), .init(color: .clear, location: 0.62)]
             ZStack {
                 Color.black
                 // The glow inside, set in from the corner so there is a gap
@@ -109,7 +106,7 @@ struct CornerGlow: View {
                     rim(inset: 3.5, width: 1.4, color: teal.opacity(0.7)).blur(radius: 0.8)
                     rim(inset: 6, width: 2, color: Theme.green.opacity(0.35)).blur(radius: 1.5)
                 }
-                .mask(fade)
+                .mask { fade(stops) }
                 .opacity(dim ? 0.7 : 1)
                 // A white highlight where the glass curves round the corner.
                 rim(inset: 0.5, width: 2.5, color: .white)
@@ -123,6 +120,18 @@ struct CornerGlow: View {
         }
         .ignoresSafeArea()
         .allowsHitTesting(false)
+    }
+
+    /// How far along the edges the light reaches. On a phone, a share of the
+    /// screen; on an iPad a share of its tall screen ran the line half way
+    /// down the side, so there it is a fixed reach from the corner.
+    @ViewBuilder
+    private func fade(_ stops: [Gradient.Stop]) -> some View {
+        if UIDevice.current.userInterfaceIdiom == .pad {
+            RadialGradient(stops: stops, center: .topLeading, startRadius: 0, endRadius: 620)
+        } else {
+            EllipticalGradient(stops: stops, center: .topLeading, startRadiusFraction: 0, endRadiusFraction: 1)
+        }
     }
 
     /// A band of the given width just inside the screen's edge.

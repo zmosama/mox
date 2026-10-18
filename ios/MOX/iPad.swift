@@ -120,36 +120,40 @@ extension View {
 
 /// The top of Home: the week's biggest titles as a carousel, as on the
 /// website. Each picture keeps its own shape — never cropped — on a rounded
-/// card no taller than half the screen, centred, with its neighbours showing
-/// either side; it moves on by itself every few seconds.
+/// card that fills the width up to a height cap, the next one showing at the
+/// edge; it moves on by itself every few seconds.
 struct FeaturedCarousel: View {
     let cards: [Card]
     let open: (TitleRef) -> Void
     @State private var page: String?
-    @State private var size: CGSize = .init(width: 834, height: 1194)
 
-    /// As wide as fits, and no taller than about half the screen.
-    private var slideWidth: CGFloat {
-        min(size.width - IPad.margin * 2, size.height * 0.5 * 16 / 9)
-    }
+    /// No taller than this: a wider space shows more of the next card instead.
+    private let maxHeight: CGFloat = 460
 
     var body: some View {
         VStack(spacing: 14) {
+            // Sized by the space it is given, never by the screen: in landscape
+            // with the sidebar open the screen is far wider than the content,
+            // and centring on the screen pushed the picture off to the right.
             ScrollView(.horizontal) {
                 HStack(spacing: 20) {
                     ForEach(Array(cards.enumerated()), id: \.element.id) { i, card in
                         slide(card, rank: i + 1)
-                            .frame(width: slideWidth)
+                            .containerRelativeFrame(.horizontal) { length, _ in
+                                min(length - IPad.margin * 2, maxHeight * 16 / 9)
+                            }
                             .id(card.id)
                     }
                 }
                 .scrollTargetLayout()
             }
-            .contentMargins(.horizontal, (size.width - slideWidth) / 2, for: .scrollContent)
+            .contentMargins(.horizontal, IPad.margin, for: .scrollContent)
             .scrollTargetBehavior(.viewAligned)
             .scrollIndicators(.hidden)
-            .scrollPosition(id: $page, anchor: .center)
-            .frame(height: slideWidth * 9 / 16)
+            // Each slide to the left margin, where the rows below start —
+            // without an anchor it scrolled only until the slide showed, and
+            // came to rest against the right edge.
+            .scrollPosition(id: $page, anchor: .leading)
 
             HStack(spacing: 8) {
                 ForEach(cards) { card in
@@ -160,9 +164,6 @@ struct FeaturedCarousel: View {
             }
             .animation(.smooth, value: page)
         }
-        .onGeometryChange(for: CGSize.self) { proxy in
-            CGSize(width: proxy.size.width, height: UIScreen.main.bounds.height)
-        } action: { size = $0 }
         .task(id: page) {
             try? await Task.sleep(for: .seconds(7))
             guard !Task.isCancelled, !cards.isEmpty else { return }
@@ -297,7 +298,14 @@ struct IPadHome: View {
         }
         .scrollIndicators(.hidden)
         .background { CornerGlow() }
-        .overlay(alignment: .topTrailing) { AccountButton().padding(.trailing, 24).padding(.top, 8) }
+        // Your photo up in the tab bar's row, at the screen's top corner —
+        // not down over the pictures.
+        .overlay(alignment: .topTrailing) {
+            AccountButton()
+                .padding(.trailing, 24)
+                .padding(.top, 26)
+                .ignoresSafeArea(edges: .top)
+        }
         .refreshable { await load() }
         .task(id: api.revision) { await load() }
     }
