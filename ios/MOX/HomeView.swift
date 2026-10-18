@@ -59,6 +59,14 @@ struct HomeView: View {
                 // while the layout around it changes: swapping to a separate
                 // compact hero rebuilt the text field and dropped the keyboard
                 // on the second letter typed.
+                // The week's big picture first, the bar under it; while asking
+                // the picture steps aside so the bar rises to the top. Only the
+                // picture comes and goes — the bar keeps its place in the stack.
+                if !asking, let spots = spotlightCards, !spots.isEmpty {
+                    Spotlight(spots: spots) { router.title = $0 }
+                        .padding(.top, 8)
+                        .transition(.opacity)
+                }
                 hero
                 if asking { answers } else { board }
             }
@@ -74,6 +82,11 @@ struct HomeView: View {
         .task(id: trimmed) { await search() }
         .task(id: mood) { await discover() }
         .onDisappear { dictation.stop() }
+    }
+
+    /// The biggest titles of the week that have a picture.
+    private var spotlightCards: [Card]? {
+        payload.map { Array($0.trending.filter { $0.backdrop != nil }.prefix(6)) }
     }
 
     // MARK: - Hero
@@ -298,11 +311,7 @@ struct HomeView: View {
             }
             .padding(.horizontal, 32)
         } else if let payload {
-            let spots = Array(payload.trending.filter { $0.backdrop != nil }.prefix(6))
-            let spotIds = Set(spots.map(\.id))
-            if !spots.isEmpty {
-                Spotlight(spots: spots) { router.title = $0 }
-            }
+            let spotIds = Set((spotlightCards ?? []).map(\.id))
             if let fresh = payload.fresh, !fresh.isEmpty {
                 PosterRail(title: "Just landed", detail: "on your services", cards: fresh) { router.title = $0 }
             }

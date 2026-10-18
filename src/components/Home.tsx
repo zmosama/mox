@@ -63,6 +63,11 @@ export function Home({
   const [open, setOpen] = useState<Ref | null>(null);
   const [person, setPerson] = useState<number | null>(null);
 
+  // The biggest titles of the week lead, with their pictures; the rest of the
+  // week's list follows as a rail.
+  const spots = trending.filter((t) => t.backdrop).slice(0, 6);
+  const restTrending = trending.filter((t) => !spots.includes(t));
+
   const q = query.trim();
   const asking = q.length >= 2 || mood !== null;
 
@@ -117,29 +122,30 @@ export function Home({
        mean the viewport. */
     <div className="relative mx-[calc(50%-50vw)] overflow-x-clip">
       <div aria-hidden className="fixed inset-0 -z-10 bg-black" />
-      {/* Green light from the screen's top corner, under everything: the
-          ring's glow, now that the ring itself is only in the dock. */}
+      {/* Green light caught in the screen's glass, like a prism at its edge:
+          a bright thin line hugging the top corner and dying away along both
+          edges, a dark gap, then a soft glow that has spilled into the page. */}
       <div
         aria-hidden
-        className="pointer-events-none fixed -start-[18vmax] -top-[22vmax] -z-10 size-[64vmax] rounded-full opacity-90 blur-3xl [background:radial-gradient(closest-side,rgb(0_208_132/0.34),rgb(0_208_132/0.12)_50%,transparent)]"
+        className="pointer-events-none fixed inset-0 -z-10 [box-shadow:inset_0_0_0_1.5px_rgb(167_243_208/0.95),inset_0_0_14px_3px_rgb(0_208_132/0.75),inset_0_0_42px_10px_rgb(0_208_132/0.35)] [mask-image:radial-gradient(ellipse_75%_60%_at_0_0,#000_10%,rgb(0_0_0/0.5)_40%,transparent_75%)]"
       />
       <div
         aria-hidden
-        className="pointer-events-none fixed -start-[6vmax] -top-[8vmax] -z-10 size-[26vmax] rounded-full blur-2xl [background:radial-gradient(closest-side,rgb(167_243_208/0.22),transparent)]"
+        className="pointer-events-none fixed start-[6vmax] top-[4vmax] -z-10 size-[56vmax] rounded-full blur-3xl [background:radial-gradient(closest-side,rgb(0_208_132/0.16),rgb(0_208_132/0.05)_55%,transparent)]"
       />
       {/* A phone gets the phone app's layout; a computer the iPad's — the
           featured picture across the whole width, wide cards, and only the
           floating dock to move around. */}
       <div className="mx-auto max-w-[1180px] px-4 sm:px-6 lg:max-w-none lg:px-10">
-        {/* Ask MOX, along the top: there when you know what you want, out of
-            the way when you came to see what is new. */}
-        <header
-          className={cn(
-            "relative z-30 flex items-center gap-3 pb-4 pt-4 sm:gap-4 sm:pt-6",
-            // Over the featured picture on a computer, as on the iPad.
-            !asking && "lg:absolute lg:inset-x-10 lg:top-0",
-          )}
-        >
+        {/* The week's big picture first and Ask MOX under it; while asking,
+            the picture steps aside and the bar rises to the top. Only the
+            picture comes and goes, so the field never loses focus. */}
+        {!asking && spots.length ? (
+          <div className="relative z-10 pt-4 sm:pt-6 lg:pt-0">
+            <Spotlight spots={spots} signedIn={user !== null} onOpen={setOpen} />
+          </div>
+        ) : null}
+        <header className={cn("relative z-30 flex items-center gap-3 pb-4 sm:gap-4", asking || !spots.length ? "pt-4 sm:pt-6" : "pt-6")}>
           <div className="flex min-w-0 flex-1 justify-center">
             <AskBar
               query={query}
@@ -189,7 +195,7 @@ export function Home({
               needsServices={needsServices}
               forYou={forYou}
               episodes={episodes}
-              trending={trending}
+              trending={restTrending}
               fresh={fresh}
               coming={coming}
               fromPeople={fromPeople}
@@ -371,16 +377,8 @@ function Board({
   fromPeople: PersonNews[];
   onOpen: (r: Ref) => void;
 }) {
-  // The biggest titles of the week lead, with their pictures; the rest of
-  // the week's list follows as a rail.
-  const spots = trending.filter((t) => t.backdrop).slice(0, 6);
-  const shown = new Set(spots.map((s) => `${s.kind}-${s.tmdbId}`));
-  const restTrending = trending.filter((t) => !shown.has(`${t.kind}-${t.tmdbId}`));
-
   return (
     <div className="flex flex-col gap-10">
-
-      {spots.length ? <Spotlight spots={spots} signedIn={signedIn} onOpen={onOpen} /> : null}
 
       {needsServices ? (
         <Link
@@ -401,8 +399,8 @@ function Board({
 
       {forYou.length || !signedIn ? <ForYou items={forYou} today={today} signedIn={signedIn} onOpen={onOpen} /> : null}
 
-      {restTrending.length ? (
-        <Shelf title="Everyone's watching" detail="this week" cards={restTrending} signedIn={signedIn} onOpen={onOpen} />
+      {trending.length ? (
+        <Shelf title="Everyone's watching" detail="this week" cards={trending} signedIn={signedIn} onOpen={onOpen} />
       ) : null}
 
       {coming.length ? (

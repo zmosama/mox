@@ -67,19 +67,48 @@ extension View {
     }
 }
 
-/// Green light from the screen's top corner, under everything — the glow the
-/// big ring used to give the home screen, now that the ring lives in the tab bar.
+/// Green light caught in the screen's glass, like a prism at its edge: a
+/// bright thin line where the glass meets the frame, heaviest at the top
+/// corner and dying away along both edges; a dark gap; then a soft glow that
+/// has spilled into the app.
 struct CornerGlow: View {
+    /// The screen's own corner, near enough on every current iPhone.
+    private let radius: CGFloat = 56
+
     var body: some View {
         GeometryReader { geo in
-            let r = max(geo.size.width, geo.size.height) * 0.75
-            ZStack(alignment: .topLeading) {
+            let w = geo.size.width
+            let h = geo.size.height
+            // Along the edges from the corner: full at the corner, gone by a
+            // little past halfway across and a third of the way down.
+            let fade = EllipticalGradient(
+                colors: [.white, .white.opacity(0.6), .clear],
+                center: .topLeading, startRadiusFraction: 0, endRadiusFraction: 0.55
+            )
+            ZStack {
                 Color.black
-                RadialGradient(colors: [Theme.green.opacity(0.34), Theme.green.opacity(0.12), .clear],
-                               center: .topLeading, startRadius: 0, endRadius: r)
-                RadialGradient(colors: [Theme.mint.opacity(0.18), .clear],
-                               center: .topLeading, startRadius: 0, endRadius: r * 0.4)
+                // The glow inside, set in from the corner so there is a gap
+                // between it and the edge.
+                RadialGradient(colors: [Theme.green.opacity(0.16), Theme.green.opacity(0.05), .clear],
+                               center: UnitPoint(x: 0.3, y: 0.2), startRadius: 0, endRadius: max(w, h) * 0.38)
+                    .mask(RadialGradient(colors: [.clear, .clear, .white], center: .topLeading,
+                                         startRadius: 0, endRadius: 240))
+                // The heavy light in the glass's edge.
+                RoundedRectangle(cornerRadius: radius)
+                    .strokeBorder(Theme.green, lineWidth: 14)
+                    .blur(radius: 14)
+                    .opacity(0.85)
+                    .mask(fade)
+                RoundedRectangle(cornerRadius: radius)
+                    .strokeBorder(
+                        LinearGradient(colors: [Theme.mint, Theme.green, Theme.green.opacity(0.6)],
+                                       startPoint: .topLeading, endPoint: .bottomTrailing),
+                        lineWidth: 2.5
+                    )
+                    .blur(radius: 1.2)
+                    .mask(fade)
             }
+            .frame(width: w, height: h)
         }
         .ignoresSafeArea()
         .allowsHitTesting(false)
