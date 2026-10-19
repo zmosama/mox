@@ -82,7 +82,11 @@ struct HomeView: View {
         }
         .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { viewport = $0 }
         .scrollDismissesKeyboard(.interactively)
-        .background { CornerGlow() }
+        // The edge light is the phone's alone; an iPad (even with Home in a
+        // narrow window) stays plain black.
+        .background {
+            if UIDevice.current.userInterfaceIdiom == .phone { CornerGlow() } else { Color.black.ignoresSafeArea() }
+        }
         .refreshable { api.touch(); await load() }
         .task(id: api.revision) { await load() }
         .task(id: trimmed) { await search() }

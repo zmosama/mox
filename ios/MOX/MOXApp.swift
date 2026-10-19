@@ -123,10 +123,6 @@ struct RootView: View {
         // ordinary tab bar.
         .tabViewStyle(.sidebarAdaptable)
         .tabBarMinimizeBehavior(.onScrollDown)
-        // iPad Home's edge light, over the sidebar rather than under it.
-        .overlay {
-            if sizeClass == .regular && router.tab == .home { CornerGlow(part: .rim) }
-        }
         // On an iPad a title grows out of the card it was opened from into a
         // large card over the screen, and shrinks back into it — swiped down
         // or closed. On an iPhone, the sheet it always was.
