@@ -57,6 +57,9 @@
 @layer base {
   html {
     -webkit-font-smoothing: antialiased;
+    /* Dark by design (see the viewport in layout.tsx): browsers then leave
+       our colours and photos alone, and draw their own controls dark. */
+    color-scheme: dark;
   }
 
   body {

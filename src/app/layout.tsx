@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Sora, IBM_Plex_Sans_Arabic } from "next/font/google";
 import { GlassBar } from "@/components/GlassBar";
+import { TapGuard } from "@/components/TapGuard";
 import { currentUser } from "@/lib/auth";
 import { readPrefs, webTabs } from "@/lib/prefs";
 import "./globals.css";
@@ -27,6 +28,10 @@ export const metadata: Metadata = {
 
 export const viewport: Viewport = {
   themeColor: "#000000",
+  /* MOX is dark by design. Said out loud, so a phone browser's own dark
+     mode (Chrome's "darken websites", Samsung Internet) does not re-colour
+     it — that dimmed photos, and showed testers shadowed faces. */
+  colorScheme: "dark",
   width: "device-width",
   initialScale: 1,
   /* Reach under the notch and the home indicator; the safe-area padding in
@@ -50,6 +55,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           {children}
         </main>
         <GlassBar tabs={tabs} />
+        <TapGuard />
       </body>
     </html>
   );
