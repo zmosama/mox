@@ -16,7 +16,7 @@ import { cn } from "@/lib/cn";
 import { dayLabel } from "@/lib/dates";
 import type { CalendarEpisode, FreshEpisode } from "@/lib/queries";
 import type { PersonNews } from "@/lib/people";
-import type { MediaKind, Verdict } from "@/db/schema";
+import type { MediaKind } from "@/db/schema";
 
 type Ref = { tmdbId: number; kind: MediaKind };
 type SearchPerson = { id: number; name: string; profile: string | null; department: string | null; knownFor: string[] };
@@ -134,7 +134,7 @@ export function Home({
             picture comes and goes, so the field never loses focus. */}
         {!asking && spots.length ? (
           <div className="relative z-10 pt-4 sm:pt-6">
-            <Spotlight spots={spots} signedIn={user !== null} onOpen={setOpen} />
+            <Spotlight spots={spots} onOpen={setOpen} />
             {/* Your photo in the top corner, over the picture, as on the iPad. */}
             <div className="absolute end-3 top-7 z-20 sm:end-4 sm:top-10">
               <Avatar user={user} />
@@ -393,29 +393,28 @@ function Board({
       ) : null}
 
       {fresh.length ? (
-        <Shelf title="Just landed" detail="on your services" more="/new" cards={fresh} signedIn={signedIn} onOpen={onOpen} />
+        <Shelf title="Just landed" detail="on your services" more="/new" cards={fresh} onOpen={onOpen} />
       ) : null}
 
       {/* The point of MOX: what to watch, from what you have rated. */}
       {picks.length ? (
-        <Shelf title="Picked for you" detail="from your ratings" cards={picks} signedIn={signedIn} onOpen={onOpen} />
+        <Shelf title="Picked for you" detail="from your ratings" cards={picks} onOpen={onOpen} />
       ) : null}
 
       {forYou.length || !signedIn ? <ForYou items={forYou} today={today} signedIn={signedIn} onOpen={onOpen} /> : null}
 
       {trending.length ? (
-        <Shelf title="Everyone's watching" detail="this week" cards={trending} signedIn={signedIn} onOpen={onOpen} />
+        <Shelf title="Everyone's watching" detail="this week" cards={trending} onOpen={onOpen} />
       ) : null}
 
       {coming.length ? (
-        <Shelf title="Coming soon" detail="most anticipated" more="/new" cards={coming} signedIn={signedIn} onOpen={onOpen} />
+        <Shelf title="Coming soon" detail="most anticipated" more="/new" cards={coming} onOpen={onOpen} />
       ) : null}
 
       {fromPeople.length ? (
         <Shelf
           title="From people you follow"
           cards={fromPeople.map((n) => ({ ...n.title, reason: `${n.person.name} · ${n.title.platforms[0]?.name ?? ""}` }))}
-          signedIn={signedIn}
           onOpen={onOpen}
         />
       ) : null}
@@ -441,7 +440,7 @@ function Board({
  * phone, arrows and dots on a computer, and on to the next by itself every
  * few seconds until you touch it.
  */
-function Spotlight({ spots, signedIn, onOpen }: { spots: Spot[]; signedIn: boolean; onOpen: (r: Ref) => void }) {
+function Spotlight({ spots, onOpen }: { spots: Spot[]; onOpen: (r: Ref) => void }) {
   const strip = useRef<HTMLDivElement>(null);
   const n = spots.length;
   /* It goes round in both directions: the slides are laid out three times
@@ -537,7 +536,6 @@ function Spotlight({ spots, signedIn, onOpen }: { spots: Spot[]; signedIn: boole
               // By the picture, not the copy: moving back to the middle set
               // swaps copies, and comparing copies made it dim and relight.
               current={i % n === at % n}
-              signedIn={signedIn}
               onOpen={onOpen}
             />
           ))}
@@ -588,7 +586,7 @@ const sharp = (url: string | null) => url?.replace(/\/w\d+\//, "/w1280/") ?? nul
  * shape. On a phone the words sit under it; on a computer over its lower
  * left, and the slide is only as wide as keeps the picture whole on screen.
  */
-function SpotSlide({ spot, rank, current, signedIn, onOpen }: { spot: Spot; rank: number; current: boolean; signedIn: boolean; onOpen: (r: Ref) => void }) {
+function SpotSlide({ spot, rank, current, onOpen }: { spot: Spot; rank: number; current: boolean; onOpen: (r: Ref) => void }) {
   const where = spot.platforms[0];
   return (
     <article
@@ -644,194 +642,27 @@ function SpotSlide({ spot, rank, current, signedIn, onOpen }: { spot: Spot; rank
           >
             Details
           </button>
-          {signedIn ? <SaveButton item={spot} large /> : null}
         </div>
       </div>
     </article>
   );
 }
 
-/**
- * Save for later in one tap, without opening the title. A saved title is
- * followed, so its arrival on a service turns up in New for you.
- */
-export function SaveButton({ item, large }: { item: CardTitle; large?: boolean }) {
-  const [saved, setSaved] = useState(item.verdict === "watchlist");
-  const [busy, setBusy] = useState(false);
-  const toggle = async (e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (busy) return;
-    const next = !saved;
-    setSaved(next);
-    setBusy(true);
-    try {
-      const res = await fetch("/api/verdict", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ tmdbId: item.tmdbId, kind: item.kind, verdict: next ? "watchlist" : null }),
-      });
-      if (!res.ok) setSaved(!next);
-    } catch {
-      setSaved(!next);
-    } finally {
-      setBusy(false);
-    }
-  };
-  return (
-    <button
-      type="button"
-      onClick={toggle}
-      aria-pressed={saved}
-      aria-label={saved ? `Remove ${item.title} from your list` : `Save ${item.title} for later`}
-      className={cn(
-        "grid place-items-center rounded-full border transition",
-        large ? "size-[42px]" : "size-8",
-        saved ? "border-want/60 bg-black/60 text-want" : "border-white/15 bg-black/60 text-ink hover:bg-black/80",
-      )}
-    >
-      <svg viewBox="0 0 24 24" className={cn("fill-current", large ? "size-[18px]" : "size-4")} aria-hidden>
-        {saved ? (
-          <path d="M6 3h12a1 1 0 0 1 1 1v17l-7-4.2L5 21V4a1 1 0 0 1 1-1z" />
-        ) : (
-          <path d="M11 5h2v6h6v2h-6v6h-2v-6H5v-2h6z" />
-        )}
-      </svg>
-    </button>
-  );
-}
-
-/** The iPad's card: a wide picture, its name and where it streams under it.
- * Hovered on a computer, it turns over to what it is about and one-tap
- * answers — love, like, not for me, save — and Play, without opening it. */
-function WideCard({ item, signedIn, onOpen }: { item: CardTitle & { overview?: string | null }; signedIn: boolean; onOpen: (r: Ref) => void }) {
-  const [verdict, setVerdict] = useState<Verdict | null>(item.verdict);
+function WideCard({ item, onOpen }: { item: CardTitle; onOpen: (r: Ref) => void }) {
   const tag = item.releaseLabel ?? item.episodeLabel;
   const caption = item.reason ?? item.platforms[0]?.name ?? (item.year ? String(item.year) : "");
-  const where = item.platforms[0];
-
-  const answer = async (v: Verdict) => {
-    const next = verdict === v ? null : v;
-    const was = verdict;
-    setVerdict(next);
-    try {
-      const res = await fetch("/api/verdict", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ tmdbId: item.tmdbId, kind: item.kind, verdict: next }),
-      });
-      if (!res.ok) setVerdict(was);
-    } catch {
-      setVerdict(was);
-    }
-  };
-
   return (
-    <div className="group relative w-[300px] shrink-0 snap-start xl:w-[340px]">
-      <div
-        className={cn(
-          "relative aspect-video w-full overflow-hidden rounded-[14px] bg-surface",
-          verdict && verdict !== "watchlist" && "ring-2 ring-inset",
-          verdict === "love" && "ring-love",
-          verdict === "like" && "ring-like",
-          verdict === "dislike" && "opacity-50 ring-against",
-        )}
-      >
+    <button type="button" onClick={() => onOpen(item)} aria-label={`Open ${item.title}`} className="group block w-[300px] shrink-0 snap-start text-start xl:w-[340px]">
+      <span className="relative block aspect-video w-full overflow-hidden rounded-[14px] bg-surface">
         <Thumb src={item.backdrop ?? item.poster} className="absolute inset-0 size-full transition-transform duration-300 group-hover:scale-[1.04]" />
         {tag ? (
           <span className="numeric absolute start-2.5 top-2.5 rounded-full bg-black/65 px-2 py-1 text-[11px] font-semibold text-love-soft">
             {tag}
           </span>
         ) : null}
-        <button type="button" onClick={() => onOpen(item)} aria-label={`Open ${item.title}`} className="absolute inset-0" />
-        {/* Turned over on hover, after a beat so a passing pointer doesn't flicker it. */}
-        <div
-          onClick={() => onOpen(item)}
-          className="pointer-events-none absolute inset-0 flex cursor-pointer flex-col justify-end bg-gradient-to-t from-black via-black/75 to-black/20 p-3 opacity-0 transition-opacity delay-0 duration-200 group-hover:pointer-events-auto group-hover:opacity-100 group-hover:delay-300 group-focus-within:pointer-events-auto group-focus-within:opacity-100"
-        >
-          {item.overview ? (
-            <button type="button" onClick={() => onOpen(item)} className="mb-2 line-clamp-3 text-start text-[12.5px] leading-snug text-white/85">
-              {item.overview}
-            </button>
-          ) : null}
-          <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
-            {where?.url ? (
-              <a
-                href={where.url}
-                target="_blank"
-                rel="noreferrer"
-                className="flex h-8 items-center gap-1.5 rounded-full bg-ink px-3 text-[12.5px] font-semibold text-bg transition hover:opacity-90"
-              >
-                <svg viewBox="0 0 24 24" className="size-3.5 fill-current" aria-hidden>
-                  <path d="M7 4v16l13-8z" />
-                </svg>
-                Play
-              </a>
-            ) : null}
-            {signedIn ? (
-              <>
-                <Quick label="Love it" on={verdict === "love"} tone="text-love" onClick={() => answer("love")}>
-                  <path d="M12 21s-7.5-4.6-9.6-9.2C.9 8.4 3 5 6.4 5c2 0 3.6 1.1 4.6 2.6l1 1.4 1-1.4C14 6.1 15.6 5 17.6 5 21 5 23.1 8.4 21.6 11.8 19.5 16.4 12 21 12 21z" />
-                </Quick>
-                <Quick label="Like it" on={verdict === "like"} tone="text-like" onClick={() => answer("like")}>
-                  <path d="M2 10h4v11H2zm6 11h9.3a2 2 0 0 0 2-1.6l1.6-7.4A2 2 0 0 0 19 9.6h-5.4l.8-4.2a1.6 1.6 0 0 0-2.8-1.3L8 9z" />
-                </Quick>
-                <Quick label="Not for me" on={verdict === "dislike"} tone="text-against" onClick={() => answer("dislike")}>
-                  <path d="M22 14h-4V3h4zM16 3H6.7a2 2 0 0 0-2 1.6L3.1 12a2 2 0 0 0 1.9 2.4h5.4l-.8 4.2a1.6 1.6 0 0 0 2.8 1.3L16 15z" />
-                </Quick>
-                <Quick label={verdict === "watchlist" ? "Saved" : "Save for later"} on={verdict === "watchlist"} tone="text-want" onClick={() => answer("watchlist")}>
-                  {verdict === "watchlist" ? (
-                    <path d="M6 3h12a1 1 0 0 1 1 1v17l-7-4.2L5 21V4a1 1 0 0 1 1-1z" />
-                  ) : (
-                    <path d="M11 5h2v6h6v2h-6v6h-2v-6H5v-2h6z" />
-                  )}
-                </Quick>
-              </>
-            ) : null}
-            <Quick label="Details" onClick={() => onOpen(item)} className="ms-auto">
-              <path d="M11 10h2v8h-2zm0-4h2v2h-2z" />
-            </Quick>
-          </div>
-        </div>
-      </div>
-      <button type="button" onClick={() => onOpen(item)} className="mt-2 block w-full text-start">
-        <span className="block truncate text-[15px] font-semibold">{item.title}</span>
-        <span className={cn("numeric block truncate text-[12.5px]", item.reason ? "text-love-soft" : "text-ink-dim")}>{caption || "\u00a0"}</span>
-      </button>
-    </div>
-  );
-}
-
-function Quick({
-  label,
-  on,
-  tone,
-  onClick,
-  className,
-  children,
-}: {
-  label: string;
-  on?: boolean;
-  tone?: string;
-  onClick: () => void;
-  className?: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-label={label}
-      aria-pressed={on}
-      title={label}
-      className={cn(
-        "grid size-8 place-items-center rounded-full border border-white/15 transition",
-        on ? cn("bg-black/70", tone) : "bg-black/50 text-ink hover:bg-black/75",
-        className,
-      )}
-    >
-      <svg viewBox="0 0 24 24" className="size-4 fill-current" aria-hidden>
-        {children}
-      </svg>
+      </span>
+      <span className="mt-2 block truncate text-[15px] font-semibold">{item.title}</span>
+      <span className={cn("numeric block truncate text-[12.5px]", item.reason ? "text-love-soft" : "text-ink-dim")}>{caption || "\u00a0"}</span>
     </button>
   );
 }
@@ -855,14 +686,12 @@ function Shelf({
   detail,
   more,
   cards,
-  signedIn,
   onOpen,
 }: {
   title: string;
   detail?: string;
   more?: string;
   cards: CardTitle[];
-  signedIn?: boolean;
   onOpen: (r: Ref) => void;
 }) {
   return (
@@ -873,14 +702,7 @@ function Shelf({
         <Rail>
           {cards.map((c) => (
             <RailItem key={`${c.kind}-${c.tmdbId}`}>
-              <div className="relative">
-                <TitleCard item={c} onOpen={onOpen} />
-                {signedIn && (!c.verdict || c.verdict === "watchlist") ? (
-                  <div className="absolute end-1.5 top-1.5 z-20">
-                    <SaveButton item={c} />
-                  </div>
-                ) : null}
-              </div>
+              <TitleCard item={c} onOpen={onOpen} />
             </RailItem>
           ))}
         </Rail>
@@ -890,7 +712,7 @@ function Shelf({
       <div className="hidden lg:block">
         <div className="strip -mx-10 snap-x scroll-px-10 gap-5 px-10 pb-1">
           {cards.map((c) => (
-            <WideCard key={`${c.kind}-${c.tmdbId}`} item={c} signedIn={Boolean(signedIn)} onOpen={onOpen} />
+            <WideCard key={`${c.kind}-${c.tmdbId}`} item={c} onOpen={onOpen} />
           ))}
         </div>
       </div>
