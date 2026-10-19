@@ -83,7 +83,7 @@ struct HomeView: View {
         .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { viewport = $0 }
         .scrollDismissesKeyboard(.interactively)
         .background { CornerGlow() }
-        .refreshable { await load() }
+        .refreshable { api.touch(); await load() }
         .task(id: api.revision) { await load() }
         .task(id: trimmed) { await search() }
         .task(id: mood) { await discover() }
@@ -351,6 +351,7 @@ struct HomeView: View {
             if !payload.inStore.isEmpty {
                 PosterRail(title: "New in the store", cards: payload.inStore, caption: { $0.price }) { router.title = $0 }
             }
+            if !wide { ScreenStrip() }
         } else {
             ProgressView().padding(.top, 40)
         }
@@ -390,6 +391,7 @@ struct HomeView: View {
     // MARK: - Loading
 
     private func load() async {
+        if payload == nil { payload = api.peek("/api/app/home") }
         do {
             payload = try await api.home()
             loadError = nil
@@ -692,5 +694,76 @@ struct Spotlight: View {
             .padding(.horizontal, 20)
         }
         .buttonStyle(.plain)
+    }
+}
+
+
+/// Every screen in MOX as a grid at the foot of Home, so the dock is
+/// not the only way in: a screen in the dock switches to its tab, any other
+/// opens over Home.
+struct ScreenStrip: View {
+    @Environment(API.self) private var api
+    @Environment(Router.self) private var router
+    @Environment(AppSettings.self) private var settings
+    @Environment(\.horizontalSizeClass) private var sizeClass
+    /// Two across on a phone, four on an iPad.
+    var columns = 2
+    /// The next race, read once from what F1 last loaded — not on every redraw.
+    @State private var f1Next: String?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            SectionTitle(text: "Everything in MOX")
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 10), count: columns), spacing: 10) {
+                ForEach(TabID.allCases) { id in
+                    Button {
+                        // The iPad's sidebar holds every screen but Calendar and Tasks
+                        // until they are chosen; the phone's dock only your four.
+                        let inSidebar = sizeClass == .regular && !id.needsDevice
+                        if settings.tabs.contains(id) || inSidebar { router.tab = .tab(id) } else { router.screen = id }
+                    } label: {
+                        let tint = id == .f1 ? Color(hex: 0xE10600) : Theme.green
+                        HStack(spacing: 11) {
+                            Image(systemName: id.icon)
+                                .font(.system(size: 15, weight: .semibold))
+                                .foregroundStyle(tint)
+                                .frame(width: 34, height: 34)
+                                .background(tint.opacity(0.14), in: .rect(cornerRadius: 10))
+                            VStack(alignment: .leading, spacing: 1) {
+                                Text(id.label).font(.sora(14, .semibold)).foregroundStyle(Theme.paper)
+                                Text(line(id)).font(.sora(11)).foregroundStyle(Theme.muted).lineLimit(1)
+                            }
+                            Spacer(minLength: 0)
+                        }
+                        .padding(.horizontal, 11)
+                        .padding(.vertical, 10)
+                        .background(Theme.surface, in: .rect(cornerRadius: 16))
+                        .contentShape(.rect(cornerRadius: 16))
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .padding(.horizontal, 20)
+        }
+        .task(id: api.revision) {
+            if let next = (api.peek("/api/f1") as F1Board?)?.next, let d = F1Time.parse(next.at) {
+                f1Next = "\(next.locality) · in \(F1Time.until(d, from: .now))"
+            }
+        }
+    }
+
+    /// One line of what is in there — live where MOX already knows it.
+    private func line(_ id: TabID) -> String {
+        switch id {
+        case .f1: return f1Next ?? "Races & standings"
+        case .today: return "Out today"
+        case .news: return "Headlines"
+        case .library: return "Following & watchlist"
+        case .picks: return "From your ratings"
+        case .studios: return "By studio"
+        case .friends: return "What friends watch"
+        case .calendar: return "Your calendar"
+        case .tasks: return "Your reminders"
+        }
     }
 }

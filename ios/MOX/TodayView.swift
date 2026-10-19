@@ -31,7 +31,7 @@ struct TodayView: View {
             .padding(.bottom, 48)
         }
         .background(Theme.ink)
-        .refreshable { await load() }
+        .refreshable { api.touch(); await load() }
         .task(id: api.revision) { await load() }
         .task(id: calendar.revision) { events = calendar.todaysEvents() }
         .onChange(of: settings.showCalendarInToday) { events = calendar.todaysEvents() }
@@ -149,6 +149,7 @@ struct TodayView: View {
     }
 
     private func load() async {
+        if payload == nil { payload = api.peek("/api/app/today") }
         do {
             payload = try await api.today()
             loadError = nil

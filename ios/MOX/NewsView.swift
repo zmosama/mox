@@ -64,7 +64,7 @@ struct NewsView: View {
             .padding(.bottom, 48)
         }
         .background(Theme.ink)
-        .refreshable { await load() }
+        .refreshable { api.touch(); await load() }
         .task(id: api.revision) { await load() }
         .sheet(item: $reading) { SafariView(url: $0).ignoresSafeArea() }
     }
@@ -130,6 +130,7 @@ struct NewsView: View {
     }
 
     private func load() async {
+        if payload == nil { payload = api.peek("/api/news") }
         do {
             payload = try await api.news()
             loadError = nil

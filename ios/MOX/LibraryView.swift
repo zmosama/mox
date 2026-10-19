@@ -65,7 +65,7 @@ struct LibraryView: View {
             .padding(.bottom, 48)
         }
         .background(Theme.ink)
-        .refreshable { await load() }
+        .refreshable { api.touch(); await load() }
         .task(id: api.revision) { await load() }
     }
 
@@ -88,6 +88,7 @@ struct LibraryView: View {
     }
 
     private func load() async {
+        if payload == nil { payload = api.peek("/api/app/library") }
         if api.user == nil { await api.refreshUser() }
         payload = try? await api.library()
     }

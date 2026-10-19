@@ -28,6 +28,8 @@ import { refreshUniverses } from "./refresh/universes.mjs";
 import { refreshFeatures, refreshPicks } from "./refresh/taste.mjs";
 import { refreshWatchlist } from "./refresh/watchlist.mjs";
 import { refreshAges } from "./refresh/ages.mjs";
+import { gridImageKeys } from "../src/lib/f1";
+import { warmF1Images } from "../src/lib/f1-images";
 
 const TODAY = todayISO();
 const failed: string[] = [];
@@ -118,6 +120,13 @@ await step("links", async () => {
   };
 });
 
+// The F1 pictures on our own disk: the whole grid fetched ahead, and anything
+// a month old fetched again, so new liveries arrive without anyone asking.
+await step("f1 images", async () => {
+  const { fetched, kept, missing } = await warmF1Images(await gridImageKeys());
+  return { summary: `${fetched} fetched, ${kept} kept${missing ? `, ${missing} not found` : ""}`, value: null };
+});
+
 // Last, and after everything that might have wanted a warm cache this run.
 await step("cache", async () => {
   const { removed, freed } = await pruneCache();
@@ -126,7 +135,7 @@ await step("cache", async () => {
 });
 
 if (failed.length) {
-  console.error(`\n${failed.length} of 13 steps failed: ${failed.join(", ")}`);
+  console.error(`\n${failed.length} of 14 steps failed: ${failed.join(", ")}`);
   process.exit(1);
 }
 console.log("\nall steps current");

@@ -282,6 +282,8 @@ struct IPadHome: View {
                     }
                     AiringSection(episodes: payload.calendar, today: payload.today, signedIn: payload.user != nil)
                         .padding(.horizontal, IPad.margin - 20)
+                    ScreenStrip(columns: 4)
+                        .padding(.horizontal, IPad.margin - 20)
                 } else if let loadError {
                     VStack(spacing: 10) {
                         Text("Can't reach the MOX server").font(.sora(18, .semibold))

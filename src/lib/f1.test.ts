@@ -77,7 +77,8 @@ describe("parseResult", () => {
       Constructor: { name: "Mercedes" },
     };
     expect(parseResult({ ...base, position: "1", points: "25", Time: { time: "1:34:23.754" } })).toEqual({
-      position: 1, driver: "Andrea Kimi Antonelli", code: "ANT", team: "Mercedes", detail: "1:34:23.754", points: 25,
+      position: 1, driver: "Andrea Kimi Antonelli", driverId: "", teamId: "", code: "ANT", number: null,
+      grid: null, fastest: false, photo: null, team: "Mercedes", color: "#00D7B6", detail: "1:34:23.754", points: 25,
     });
     expect(parseResult({ ...base, position: "19", status: "Retired" }).detail).toBe("Retired");
     expect(parseResult({ ...base, position: "1", Q3: "1:41.002" }).detail).toBe("1:41.002");

@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { WEB_TABS } from "./GlassBar";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AskBar, MOODS, MoodChips, type Mood } from "./AskBar";
@@ -420,17 +421,7 @@ function Board({
       ) : null}
       <Airing episodes={episodes} today={today} signedIn={signedIn} onOpen={onOpen} />
 
-      {/* Universes stay on the website only, for now. */}
-      <Link
-        href="/universes"
-        className="flex items-center justify-between rounded-[20px] bg-surface px-5 py-4 transition hover:bg-card"
-      >
-        <span>
-          <span className="block text-[16px] font-semibold">Universes</span>
-          <span className="text-[13px] text-ink-dim">Franchises, in order, and what comes next</span>
-        </span>
-        <span aria-hidden className="text-xl text-ink-dim">›</span>
-      </Link>
+      <Sections />
     </div>
   );
 }
@@ -718,6 +709,57 @@ function WideCard({ item, onOpen }: { item: CardTitle; onOpen: (r: Ref) => void 
       <span className="mt-2 block truncate text-[15px] font-semibold">{item.title}</span>
       <span className={cn("numeric block truncate text-[12.5px]", item.reason ? "text-love-soft" : "text-ink-dim")}>{caption || "\u00a0"}</span>
     </button>
+  );
+}
+
+/** One line of what is in each screen, for Home's sections. */
+const SECTIONS: { id: string; line: string }[] = [
+  { id: "today", line: "Out today" },
+  { id: "news", line: "Headlines" },
+  { id: "library", line: "Following & watchlist" },
+  { id: "studios", line: "By studio" },
+  { id: "friends", line: "What friends watch" },
+  { id: "f1", line: "Races & standings" },
+  { id: "universes", line: "Franchises, in order" },
+];
+
+/**
+ * Every screen as a grid at the foot of Home, so the bar is not the only way
+ * in — the same as the app.
+ */
+function Sections() {
+  return (
+    <section>
+      <Heading title="Everything in MOX" />
+      <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-4">
+        {SECTIONS.map(({ id, line }) => {
+          const t = WEB_TABS[id];
+          const f1 = id === "f1";
+          return (
+            <Link
+              key={id}
+              href={t.href}
+              className="flex items-center gap-3 rounded-[16px] bg-surface px-3 py-2.5 transition hover:bg-card"
+            >
+              <span
+                className={cn(
+                  "grid size-9 shrink-0 place-items-center rounded-[10px]",
+                  f1 ? "bg-[#e10600]/15 text-[#e10600]" : "bg-love/15 text-love",
+                )}
+              >
+                <svg viewBox="0 0 24 24" className="size-[18px]" fill="currentColor" aria-hidden>
+                  <path d={t.icon} fillRule="evenodd" />
+                </svg>
+              </span>
+              <span className="min-w-0">
+                <span className="block text-[14px] font-semibold">{t.label}</span>
+                <span className="block truncate text-[11.5px] text-ink-dim">{line}</span>
+              </span>
+            </Link>
+          );
+        })}
+      </div>
+    </section>
   );
 }
 

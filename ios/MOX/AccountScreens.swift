@@ -9,6 +9,8 @@ struct ServicesView: View {
     @State private var loadError: String?
     @State private var saving = false
     @State private var saved: Set<Int> = []
+    /// Set for a new account: the screen becomes a step that ends in Home.
+    var onContinue: (() -> Void)? = nil
 
     var body: some View {
         List {
@@ -31,21 +33,38 @@ struct ServicesView: View {
                     }
                 }
             } footer: {
-                Text(loadError ?? "Pick what you subscribe to. Until you do, MOX shows every service, not just yours.")
+                Text(loadError ?? (onContinue == nil
+                    ? "Pick what you subscribe to. Until you do, MOX shows every service, not just yours."
+                    : "Pick what you subscribe to, and MOX narrows to them. Skip it and you see every service — change it any time in Settings."))
             }
         }
         .scrollContentBackground(.hidden)
         .background(Theme.ink)
         .navigationTitle("Your services")
         .navigationBarTitleDisplayMode(.inline)
+        .interactiveDismissDisabled(onContinue != nil)
         .toolbar {
-            ToolbarItem(placement: .confirmationAction) {
-                Button {
-                    save()
-                } label: {
-                    if saving { ProgressView() } else { Text(picked == saved ? "Saved" : "Save") }
+            if let onContinue {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Skip", action: onContinue).disabled(saving)
                 }
-                .disabled(picked == saved || saving)
+                ToolbarItem(placement: .confirmationAction) {
+                    Button {
+                        save(then: onContinue)
+                    } label: {
+                        if saving { ProgressView() } else { Text("Continue") }
+                    }
+                    .disabled(picked.isEmpty || saving)
+                }
+            } else {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button {
+                        save()
+                    } label: {
+                        if saving { ProgressView() } else { Text(picked == saved ? "Saved" : "Save") }
+                    }
+                    .disabled(picked == saved || saving)
+                }
             }
         }
         .task { await load() }
@@ -61,13 +80,14 @@ struct ServicesView: View {
         }
     }
 
-    private func save() {
+    private func save(then done: (() -> Void)? = nil) {
         saving = true
         Task {
             defer { saving = false }
             do {
                 try await api.saveServices(Array(picked))
                 saved = picked
+                done?()
             } catch {
                 loadError = error.localizedDescription
             }

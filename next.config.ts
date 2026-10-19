@@ -1,6 +1,12 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  experimental: {
+    /* Every page here is rendered per account, so by default none is kept
+       between navigations. Keeping one for 30 seconds makes going back to a
+       screen just seen instant; anything that changes data refreshes it. */
+    staleTimes: { dynamic: 30 },
+  },
   async headers() {
     return [
       {

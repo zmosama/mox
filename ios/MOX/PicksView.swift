@@ -53,7 +53,7 @@ struct PicksView: View {
             .padding(.bottom, 48)
         }
         .background(Theme.ink)
-        .refreshable { await load() }
+        .refreshable { api.touch(); await load() }
         .task(id: api.revision) { await load() }
     }
 
@@ -88,6 +88,7 @@ struct PicksView: View {
     }
 
     private func load() async {
+        if picks == nil { picks = (api.peek("/api/app/picks") as PicksPayload?)?.picks }
         if api.user == nil { await api.refreshUser() }
         picks = (try? await api.picks().picks) ?? picks ?? []
     }

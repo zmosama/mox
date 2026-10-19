@@ -13,6 +13,8 @@ struct MOXApp: App {
     private static let opener = NotificationOpener()
 
     init() {
+        // Room for posters and backdrops, so a screen seen once draws from disk.
+        URLCache.shared = URLCache(memoryCapacity: 64 << 20, diskCapacity: 512 << 20)
         let settings = AppSettings()
         let router = Router()
         _settings = State(initialValue: settings)
@@ -57,6 +59,8 @@ final class Router {
     var person: PersonRef?
     var settings = false
     var tab: AppTab = .home
+    /// A screen opened from Home's sections that is not in the dock.
+    var screen: TabID?
 }
 
 /// The ring, or one of the account's tabs.
@@ -146,6 +150,17 @@ struct RootView: View {
         .sheet(isPresented: $router.settings) {
             SettingsView()
         }
+        .sheet(item: $router.screen) { id in
+            NavigationStack {
+                screen(id)
+                    .toolbar {
+                        ToolbarItem(placement: .topBarTrailing) {
+                            Button { router.screen = nil } label: { Image(systemName: "xmark") }
+                                .accessibilityLabel("Close")
+                        }
+                    }
+            }
+        }
         #if DEBUG
         // Screenshots: `simctl launch … -moxTab studios` opens on that tab.
         .onAppear {
@@ -155,12 +170,22 @@ struct RootView: View {
             if let t = UserDefaults.standard.string(forKey: "moxTitle")?.split(separator: "/"), t.count == 2, let id = Int(t[1]) {
                 router.title = TitleRef(tmdbId: id, kind: String(t[0]))
             }
+            // `-moxWelcome YES`: the services step a new account sees.
+            if UserDefaults.standard.bool(forKey: "moxWelcome") {
+                router.settings = true
+                api.welcoming = true
+            }
         }
         #endif
         // The account's tabs, from the server, whenever who is signed in changes.
         .task(id: api.user?.id) {
             guard api.user != nil, let prefs = try? await api.prefs(), !prefs.tabIDs.isEmpty else { return }
             settings.tabs = prefs.tabIDs
+        }
+        // Fill the tabs in the dock before they are opened, so they open full.
+        .task(id: "\(api.user?.id ?? 0)|\(settings.tabs.map(\.rawValue).joined())") {
+            try? await Task.sleep(for: .seconds(1.5))
+            await api.warm(settings.tabs.compactMap(\.screenPath))
         }
         .onChange(of: settings.tabs) {
             if sizeClass != .regular, case .tab(let id) = router.tab, !settings.tabs.contains(id) { router.tab = .home }

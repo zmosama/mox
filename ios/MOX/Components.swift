@@ -46,15 +46,58 @@ enum Day {
 struct RemoteImage: View {
     let url: String?
     var contentMode: ContentMode = .fill
+    /// Which part stays in view when filling: `.top` keeps a portrait's face.
+    var anchor: Alignment = .center
+    @State private var image: UIImage?
 
     var body: some View {
-        AsyncImage(url: url.flatMap(URL.init(string:)), transaction: Transaction(animation: .easeOut(duration: 0.2))) { phase in
-            if let image = phase.image {
-                image.resizable().aspectRatio(contentMode: contentMode)
+        // An image already decoded shows on the first frame, with no grey
+        // flash: scrolling back, or switching back to a tab, draws at once.
+        let ready = image ?? url.flatMap(ImageStore.cached)
+        Group {
+            if let ready {
+                Image(uiImage: ready).resizable().aspectRatio(contentMode: contentMode)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: anchor)
             } else {
                 Theme.surface
             }
         }
+        .task(id: url) {
+            guard ready == nil, let url else { return }
+            let loaded = await ImageStore.load(url)
+            withAnimation(.easeOut(duration: 0.2)) { image = loaded }
+        }
+    }
+}
+
+/// Decoded images, kept in memory between screens. Downloads go through the
+/// shared URL cache, so a poster seen yesterday comes off the disk.
+enum ImageStore {
+    private static let memory: NSCache<NSString, UIImage> = {
+        let cache = NSCache<NSString, UIImage>()
+        cache.totalCostLimit = 120 << 20
+        return cache
+    }()
+
+    static func cached(_ url: String) -> UIImage? { memory.object(forKey: url as NSString) }
+
+    /// A path on our own server ("/api/f1/img/…") against the server in
+    /// Settings — the same address the API uses — and anything else as it is.
+    private static func resolve(_ url: String) -> URL? {
+        guard url.hasPrefix("/") else { return URL(string: url) }
+        let server = UserDefaults.standard.string(forKey: "server") ?? AppSettings.defaultServer
+        return URL(string: url, relativeTo: URL(string: server.trimmingCharacters(in: .whitespaces)))?.absoluteURL
+    }
+
+    static func load(_ url: String) async -> UIImage? {
+        if let hit = cached(url) { return hit }
+        guard let u = resolve(url),
+              let (data, _) = try? await URLSession.shared.data(from: u),
+              let raw = UIImage(data: data) else { return nil }
+        // Decode off the main thread, so the first frame it appears in is cheap.
+        let image = await raw.byPreparingForDisplay() ?? raw
+        memory.setObject(image, forKey: url as NSString, cost: Int(image.size.width * image.size.height * image.scale * image.scale * 4))
+        return image
     }
 }
 

@@ -24,6 +24,8 @@ final class API {
     /// Bumped after anything that changes what the lists would show, so open
     /// screens know to reload.
     private(set) var revision = 0
+    /// A brand-new account: shown the services picker once, before Home.
+    var welcoming = false
 
     private let session = URLSession.shared
     private let decoder = JSONDecoder()
@@ -58,6 +60,82 @@ final class API {
         return try await send(request)
     }
 
+    // MARK: - Screen cache
+
+    /// The last answer for each screen, so a tab opens on what it showed
+    /// before — even straight after launch — while a fresh copy loads.
+    private struct Kept { let data: Data; let at: Date; let revision: Int }
+    @ObservationIgnored private var kept: [String: Kept] = [:]
+    @ObservationIgnored private var inFlight: [String: Task<Data, Error>] = [:]
+
+    private static let shelf: URL = {
+        let dir = URL.cachesDirectory.appending(path: "screens", directoryHint: .isDirectory)
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        return dir
+    }()
+
+    private static func shelved(_ path: String) -> URL {
+        shelf.appending(path: path.replacingOccurrences(of: "/", with: "_") + ".json")
+    }
+
+    /// What a screen showed last, from memory or from disk; nil if never loaded.
+    func peek<T: Decodable>(_ path: String) -> T? {
+        let data = kept[path]?.data ?? (try? Data(contentsOf: Self.shelved(path)))
+        return data.flatMap { try? decoder.decode(T.self, from: $0) }
+    }
+
+    /// A screen's payload. Switching back to a tab within `maxAge` of its last
+    /// load, with nothing changed since, reuses that answer instead of asking
+    /// again; two screens asking at once share one request.
+    func screen<T: Decodable>(_ path: String, maxAge: TimeInterval = 90) async throws -> T {
+        if let k = kept[path], k.revision == revision, Date.now.timeIntervalSince(k.at) < maxAge,
+           let value = try? decoder.decode(T.self, from: k.data) {
+            return value
+        }
+        let data = try await screenData(path)
+        return try decoder.decode(T.self, from: data)
+    }
+
+    private func screenData(_ path: String) async throws -> Data {
+        if let running = inFlight[path] { return try await running.value }
+        let rev = revision
+        let request = try { () throws -> URLRequest in
+            var r = URLRequest(url: try url(path))
+            r.cachePolicy = .reloadIgnoringLocalCacheData
+            return r
+        }()
+        let task = Task { [session] () throws -> Data in
+            let (data, response) = try await session.data(for: request)
+            let code = (response as? HTTPURLResponse)?.statusCode ?? 0
+            guard (200..<300).contains(code) else {
+                let message = (try? JSONSerialization.jsonObject(with: data) as? [String: Any])?["error"] as? String
+                throw APIError.status(code, message)
+            }
+            return data
+        }
+        inFlight[path] = task
+        defer { inFlight[path] = nil }
+        let data = try await task.value
+        kept[path] = Kept(data: data, at: .now, revision: rev)
+        let file = Self.shelved(path)
+        Task.detached(priority: .utility) { try? data.write(to: file, options: .atomic) }
+        return data
+    }
+
+    /// Load the tabs you are likely to open next, quietly, so they open full.
+    func warm(_ paths: [String]) async {
+        for path in paths where kept[path] == nil {
+            _ = try? await screenData(path)
+        }
+    }
+
+    /// Another account, or none: nothing kept may show through.
+    private func forget() {
+        kept = [:]
+        try? FileManager.default.removeItem(at: Self.shelf)
+        try? FileManager.default.createDirectory(at: Self.shelf, withIntermediateDirectories: true)
+    }
+
     @discardableResult
     func post(_ path: String, _ body: [String: Any]) async throws -> [String: AnyCodable] {
         var request = URLRequest(url: try url(path))
@@ -70,18 +148,20 @@ final class API {
     // MARK: - Screens
 
     func home() async throws -> HomePayload {
-        let payload: HomePayload = try await get("/api/app/home")
+        let payload: HomePayload = try await screen("/api/app/home")
         user = payload.user
         return payload
     }
 
-    func today() async throws -> TodayPayload { try await get("/api/app/today") }
-    func library() async throws -> LibraryPayload { try await get("/api/app/library") }
-    func picks() async throws -> PicksPayload { try await get("/api/app/picks") }
+    func today() async throws -> TodayPayload { try await screen("/api/app/today") }
+    func library() async throws -> LibraryPayload { try await screen("/api/app/library") }
+    func picks() async throws -> PicksPayload { try await screen("/api/app/picks") }
     func alerts() async throws -> AlertsPayload { try await get("/api/app/alerts") }
-    func news() async throws -> NewsPayload { try await get("/api/news") }
-    func f1() async throws -> F1Board { try await get("/api/f1") }
-    func f1Round(_ round: Int) async throws -> F1RoundDetail { try await get("/api/f1/round/\(round)") }
+    func news() async throws -> NewsPayload { try await screen("/api/news") }
+    func f1() async throws -> F1Board { try await screen("/api/f1") }
+    func f1Round(_ round: Int) async throws -> F1RoundDetail { try await screen("/api/f1/round/\(round)") }
+    func f1Driver(_ id: String) async throws -> F1Driver { try await screen("/api/f1/driver/\(id)", maxAge: 600) }
+    func f1Team(_ id: String) async throws -> F1Team { try await screen("/api/f1/team/\(id)", maxAge: 600) }
 
     func setF1Watched(season: Int, round: Int, _ watched: Bool) async throws {
         try await post("/api/f1/watched", ["season": season, "round": round, "watched": watched])
@@ -104,7 +184,7 @@ final class API {
         let payload: PrefsPayload = try await send(request)
         return payload.prefs
     }
-    func title(_ ref: TitleRef) async throws -> TitleDetail { try await get("/api/title/\(ref.kind)/\(ref.tmdbId)") }
+    func title(_ ref: TitleRef) async throws -> TitleDetail { try await screen("/api/title/\(ref.kind)/\(ref.tmdbId)") }
 
     /// Ten titles a page; people come with the first.
     func search(_ query: String, page: Int = 1) async throws -> (titles: [Card], people: [PersonHit], next: Int?) {
@@ -113,7 +193,7 @@ final class API {
     }
 
     func studios() async throws -> [Studio] {
-        let payload: StudiosPayload = try await get("/api/studios")
+        let payload: StudiosPayload = try await screen("/api/studios")
         return payload.studios
     }
 
@@ -245,21 +325,30 @@ final class API {
     func signIn(username: String, password: String) async throws {
         try await post("/api/auth/login", ["username": username, "password": password])
         await refreshUser()
+        forget()
         revision += 1
     }
 
     func signUp(name: String, email: String, username: String, password: String) async throws {
         try await post("/api/auth/signup", ["displayName": name, "email": email, "username": username, "password": password])
         await refreshUser()
+        forget()
         revision += 1
+        welcoming = true
     }
 
     /// Sign in, or make an account, with Google: the server decides which.
     func signInWithGoogle() async throws {
         let token = try await GoogleSignIn().idToken()
-        try await post("/api/auth/google", ["idToken": token])
+        var request = URLRequest(url: try url("/api/auth/google"))
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "content-type")
+        request.httpBody = try JSONSerialization.data(withJSONObject: ["idToken": token])
+        let result: GoogleResult = try await send(request)
         await refreshUser()
+        forget()
         revision += 1
+        welcoming = result.created == true
     }
 
     func account() async throws -> Account {
@@ -289,12 +378,14 @@ final class API {
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
         let _: [String: AnyCodable] = try await send(request)
         user = nil
+        forget()
         revision += 1
     }
 
     func signOut() async {
         _ = try? await post("/api/auth/logout", [:])
         user = nil
+        forget()
         revision += 1
     }
 
@@ -327,6 +418,11 @@ final class API {
 }
 
 /// Just enough to decode `{ "ok": true, ... }` replies without declaring each.
+/// Whether Google signed in an account that already existed or made a new one.
+private nonisolated struct GoogleResult: Decodable, Sendable {
+    let created: Bool?
+}
+
 nonisolated struct AnyCodable: Decodable, Sendable {
     init(from decoder: Decoder) throws {}
 }

@@ -8,6 +8,7 @@ struct SettingsView: View {
     @Environment(CalendarStore.self) private var calendar
     @Environment(Notifier.self) private var notifier
     @Environment(\.openURL) private var openURL
+    @Environment(Router.self) private var router
     @Environment(\.dismiss) private var dismiss
 
     @State private var aiKey = ""
@@ -19,6 +20,7 @@ struct SettingsView: View {
 
     var body: some View {
         @Bindable var settings = settings
+        @Bindable var api = api
 
         NavigationStack {
             Form {
@@ -143,6 +145,16 @@ struct SettingsView: View {
             .task(id: api.user?.id) {
                 prefs = api.user == nil ? nil : try? await api.prefs()
                 accountInfo = api.user == nil ? nil : try? await api.account()
+            }
+        }
+        // Signed up just now: pick your services, then straight to Home.
+        .fullScreenCover(isPresented: $api.welcoming) {
+            NavigationStack {
+                ServicesView {
+                    api.welcoming = false
+                    router.tab = .home
+                    router.settings = false
+                }
             }
         }
     }

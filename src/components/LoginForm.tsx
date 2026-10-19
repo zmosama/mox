@@ -64,8 +64,13 @@ export function LoginForm({ googleClientId }: { googleClientId?: string | null }
       return;
     }
 
+    signedIn(mode === "up");
+  }
+
+  /** A brand-new account picks its services first, then goes Home. */
+  function signedIn(created: boolean) {
     // A server component reads the session, so the tree has to be refetched.
-    router.replace("/admin");
+    router.replace(created ? "/admin/services?welcome=1" : "/admin");
     router.refresh();
   }
 
@@ -73,10 +78,7 @@ export function LoginForm({ googleClientId }: { googleClientId?: string | null }
     <div className="mt-7">
       {googleClientId ? (
         <>
-          <GoogleButton clientId={googleClientId} onError={setError} onSignedIn={() => {
-            router.replace("/admin");
-            router.refresh();
-          }} />
+          <GoogleButton clientId={googleClientId} onError={setError} onSignedIn={signedIn} />
           <div className="my-5 flex items-center gap-3 text-[12px] text-ink-faint">
             <span className="h-px flex-1 bg-line" /> or with a password <span className="h-px flex-1 bg-line" />
           </div>

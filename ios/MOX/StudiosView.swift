@@ -45,7 +45,7 @@ struct StudiosView: View {
             .background(Theme.ink)
             .navigationDestination(for: Studio.self) { StudioView(studio: $0) }
             .task(id: api.revision) { await load() }
-            .refreshable { await load() }
+            .refreshable { api.touch(); await load() }
         }
     }
 
@@ -73,6 +73,7 @@ struct StudiosView: View {
     }
 
     private func load() async {
+        if studios == nil { studios = (api.peek("/api/studios") as StudiosPayload?)?.studios }
         do {
             studios = try await api.studios()
             failed = false

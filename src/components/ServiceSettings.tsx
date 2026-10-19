@@ -5,7 +5,8 @@ import { useRouter } from "next/navigation";
 import { cn } from "@/lib/cn";
 import type { ServiceChoice } from "@/lib/services";
 
-export function ServiceSettings({ services }: { services: ServiceChoice[] }) {
+/** `welcome`: a new account's first stop — saving goes on to Home. */
+export function ServiceSettings({ services, welcome = false }: { services: ServiceChoice[]; welcome?: boolean }) {
   const router = useRouter();
   const [selected, setSelected] = useState(
     () => new Set(services.filter((s) => s.selected).map((s) => s.providerId)),
@@ -41,6 +42,11 @@ export function ServiceSettings({ services }: { services: ServiceChoice[] }) {
       return;
     }
 
+    if (welcome) {
+      router.replace("/");
+      router.refresh();
+      return;
+    }
     setSaved(true);
     router.refresh();
   }
@@ -83,14 +89,29 @@ export function ServiceSettings({ services }: { services: ServiceChoice[] }) {
       {error ? <p role="alert" className="mt-3 text-[13px] text-against">{error}</p> : null}
       {saved ? <p role="status" className="mt-3 text-[13px] text-love">Services saved.</p> : null}
 
-      <button
-        type="button"
-        disabled={busy}
-        onClick={save}
-        className="mt-4 min-h-11 rounded-lg bg-ink px-5 text-[13px] font-semibold text-bg transition hover:opacity-90 disabled:opacity-50"
-      >
-        {busy ? "Saving…" : `Save ${selected.size} service${selected.size === 1 ? "" : "s"}`}
-      </button>
+      <div className="mt-4 flex items-center gap-4">
+        <button
+          type="button"
+          disabled={busy || (welcome && selected.size === 0)}
+          onClick={save}
+          className="min-h-11 rounded-lg bg-ink px-5 text-[13px] font-semibold text-bg transition hover:opacity-90 disabled:opacity-50"
+        >
+          {busy
+            ? "Saving…"
+            : welcome
+              ? "Continue"
+              : `Save ${selected.size} service${selected.size === 1 ? "" : "s"}`}
+        </button>
+        {welcome ? (
+          <button
+            type="button"
+            onClick={() => router.replace("/")}
+            className="min-h-11 text-[13px] font-semibold text-ink-dim transition hover:text-ink"
+          >
+            Skip for now
+          </button>
+        ) : null}
+      </div>
     </div>
   );
 }

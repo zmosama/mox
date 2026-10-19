@@ -39,6 +39,19 @@ enum TabID: String, CaseIterable, Codable, Sendable, Identifiable {
     /// Reads the phone's own calendar or reminders, so it needs iOS's permission first.
     var needsDevice: Bool { self == .calendar || self == .tasks }
 
+    /// The payload the tab opens with, for loading it ahead of time.
+    var screenPath: String? {
+        switch self {
+        case .today: "/api/app/today"
+        case .news: "/api/news"
+        case .library: "/api/app/library"
+        case .picks: "/api/app/picks"
+        case .studios: "/api/studios"
+        case .f1: "/api/f1"
+        case .friends, .calendar, .tasks: nil
+        }
+    }
+
     /// Two either side of the ring: more than five and iOS folds the rest into "More".
     static let slots = 4
     static let defaults: [TabID] = [.today, .news, .library, .f1]

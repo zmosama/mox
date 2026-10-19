@@ -4,8 +4,8 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/cn";
 
-/** Where each tab goes on the website, and how it is drawn. */
-const WEB_TABS: Record<string, { href: string; label: string; icon: string }> = {
+/** Where each tab goes on the website, and how it is drawn. Home's sections use it too. */
+export const WEB_TABS: Record<string, { href: string; label: string; icon: string }> = {
   today: {
     href: "/new",
     label: "Today",
@@ -32,6 +32,12 @@ const WEB_TABS: Record<string, { href: string; label: string; icon: string }> = 
     label: "Friends",
     // Two people.
     icon: "M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zm7.5-.5a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM9 13c-3.9 0-7 2.2-7 5v2h14v-2c0-2.8-3.1-5-7-5zm7.5-.5c-.8 0-1.6.1-2.3.4 1.4 1.1 2.3 2.5 2.3 4.1v3H22v-2.5c0-2.8-2.5-5-5.5-5z",
+  },
+  universes: {
+    href: "/universes",
+    label: "Universes",
+    // A planet and its ring.
+    icon: "M12 6a6 6 0 1 1 0 12 6 6 0 0 1 0-12zm7.6-1.9c1.6.4 2.6 1.1 2.8 2.1.4 1.9-2.6 4.4-7.2 6.2a26 26 0 0 1-8.7 1.9c-2.6 0-4.3-.6-4.7-1.7-.3-1 .4-2.1 1.8-3.2l.4 1.5c-.6.6-.8 1-.7 1.3.2.6 1.6.9 3.7.8a24 24 0 0 0 7.5-1.7c4-1.6 6.3-3.6 6.1-4.7-.1-.4-.6-.8-1.5-1l.5-1.5z",
   },
   f1: {
     href: "/f1",

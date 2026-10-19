@@ -22,7 +22,8 @@ export function GoogleButton({
   onError,
 }: {
   clientId: string;
-  onSignedIn: () => void;
+  /** `created`: Google made a brand-new account rather than signing one in. */
+  onSignedIn: (created: boolean) => void;
   onError: (message: string) => void;
 }) {
   const box = useRef<HTMLDivElement>(null);
@@ -46,8 +47,8 @@ export function GoogleButton({
             headers: { "content-type": "application/json" },
             body: JSON.stringify({ idToken: credential }),
           });
-          if (res.ok) return done.current();
-          const payload = (await res.json().catch(() => null)) as { error?: string } | null;
+          const payload = (await res.json().catch(() => null)) as { error?: string; created?: boolean } | null;
+          if (res.ok) return done.current(payload?.created === true);
           failed.current(payload?.error ?? "Google sign-in failed");
         },
       });
