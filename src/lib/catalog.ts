@@ -526,6 +526,19 @@ export async function mapImdb(limit = 25_000): Promise<{ found: number; missing:
 }
 
 /** Which TMDB title one IMDb id is, asked once and kept — "none" included. */
+/** Titles being linked right now, so a burst of keystrokes asks TMDB once each. */
+const linking = new Set<string>();
+
+function linkLater(titles: { tconst: string; type: string }[]) {
+  for (const t of titles) {
+    if (linking.has(t.tconst)) continue;
+    linking.add(t.tconst);
+    mapOne(t)
+      .catch(() => null)
+      .finally(() => linking.delete(t.tconst));
+  }
+}
+
 async function mapOne(t: { tconst: string; type: string }): Promise<{ tmdbId: number | null; kind: MediaKind | null }> {
   const res = await tmdb<{ movie_results?: ListedTitle[]; tv_results?: ListedTitle[] }>(
     `/find/${t.tconst}`,
@@ -578,10 +591,10 @@ export function peopleFromRecords(): number {
  * index finds them (English, original and Arabic names, most-voted first) and
  * the catalogue knows which TMDB title each one is.
  *
- * Matches near the top not mapped to TMDB yet are mapped now, a few at most
- * (the nightly job will have reached them all within days). Null when there
- * are more than that, or TMDB will not say: search then asks TMDB instead of
- * showing a list with holes in it.
+ * Matches near the top not mapped to TMDB yet are mapped in the background,
+ * a few per search (the nightly job reaches them all within days); this
+ * answer skips them. Null only when none of the matches is mapped at all:
+ * search then asks TMDB.
  */
 const MUST_COVER = 40;
 const MAP_NOW = 8;
@@ -609,15 +622,14 @@ export async function searchCatalog(typed: string, limit: number): Promise<Catal
     .all()) {
     settled.set(r.imdbId!, { tmdbId: r.tmdbId, kind: r.kind });
   }
-  // What anybody scrolls to must be whole; further down, a gap is only skipped.
+  // Titles IMDb knows that are not linked to TMDB yet are linked in the
+  // background, never waited for: the answer comes from what is linked now,
+  // and the next letter typed already finds the rest. Waiting here — or
+  // handing the whole search to TMDB, which only matches whole words — was
+  // what made search slow and stopped half-typed words finding anything.
   const gaps = found.slice(0, MUST_COVER).filter((f) => !settled.has(f.tconst));
-  if (gaps.length > MAP_NOW) return null;
-  try {
-    const mapped = await Promise.all(gaps.map(mapOne));
-    gaps.forEach((g, i) => settled.set(g.tconst, mapped[i]));
-  } catch {
-    return null;
-  }
+  linkLater(gaps.slice(0, MAP_NOW));
+  if (!found.some((f) => settled.get(f.tconst)?.tmdbId)) return null;
 
   const refs = ids.flatMap((id) => {
     const s = settled.get(id);
@@ -673,13 +685,31 @@ export async function searchCatalog(typed: string, limit: number): Promise<Catal
 export function searchPeople(typed: string, limit = 8) {
   const words = typed.toLowerCase().match(/[\p{L}\p{N}]+/gu) ?? [];
   if (!words.length) return [];
-  return db
-    .select()
-    .from(schema.catalogPeople)
-    .where(and(sql`profile_path is not null`, ...words.map((w) => sql`lower(name) like ${`%${w}%`}`)))
-    .orderBy(sql`popularity desc nulls last`)
-    .limit(limit)
-    .all();
+  // Each word as the start of a word of the name, from the index (0027).
+  const match = words.map((w) => `"${w}"*`).join(" ");
+  try {
+    return db
+      .select()
+      .from(schema.catalogPeople)
+      .where(
+        and(
+          sql`profile_path is not null`,
+          sql`id in (select rowid from people_search where people_search match ${match})`,
+        ),
+      )
+      .orderBy(sql`popularity desc nulls last`)
+      .limit(limit)
+      .all();
+  } catch {
+    // No index yet — the moment between a deploy's swap and its migration.
+    return db
+      .select()
+      .from(schema.catalogPeople)
+      .where(and(sql`profile_path is not null`, ...words.map((w) => sql`lower(name) like ${`%${w}%`}`)))
+      .orderBy(sql`popularity desc nulls last`)
+      .limit(limit)
+      .all();
+  }
 }
 
 /** Deflate full records written before they were kept deflated. A one-off, then a no-op. */

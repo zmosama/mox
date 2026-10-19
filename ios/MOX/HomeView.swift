@@ -408,7 +408,8 @@ struct HomeView: View {
     private func search() async {
         guard mood == nil else { return }
         guard trimmed.count >= 2 else { results = []; people = []; nextPage = nil; return }
-        try? await Task.sleep(for: .milliseconds(300))
+        // A short pause between keystrokes: answers now come from our own index.
+        try? await Task.sleep(for: .milliseconds(150))
         guard !Task.isCancelled else { return }
         looking = true
         defer { looking = false }

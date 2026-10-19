@@ -597,7 +597,8 @@ struct IPadSearch: View {
             if mood == nil { results = []; people = []; next = nil }
             return
         }
-        try? await Task.sleep(for: .milliseconds(300))
+        // A short pause between keystrokes: answers now come from our own index.
+        try? await Task.sleep(for: .milliseconds(150))
         guard !Task.isCancelled else { return }
         looking = true
         defer { looking = false }

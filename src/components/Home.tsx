@@ -77,7 +77,8 @@ export function Home({
 
   // Asked for once typing pauses, not on every letter.
   useEffect(() => {
-    const timer = setTimeout(() => setSearched(q.length >= 2 && !mood ? q : ""), 300);
+    // A short pause between keystrokes: answers come from our own index.
+    const timer = setTimeout(() => setSearched(q.length >= 2 && !mood ? q : ""), 150);
     return () => clearTimeout(timer);
   }, [q, mood]);
 
