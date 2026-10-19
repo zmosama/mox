@@ -118,57 +118,98 @@ extension View {
 
 // MARK: - Featured
 
-/// The top of Home: the week's biggest titles as a carousel, as on the
-/// website. Each picture keeps its own shape — never cropped — on a rounded
-/// card that fills the width up to a height cap, the next one showing at the
-/// edge; it moves on by itself every few seconds.
+/// The top of Home: the week's biggest titles as a carousel, behaving as the
+/// website's does. The current picture sits in the middle with its
+/// neighbours dimmed at either side; it goes round in both directions — the
+/// slides are laid out three times over, the middle set is the one shown, and
+/// once scrolling comes to rest in the first or last set it is moved, unseen,
+/// to the same slide in the middle — so the last slide is followed by the
+/// first, never a rewind through all of them. It moves on by itself every
+/// seven seconds, and holds still while a finger is on it.
 struct FeaturedCarousel: View {
     let cards: [Card]
     let open: (TitleRef) -> Void
-    @State private var page: String?
+    /// Which slide is centred, counted across all three sets.
+    @State private var at: Int?
+    @State private var width: CGFloat = 900
+    /// A finger on it, or it still gliding: no moving on by itself.
+    @State private var touching = false
 
-    /// No taller than this: a wider space shows more of the next card instead.
+    /// No taller than this: a wider space shows more of the neighbours instead.
     private let maxHeight: CGFloat = 460
+
+    private var n: Int { cards.count }
+    private var looped: [Card] { n > 1 ? cards + cards + cards : cards }
+    private var home: Int { n > 1 ? n : 0 }
+    private var current: Int { at ?? home }
+    private var slideWidth: CGFloat { min(width - 128, maxHeight * 16 / 9) }
 
     var body: some View {
         VStack(spacing: 14) {
-            // Sized by the space it is given, never by the screen: in landscape
-            // with the sidebar open the screen is far wider than the content,
-            // and centring on the screen pushed the picture off to the right.
             ScrollView(.horizontal) {
-                HStack(spacing: 20) {
-                    ForEach(Array(cards.enumerated()), id: \.element.id) { i, card in
-                        slide(card, rank: i + 1)
-                            .containerRelativeFrame(.horizontal) { length, _ in
-                                min(length - IPad.margin * 2, maxHeight * 16 / 9)
-                            }
-                            .id(card.id)
+                HStack(spacing: 16) {
+                    ForEach(Array(looped.enumerated()), id: \.offset) { i, card in
+                        slide(card, rank: i % max(n, 1) + 1)
+                            .frame(width: slideWidth)
+                            // By the picture, not the copy, so the jump back to
+                            // the middle set does not dim and relight it.
+                            .opacity(i % max(n, 1) == current % max(n, 1) ? 1 : 0.4)
+                            .animation(.easeOut(duration: 0.4), value: current)
+                            .id(i)
                     }
                 }
                 .scrollTargetLayout()
             }
-            .contentMargins(.horizontal, IPad.margin, for: .scrollContent)
+            // Centred: the margins either side are what is left of the width.
+            .contentMargins(.horizontal, max(0, (width - slideWidth) / 2), for: .scrollContent)
             .scrollTargetBehavior(.viewAligned)
             .scrollIndicators(.hidden)
-            // Each slide to the left margin, where the rows below start —
-            // without an anchor it scrolled only until the slide showed, and
-            // came to rest against the right edge.
-            .scrollPosition(id: $page, anchor: .leading)
-
-            HStack(spacing: 8) {
-                ForEach(cards) { card in
-                    Capsule()
-                        .fill(Theme.paper.opacity((page ?? cards.first?.id) == card.id ? 1 : 0.3))
-                        .frame(width: (page ?? cards.first?.id) == card.id ? 20 : 7, height: 7)
+            .scrollPosition(id: $at, anchor: .center)
+            .onScrollPhaseChange { _, phase in
+                touching = phase != .idle
+                guard phase == .idle, n > 1 else { return }
+                // Come to rest outside the middle set: back into it, unseen.
+                if current < n || current >= 2 * n {
+                    var quiet = Transaction()
+                    quiet.disablesAnimations = true
+                    withTransaction(quiet) { at = current % n + n }
                 }
             }
-            .animation(.smooth, value: page)
+            .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width = $0 }
+            .onAppear { if at == nil { at = home } }
+
+            if n > 1 {
+                HStack(spacing: 8) {
+                    ForEach(cards.indices, id: \.self) { i in
+                        Button {
+                            withAnimation(.smooth) { at = n + i }
+                        } label: {
+                            Capsule()
+                                .fill(Theme.paper.opacity(current % n == i ? 1 : 0.3))
+                                .frame(width: current % n == i ? 20 : 7, height: 7)
+                                .padding(.vertical, 6)
+                                .contentShape(.rect)
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("Show \(cards[i].title)")
+                    }
+                }
+                .animation(.smooth, value: current)
+            }
         }
-        .task(id: page) {
+        .task(id: "\(current)|\(touching)") {
+            guard !touching, n > 1 else { return }
             try? await Task.sleep(for: .seconds(7))
-            guard !Task.isCancelled, !cards.isEmpty else { return }
-            let i = cards.firstIndex { $0.id == (page ?? cards.first?.id) } ?? 0
-            withAnimation(.smooth) { page = cards[(i + 1) % cards.count].id }
+            guard !Task.isCancelled, !touching else { return }
+            // From the middle set, so the next slide always exists: even if the
+            // last glide never reported coming to rest, this cannot run off the end.
+            let from = current % n + n
+            if from != current {
+                var quiet = Transaction()
+                quiet.disablesAnimations = true
+                withTransaction(quiet) { at = from }
+            }
+            withAnimation(.smooth(duration: 0.6)) { at = from + 1 }
         }
     }
 
