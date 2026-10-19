@@ -64,11 +64,12 @@ export function GlassBar({ tabs }: { tabs: string[] }) {
 
   return (
     <>
-      {/* Content fades to black as it slides under the bar, as on iOS, so a
-          card half under it reads as "more below" rather than as clutter. */}
+      {/* Content fades as it slides under the bar, as on iOS — only just
+          behind the bar: a taller, blacker fade dimmed every poster in the
+          bottom third of a large screen. */}
       <div
         aria-hidden
-        className="pointer-events-none fixed inset-x-0 bottom-0 z-[45] h-[calc(7rem+env(safe-area-inset-bottom))] bg-gradient-to-b from-transparent via-black/70 to-black"
+        className="pointer-events-none fixed inset-x-0 bottom-0 z-[45] h-[calc(4.5rem+env(safe-area-inset-bottom))] bg-gradient-to-b from-transparent to-black/80"
       />
     <nav
       aria-label="Sections"

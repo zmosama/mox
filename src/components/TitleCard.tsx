@@ -70,10 +70,19 @@ export function TitleCard({
   const caption = item.price ?? item.reason ?? service?.name ?? (item.year ? String(item.year) : "");
 
   return (
-    <div className={cn("group relative", className)} data-tmdb-id={item.tmdbId} data-kind={item.kind}>
+    // The whole card opens it — the title under the poster too.
+    <div
+      className={cn("group relative", onOpen && "cursor-pointer", className)}
+      data-tmdb-id={item.tmdbId}
+      data-kind={item.kind}
+      onClick={() => onOpen?.(item)}
+    >
       <button
         type="button"
-        onClick={() => onOpen?.(item)}
+        onClick={(e) => {
+          e.stopPropagation();
+          onOpen?.(item);
+        }}
         aria-label={`Open ${item.title}`}
         className={cn(
           "relative block w-full overflow-hidden rounded-card bg-surface",

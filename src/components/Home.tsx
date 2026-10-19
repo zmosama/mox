@@ -548,7 +548,7 @@ function Spotlight({ spots, signedIn, onOpen }: { spots: Spot[]; signedIn: boole
               type="button"
               aria-label="Previous"
               onClick={() => go(at - 1)}
-              className="absolute start-4 top-1/2 hidden size-10 -translate-y-1/2 place-items-center rounded-full border border-white/15 bg-black/50 text-xl text-ink backdrop-blur-xl transition hover:bg-black/70 lg:grid"
+              className="absolute start-4 top-1/2 hidden size-10 -translate-y-1/2 place-items-center rounded-full border border-white/15 bg-black/60 text-xl text-ink transition hover:bg-black/80 lg:grid"
             >
               ‹
             </button>
@@ -556,7 +556,7 @@ function Spotlight({ spots, signedIn, onOpen }: { spots: Spot[]; signedIn: boole
               type="button"
               aria-label="Next"
               onClick={() => go(at + 1)}
-              className="absolute end-4 top-1/2 hidden size-10 -translate-y-1/2 place-items-center rounded-full border border-white/15 bg-black/50 text-xl text-ink backdrop-blur-xl transition hover:bg-black/70 lg:grid"
+              className="absolute end-4 top-1/2 hidden size-10 -translate-y-1/2 place-items-center rounded-full border border-white/15 bg-black/60 text-xl text-ink transition hover:bg-black/80 lg:grid"
             >
               ›
             </button>
@@ -592,8 +592,10 @@ function SpotSlide({ spot, rank, current, signedIn, onOpen }: { spot: Spot; rank
   const where = spot.platforms[0];
   return (
     <article
+      // Anywhere on it opens the title; Play, Save and Details stop here.
+      onClick={() => onOpen(spot)}
       className={cn(
-        "relative w-[calc(100%-2.5rem)] shrink-0 snap-center overflow-hidden rounded-[24px] bg-surface transition-opacity duration-500 lg:w-[min(calc(100%-8rem),calc(70svh*16/9))] lg:rounded-[28px]",
+        "relative w-[calc(100%-2.5rem)] shrink-0 cursor-pointer snap-center overflow-hidden rounded-[24px] bg-surface transition-opacity duration-500 lg:w-[min(calc(100%-8rem),calc(70svh*16/9))] lg:rounded-[28px]",
         // The ones either side, waiting their turn, stay in the background.
         !current && "opacity-40",
       )}
@@ -618,7 +620,7 @@ function SpotSlide({ spot, rank, current, signedIn, onOpen }: { spot: Spot; rank
         {spot.overview ? (
           <p className="mt-2 line-clamp-2 text-[14px] leading-snug text-white/80 lg:line-clamp-3 lg:text-[15px]">{spot.overview}</p>
         ) : null}
-        <div className="mt-4 flex items-center gap-2.5">
+        <div className="mt-4 flex items-center gap-2.5" onClick={(e) => e.stopPropagation()}>
           {where?.url ? (
             <a
               href={where.url}
@@ -637,7 +639,7 @@ function SpotSlide({ spot, rank, current, signedIn, onOpen }: { spot: Spot; rank
             onClick={() => onOpen(spot)}
             className={cn(
               "flex h-[42px] items-center rounded-full px-[22px] text-[15px] font-semibold transition",
-              where?.url ? "border border-white/15 bg-white/10 text-ink backdrop-blur-xl hover:bg-white/20" : "bg-ink text-bg hover:opacity-90",
+              where?.url ? "border border-white/15 bg-black/45 text-ink hover:bg-black/65" : "bg-ink text-bg hover:opacity-90",
             )}
           >
             Details
@@ -682,9 +684,9 @@ export function SaveButton({ item, large }: { item: CardTitle; large?: boolean }
       aria-pressed={saved}
       aria-label={saved ? `Remove ${item.title} from your list` : `Save ${item.title} for later`}
       className={cn(
-        "grid place-items-center rounded-full border backdrop-blur-xl transition",
+        "grid place-items-center rounded-full border transition",
         large ? "size-[42px]" : "size-8",
-        saved ? "border-want/60 bg-want/25 text-want" : "border-white/15 bg-black/45 text-ink hover:bg-black/65",
+        saved ? "border-want/60 bg-black/60 text-want" : "border-white/15 bg-black/60 text-ink hover:bg-black/80",
       )}
     >
       <svg viewBox="0 0 24 24" className={cn("fill-current", large ? "size-[18px]" : "size-4")} aria-hidden>
@@ -742,13 +744,16 @@ function WideCard({ item, signedIn, onOpen }: { item: CardTitle & { overview?: s
         ) : null}
         <button type="button" onClick={() => onOpen(item)} aria-label={`Open ${item.title}`} className="absolute inset-0" />
         {/* Turned over on hover, after a beat so a passing pointer doesn't flicker it. */}
-        <div className="pointer-events-none absolute inset-0 flex flex-col justify-end bg-gradient-to-t from-black via-black/75 to-black/20 p-3 opacity-0 transition-opacity delay-0 duration-200 group-hover:pointer-events-auto group-hover:opacity-100 group-hover:delay-300 group-focus-within:pointer-events-auto group-focus-within:opacity-100">
+        <div
+          onClick={() => onOpen(item)}
+          className="pointer-events-none absolute inset-0 flex cursor-pointer flex-col justify-end bg-gradient-to-t from-black via-black/75 to-black/20 p-3 opacity-0 transition-opacity delay-0 duration-200 group-hover:pointer-events-auto group-hover:opacity-100 group-hover:delay-300 group-focus-within:pointer-events-auto group-focus-within:opacity-100"
+        >
           {item.overview ? (
             <button type="button" onClick={() => onOpen(item)} className="mb-2 line-clamp-3 text-start text-[12.5px] leading-snug text-white/85">
               {item.overview}
             </button>
           ) : null}
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
             {where?.url ? (
               <a
                 href={where.url}
@@ -788,8 +793,10 @@ function WideCard({ item, signedIn, onOpen }: { item: CardTitle & { overview?: s
           </div>
         </div>
       </div>
-      <div className="mt-2 truncate text-[15px] font-semibold">{item.title}</div>
-      <div className={cn("numeric truncate text-[12.5px]", item.reason ? "text-love-soft" : "text-ink-dim")}>{caption || "\u00a0"}</div>
+      <button type="button" onClick={() => onOpen(item)} className="mt-2 block w-full text-start">
+        <span className="block truncate text-[15px] font-semibold">{item.title}</span>
+        <span className={cn("numeric block truncate text-[12.5px]", item.reason ? "text-love-soft" : "text-ink-dim")}>{caption || "\u00a0"}</span>
+      </button>
     </div>
   );
 }
@@ -817,8 +824,8 @@ function Quick({
       aria-pressed={on}
       title={label}
       className={cn(
-        "grid size-8 place-items-center rounded-full border border-white/15 backdrop-blur-xl transition",
-        on ? cn("bg-white/20", tone) : "bg-white/10 text-ink hover:bg-white/25",
+        "grid size-8 place-items-center rounded-full border border-white/15 transition",
+        on ? cn("bg-black/70", tone) : "bg-black/50 text-ink hover:bg-black/75",
         className,
       )}
     >
@@ -964,8 +971,9 @@ function FreshCard({
   const where = item.platforms[0];
   return (
     <article
+      onClick={onOpen}
       className={cn(
-        "relative h-[230px] snap-start overflow-hidden rounded-[24px] bg-surface",
+        "relative h-[230px] cursor-pointer snap-start overflow-hidden rounded-[24px] bg-surface",
         single ? "w-full sm:w-[560px]" : "w-[calc(100vw-4.5rem)] sm:w-[520px]",
       )}
     >
@@ -986,7 +994,7 @@ function FreshCard({
           {/* Spelled out, so the card reads as one episode rather than the whole show. */}
           {[`Season ${item.season}`, `Episode ${item.episode}`, where?.name].filter(Boolean).join(" · ")}
         </div>
-        <div className="mt-3 flex items-center gap-2.5">
+        <div className="mt-3 flex items-center gap-2.5" onClick={(e) => e.stopPropagation()}>
           {where?.url ? (
             <a
               href={where.url}
@@ -1026,7 +1034,7 @@ function GlassCircle({ onClick, label, children }: { onClick: () => void; label:
       type="button"
       onClick={onClick}
       aria-label={label}
-      className="grid size-[42px] place-items-center rounded-full border border-white/15 bg-white/10 text-ink backdrop-blur-xl transition hover:bg-white/20"
+      className="grid size-[42px] place-items-center rounded-full border border-white/15 bg-black/45 text-ink transition hover:bg-black/65"
     >
       <svg viewBox="0 0 24 24" className="size-[18px] fill-current" aria-hidden>
         {children}
