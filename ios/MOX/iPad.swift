@@ -321,9 +321,10 @@ struct IPadHome: View {
                     if let coming = payload.coming, !coming.isEmpty {
                         WideShelf(title: "Coming soon", detail: "most anticipated", cards: coming) { router.title = $0 }
                     }
-                    AiringSection(episodes: payload.calendar, today: payload.today, signedIn: payload.user != nil)
-                        .padding(.horizontal, IPad.margin - 20)
+                    // Before Airing: signed out, Airing is a long table to scroll past.
                     ScreenStrip(columns: 4)
+                        .padding(.horizontal, IPad.margin - 20)
+                    AiringSection(episodes: payload.calendar, today: payload.today, signedIn: payload.user != nil)
                         .padding(.horizontal, IPad.margin - 20)
                 } else if let loadError {
                     VStack(spacing: 10) {

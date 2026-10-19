@@ -17,7 +17,7 @@
  * studios, certificates, IMDb ids — and not just names and posters.
  */
 import { deflateRawSync, inflateRawSync } from "node:zlib";
-import { and, desc, eq, inArray, isNull, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull, type SQL, sql } from "drizzle-orm";
 import { db, schema } from "@/db";
 import type { MediaKind } from "@/db/schema";
 import { ageLevel, certAppend, type AgeLevel, type CertSource } from "./ratings";
@@ -660,17 +660,32 @@ export async function searchCatalog(typed: string, limit: number): Promise<Catal
      The catalogue has it: the nightly feeds keep everything new on a service. */
   const phrase = normalise(typed);
   if (phrase.length >= 2) {
-    const recent = db
-      .select()
-      .from(schema.catalogTitles)
-      .where(and(
-        sql`${schema.catalogTitles.year} >= ${new Date().getFullYear() - 1}`,
-        sql`${schema.catalogTitles.posterPath} is not null`,
-        sql`(lower(${schema.catalogTitles.title}) like ${`%${phrase.split(" ")[0]}%`} or lower(${schema.catalogTitles.originalTitle}) like ${`%${phrase.split(" ")[0]}%`})`,
-      ))
-      .orderBy(desc(schema.catalogTitles.popularity))
-      .limit(300)
-      .all();
+    const recentWhere = (matches: SQL) =>
+      db
+        .select()
+        .from(schema.catalogTitles)
+        .where(and(
+          sql`${schema.catalogTitles.year} >= ${new Date().getFullYear() - 1}`,
+          sql`${schema.catalogTitles.posterPath} is not null`,
+          matches,
+        ))
+        .orderBy(desc(schema.catalogTitles.popularity))
+        .limit(300)
+        .all();
+    const words = phrase.match(/[\p{L}\p{N}]+/gu) ?? [];
+    let recent: (typeof schema.catalogTitles.$inferSelect)[];
+    try {
+      // Every word as the start of a word of the title, from the index (0028).
+      recent = recentWhere(
+        sql`${schema.catalogTitles}.rowid in (select rowid from catalog_title_search where catalog_title_search match ${words.map((w) => `"${w}"*`).join(" ")})`,
+      );
+    } catch {
+      // No index yet — the moment between a deploy's swap and its migration.
+      const first = `%${phrase.split(" ")[0]}%`;
+      recent = recentWhere(
+        sql`(lower(${schema.catalogTitles.title}) like ${first} or lower(${schema.catalogTitles.originalTitle}) like ${first})`,
+      );
+    }
     for (const row of recent) {
       if (!row.title || seen.has(key(row.tmdbId, row.kind))) continue;
       if (Math.max(matchQuality(row.title, typed), row.originalTitle ? matchQuality(row.originalTitle, typed) : 0) < 2) continue;

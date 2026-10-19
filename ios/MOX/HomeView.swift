@@ -351,11 +351,12 @@ struct HomeView: View {
                                return [who, card.platforms.first?.name].compactMap { $0 }.joined(separator: " · ")
                            }) { router.title = $0 }
             }
+            // Before Airing: signed out, Airing is a long table to scroll past.
+            if !wide { ScreenStrip() }
             AiringSection(episodes: payload.calendar, today: payload.today, signedIn: payload.user != nil)
             if !payload.inStore.isEmpty {
                 PosterRail(title: "New in the store", cards: payload.inStore, caption: { $0.price }) { router.title = $0 }
             }
-            if !wide { ScreenStrip() }
         } else {
             ProgressView().padding(.top, 40)
         }
@@ -703,7 +704,7 @@ struct Spotlight: View {
 }
 
 
-/// Every screen in MOX as a grid at the foot of Home, so the dock is
+/// Every screen in MOX as a grid on Home ("Explore"), so the dock is
 /// not the only way in: a screen in the dock switches to its tab, any other
 /// opens over Home.
 struct ScreenStrip: View {
@@ -718,7 +719,7 @@ struct ScreenStrip: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            SectionTitle(text: "Everything in MOX")
+            SectionTitle(text: "Explore")
             LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 10), count: columns), spacing: 10) {
                 ForEach(TabID.allCases) { id in
                     Button {

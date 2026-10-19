@@ -420,9 +420,10 @@ function Board({
           onOpen={onOpen}
         />
       ) : null}
-      <Airing episodes={episodes} today={today} signedIn={signedIn} onOpen={onOpen} />
-
+      {/* Before Airing: signed out, Airing is a long table to scroll past. */}
       <Sections />
+
+      <Airing episodes={episodes} today={today} signedIn={signedIn} onOpen={onOpen} />
     </div>
   );
 }
@@ -725,13 +726,13 @@ const SECTIONS: { id: string; line: string }[] = [
 ];
 
 /**
- * Every screen as a grid at the foot of Home, so the bar is not the only way
+ * Every screen as a grid on Home ("Explore"), so the bar is not the only way
  * in — the same as the app.
  */
 function Sections() {
   return (
     <section>
-      <Heading title="Everything in MOX" />
+      <Heading title="Explore" />
       <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-4">
         {SECTIONS.map(({ id, line }) => {
           const t = WEB_TABS[id];
