@@ -95,7 +95,7 @@ export function AskBar({
   };
 
   return (
-    <div className="relative z-10 flex h-14 w-full max-w-[640px] items-center lg:h-16 lg:max-w-[720px] lg:px-2.5 gap-2.5 rounded-full border border-white/10 bg-white/[0.06] px-2 shadow-pop backdrop-blur-2xl">
+    <div className="relative z-10 flex h-14 w-full max-w-[640px] items-center lg:h-16 lg:max-w-[720px] lg:px-2.5 gap-2.5 rounded-full border border-white/10 bg-white/[0.06] px-2 shadow-pop">
       <button
         type="button"
         onClick={onToggleMoods}

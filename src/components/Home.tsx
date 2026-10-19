@@ -134,7 +134,7 @@ export function Home({
             picture comes and goes, so the field never loses focus. */}
         {!asking && spots.length ? (
           <div className="relative z-10 pt-4 sm:pt-6">
-            <Spotlight spots={spots} onOpen={setOpen} />
+            <Spotlight spots={spots} signedIn={user !== null} onOpen={setOpen} />
             {/* Your photo in the top corner, over the picture, as on the iPad. */}
             <div className="absolute end-3 top-7 z-20 sm:end-4 sm:top-10">
               <Avatar user={user} />
@@ -440,7 +440,7 @@ function Board({
  * phone, arrows and dots on a computer, and on to the next by itself every
  * few seconds until you touch it.
  */
-function Spotlight({ spots, onOpen }: { spots: Spot[]; onOpen: (r: Ref) => void }) {
+function Spotlight({ spots, signedIn, onOpen }: { spots: Spot[]; signedIn: boolean; onOpen: (r: Ref) => void }) {
   const strip = useRef<HTMLDivElement>(null);
   const n = spots.length;
   /* It goes round in both directions: the slides are laid out three times
@@ -536,6 +536,7 @@ function Spotlight({ spots, onOpen }: { spots: Spot[]; onOpen: (r: Ref) => void 
               // By the picture, not the copy: moving back to the middle set
               // swaps copies, and comparing copies made it dim and relight.
               current={i % n === at % n}
+              signedIn={signedIn}
               onOpen={onOpen}
             />
           ))}
@@ -586,7 +587,7 @@ const sharp = (url: string | null) => url?.replace(/\/w\d+\//, "/w1280/") ?? nul
  * shape. On a phone the words sit under it; on a computer over its lower
  * left, and the slide is only as wide as keeps the picture whole on screen.
  */
-function SpotSlide({ spot, rank, current, onOpen }: { spot: Spot; rank: number; current: boolean; onOpen: (r: Ref) => void }) {
+function SpotSlide({ spot, rank, current, signedIn, onOpen }: { spot: Spot; rank: number; current: boolean; signedIn: boolean; onOpen: (r: Ref) => void }) {
   const where = spot.platforms[0];
   return (
     <article
@@ -642,12 +643,65 @@ function SpotSlide({ spot, rank, current, onOpen }: { spot: Spot; rank: number; 
           >
             Details
           </button>
+          {signedIn ? <SaveButton item={spot} large /> : null}
         </div>
       </div>
     </article>
   );
 }
 
+/**
+ * Save for later in one tap, without opening the title — on the big
+ * pictures only; the small cards carry nothing. A saved title is
+ * followed, so its arrival on a service turns up in New for you.
+ */
+export function SaveButton({ item, large }: { item: CardTitle; large?: boolean }) {
+  const [saved, setSaved] = useState(item.verdict === "watchlist");
+  const [busy, setBusy] = useState(false);
+  const toggle = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (busy) return;
+    const next = !saved;
+    setSaved(next);
+    setBusy(true);
+    try {
+      const res = await fetch("/api/verdict", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ tmdbId: item.tmdbId, kind: item.kind, verdict: next ? "watchlist" : null }),
+      });
+      if (!res.ok) setSaved(!next);
+    } catch {
+      setSaved(!next);
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <button
+      type="button"
+      onClick={toggle}
+      aria-pressed={saved}
+      aria-label={saved ? `Remove ${item.title} from your list` : `Save ${item.title} for later`}
+      className={cn(
+        "grid place-items-center rounded-full border transition",
+        large ? "size-[42px]" : "size-8",
+        saved ? "border-want/60 bg-black/60 text-want" : "border-white/15 bg-black/60 text-ink hover:bg-black/80",
+      )}
+    >
+      <svg viewBox="0 0 24 24" className={cn("fill-current", large ? "size-[18px]" : "size-4")} aria-hidden>
+        {saved ? (
+          <path d="M6 3h12a1 1 0 0 1 1 1v17l-7-4.2L5 21V4a1 1 0 0 1 1-1z" />
+        ) : (
+          <path d="M11 5h2v6h6v2h-6v6h-2v-6H5v-2h6z" />
+        )}
+      </svg>
+    </button>
+  );
+}
+
+/** The iPad's card: a wide picture, its name and where it streams under it.
+ * The whole card opens the title; nothing else is on it. */
 function WideCard({ item, onOpen }: { item: CardTitle; onOpen: (r: Ref) => void }) {
   const tag = item.releaseLabel ?? item.episodeLabel;
   const caption = item.reason ?? item.platforms[0]?.name ?? (item.year ? String(item.year) : "");

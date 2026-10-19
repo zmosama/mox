@@ -76,7 +76,7 @@ export function GlassBar({ tabs }: { tabs: string[] }) {
       /* Above page content and search results, below the title sheet (z-50). */
       className="fixed inset-x-0 bottom-[calc(0.75rem+env(safe-area-inset-bottom))] z-[46] flex justify-center px-4"
     >
-      <ul className="flex items-center gap-0.5 rounded-full border border-white/10 bg-white/[0.07] p-1.5 shadow-pop backdrop-blur-2xl backdrop-saturate-150 sm:gap-1">
+      <ul className="flex items-center gap-0.5 rounded-full border border-white/10 bg-[#1c1f1e]/95 p-1.5 shadow-pop sm:gap-1">
         {left.map(tab)}
 
         <li>
