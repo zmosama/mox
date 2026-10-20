@@ -46,14 +46,18 @@ export function Face({ src, name, size, className }: { src: string | null; name:
   return (
     <span
       className={cn(
-        "grid shrink-0 place-items-center overflow-hidden rounded-full bg-surface text-ink-dim ring-1 ring-white/10 transition group-hover:ring-love/60",
+        "relative grid shrink-0 place-items-center overflow-hidden rounded-full bg-surface text-ink-dim ring-1 ring-white/10 transition group-hover:ring-love/60",
         className,
       )}
       style={{ width: size, height: size, fontSize: size * 0.3 }}
     >
       {src ? (
+        /* Pinned to the circle's edges rather than sized by percentage inside
+           the grid: Safari worked that height out short and set the photo
+           low, so testers on iPhones saw a dark cap over every face. TMDB's
+           portraits are 2:3, so the crop sits high — the head, not the chest. */
         // eslint-disable-next-line @next/next/no-img-element -- TMDB serves sized files
-        <img src={src} alt="" loading="lazy" className="size-full object-cover" />
+        <img src={src} alt="" loading="lazy" className="absolute inset-0 size-full object-cover object-[50%_18%]" />
       ) : (
         initials
       )}
