@@ -121,6 +121,9 @@ struct CornerGlow: View {
                     rim(inset: 6, width: 2, color: Theme.green.opacity(0.35)).blur(radius: 1.5)
                 }
                 .mask { EllipticalGradient(stops: stops, center: .topLeading, startRadiusFraction: 0, endRadiusFraction: 1) }
+                // Drawn once into one picture: the breathing only fades it,
+                // instead of redoing six blurs on every frame of a scroll.
+                .drawingGroup()
                 .opacity(dim ? 0.7 : 1)
                 // A white highlight where the glass curves round the corner.
                 rim(inset: 0.5, width: 2.5, color: .white)

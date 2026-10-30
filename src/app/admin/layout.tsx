@@ -16,7 +16,6 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   return (
     <div>
       <div className="mb-6 flex flex-wrap items-center gap-3 border-b border-line pb-4">
-        <h1 className="text-lg font-bold tracking-tight">Backend</h1>
         <nav className="flex flex-wrap gap-1">
           <AdminLink href="/admin">Overview</AdminLink>
           <AdminLink href="/admin/rate">Rate</AdminLink>
