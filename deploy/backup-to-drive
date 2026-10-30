@@ -1,0 +1,21 @@
+#!/bin/bash
+# Daily: pack the consistent snapshot (made by snapshot-apps at 05:00) and upload it to Google Drive "mox-backup".
+# The mox env file (API keys) is deliberately left out of the upload.
+# Installed on the VPS as /usr/local/bin/backup-to-drive, run by /etc/cron.d/apps.
+#
+# rclone runs on its shared default Google client, whose per-minute quota other
+# rclone users exhaust: from 2026-10-28 every upload of the ~500MB archive died
+# on 403 rateLimitExceeded. Big chunks keep the request count low, the rate cap
+# and long retry sleeps ride out the quota window, and the last three archives
+# stay on this disk so a day Drive refuses is not a day lost.
+set -euo pipefail
+D=$(date +%F); A=/srv/backup/archive; F=$A/mox-backup-$D.tar.gz
+mkdir -p "$A"
+/usr/local/bin/snapshot-apps
+tar czf "$F" -C /srv/backup/latest --exclude=./mox/env .
+ls -1t "$A"/mox-backup-*.tar.gz | tail -n +4 | xargs -r rm -f   # keep 3 here
+rclone copy "$F" gdrive:mox-backup \
+  --drive-chunk-size 256M --tpslimit 2 \
+  --retries 6 --retries-sleep 5m --low-level-retries 20
+rclone delete gdrive:mox-backup --min-age 30d          # keep 30 days
+echo "$(date) uploaded mox-backup-$D.tar.gz"

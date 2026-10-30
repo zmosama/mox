@@ -10,8 +10,15 @@
  *
  * Only networks broadcasting in their own American prime time need the shift.
  * A global streamer releases at midnight Pacific, which is mid-morning here on
- * the same date, so Netflix, Apple TV+, Disney+ and Prime Video are already
- * right and must not be moved. Networks east of us are earlier still.
+ * the same date, so Netflix, Apple TV+ and Prime Video are already right and
+ * must not be moved. Networks east of us are earlier still.
+ *
+ * Disney+ is the exception that looked like the rule. Its American originals
+ * post at 6pm Pacific on the printed date — 9pm Eastern, the same slot as HBO —
+ * so they too reach us in the small hours of the next day. VisionQuest is
+ * printed as Tuesday, lands around 4am Wednesday here, and sat on the board a
+ * day early every week. TVmaze lists Disney+ with no air time, so the list has
+ * to know.
  *
  * The network list below is now the *fallback*. TVmaze publishes a real instant
  * per episode and {@link landsOnStamp} converts it, which needs no list at all
@@ -56,6 +63,14 @@ const LOCAL_PRIME_NETWORKS: readonly string[] = [
 
 const LOCAL_PRIME = new Set(LOCAL_PRIME_NETWORKS.map((n) => n.toLowerCase()));
 
+/**
+ * Streamers that release their American originals in American prime time.
+ *
+ * Only the shows made in the US move: Disney+'s Korean and Japanese originals
+ * drop on their own afternoon, which is the same date here.
+ */
+const US_PRIME_STREAMERS = new Set(["disney+"]);
+
 export type Network = { name?: string | null };
 
 /**
@@ -65,8 +80,15 @@ export type Network = { name?: string | null };
  * is the original broadcaster's, and a show co-listed with a streamer is still
  * dated by whichever of them actually put it out at 9pm.
  */
-export function airsInLocalPrime(networks: Network[] | null | undefined): boolean {
-  return (networks ?? []).some((n) => n?.name && LOCAL_PRIME.has(n.name.toLowerCase()));
+export function airsInLocalPrime(
+  networks: Network[] | null | undefined,
+  originCountry: readonly string[] | null | undefined = null,
+): boolean {
+  const american = (originCountry ?? []).includes("US");
+  return (networks ?? []).some((n) => {
+    const name = n?.name?.toLowerCase();
+    return !!name && (LOCAL_PRIME.has(name) || (american && US_PRIME_STREAMERS.has(name)));
+  });
 }
 
 /**

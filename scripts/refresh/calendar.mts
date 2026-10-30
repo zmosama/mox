@@ -177,7 +177,7 @@ export async function refreshCalendar(today: string, extraSeries: number[] = [])
     const title = await fetchTitle(tmdbId, "tv", services);
     if (!title) return null;
 
-    const shifted = airsInLocalPrime(title.detail.networks);
+    const shifted = airsInLocalPrime(title.detail.networks, title.detail.origin_country);
     const next = title.detail.next_episode_to_air;
     const last = title.detail.last_episode_to_air;
 

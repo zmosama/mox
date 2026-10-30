@@ -104,6 +104,8 @@ export type Detail = {
   last_episode_to_air?: { season_number: number; air_date?: string | null } | null;
   /** Who broadcasts it, which decides whether its air date needs shifting. */
   networks?: { name?: string | null }[];
+  /** Where it was made, which decides it for a streamer like Disney+. */
+  origin_country?: string[];
   /** How a series is found in TVmaze, which knows what time it airs. */
   external_ids?: { imdb_id?: string | null; tvdb_id?: number | null };
   "watch/providers"?: { results?: WatchProviders };

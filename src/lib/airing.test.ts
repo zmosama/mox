@@ -10,9 +10,21 @@ describe("when an episode reaches us", () => {
 
   it("leaves a global streamer on its printed date", () => {
     // Midnight Pacific is mid-morning here, so the date TMDB prints is ours too.
-    for (const name of ["Netflix", "Apple TV+", "Disney+", "Prime Video", "HBO Max"]) {
-      expect(airsInLocalPrime([{ name }])).toBe(false);
+    for (const name of ["Netflix", "Apple TV+", "Prime Video", "HBO Max"]) {
+      expect(airsInLocalPrime([{ name }], ["US"])).toBe(false);
     }
+  });
+
+  it("moves a Disney+ American original to the next morning", () => {
+    // VisionQuest: printed Tuesday 27 October, out at 6pm Pacific — Wednesday here.
+    expect(airsInLocalPrime([{ name: "Disney+" }], ["US"])).toBe(true);
+    expect(landsOn("2026-10-27", true)).toBe("2026-10-28");
+  });
+
+  it("leaves Disney+ originals made elsewhere on their own date", () => {
+    // Korean originals drop in the Seoul afternoon, the same date here.
+    expect(airsInLocalPrime([{ name: "Disney+" }], ["KR"])).toBe(false);
+    expect(airsInLocalPrime([{ name: "Disney+" }])).toBe(false);
   });
 
   it("leaves American streamers alone despite their US origin", () => {
