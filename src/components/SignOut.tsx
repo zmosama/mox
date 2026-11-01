@@ -1,6 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import { forgetTitles } from "./titleCache";
 
 export function SignOut() {
   const router = useRouter();
@@ -9,6 +10,7 @@ export function SignOut() {
       type="button"
       onClick={async () => {
         await fetch("/api/auth/logout", { method: "POST" });
+        forgetTitles();
         router.replace("/");
         router.refresh();
       }}

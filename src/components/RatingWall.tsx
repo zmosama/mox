@@ -5,6 +5,7 @@ import { Poster } from "./Poster";
 import { Tabs } from "./Tabs";
 import { cn } from "@/lib/cn";
 import type { MediaKind, Verdict } from "@/db/schema";
+import { forgetTitles } from "./titleCache";
 
 export type WallItem = {
   tmdbId: number;
@@ -88,6 +89,7 @@ export function RatingWall({ items: initial }: { items: WallItem[] }) {
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ tmdbId: item.tmdbId, kind: item.kind, verdict: next }),
     }).catch(() => null);
+    forgetTitles();
     // Put it back rather than leave the screen claiming something untrue.
     if (!res?.ok) setItems((prev) => prev.map((i) => (same(i) ? { ...i, verdict: item.verdict } : i)));
   }

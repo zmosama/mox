@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { cn } from "@/lib/cn";
 import { GoogleButton } from "./GoogleButton";
+import { forgetTitles } from "./titleCache";
 
 type Mode = "in" | "up";
 
@@ -69,6 +70,8 @@ export function LoginForm({ googleClientId }: { googleClientId?: string | null }
 
   /** A brand-new account picks its services first, then goes Home. */
   function signedIn(created: boolean) {
+    // Titles kept from before were someone else's view of them.
+    forgetTitles();
     // A server component reads the session, so the tree has to be refetched.
     router.replace(created ? "/admin/services?welcome=1" : "/admin");
     router.refresh();

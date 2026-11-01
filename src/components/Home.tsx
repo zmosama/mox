@@ -19,6 +19,7 @@ import type { CalendarEpisode, FreshEpisode } from "@/lib/queries";
 import type { PersonNews } from "@/lib/people";
 import type { MediaKind } from "@/db/schema";
 import { localImage } from "@/lib/images";
+import { forgetTitles } from "./titleCache";
 
 type Ref = { tmdbId: number; kind: MediaKind };
 type SearchPerson = { id: number; name: string; profile: string | null; department: string | null; knownFor: string[] };
@@ -672,6 +673,7 @@ export function SaveButton({ item, large }: { item: CardTitle; large?: boolean }
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ tmdbId: item.tmdbId, kind: item.kind, verdict: next ? "watchlist" : null }),
       });
+      forgetTitles();
       if (!res.ok) setSaved(!next);
     } catch {
       setSaved(!next);
@@ -851,6 +853,7 @@ function ForYou({
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ tmdbId: item.tmdbId, season: item.season, episode: item.episode, watched: true }),
     }).catch(() => null);
+    forgetTitles();
     router.refresh();
   };
 

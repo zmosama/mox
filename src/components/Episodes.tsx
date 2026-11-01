@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { cn } from "@/lib/cn";
+import { forgetTitles } from "./titleCache";
 
 export type EpisodeData = {
   season: number;
@@ -74,6 +75,7 @@ export function Episodes({
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ tmdbId, season: e.season, episode: e.episode, watched: next }),
     });
+    forgetTitles();
     if (!res.ok) {
       setEpisodes((all) => all.map((x) => (x.episode === e.episode ? { ...x, watched: !next } : x)));
     }

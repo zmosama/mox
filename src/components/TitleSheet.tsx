@@ -16,6 +16,7 @@ import { cn } from "@/lib/cn";
 import { useSwipeToClose } from "./useSwipeToClose";
 import { backdropUrl, localImage } from "@/lib/images";
 import type { MediaKind, Verdict } from "@/db/schema";
+import { keepTitle, loadTitle } from "./titleCache";
 
 export type SheetTitle = {
   tmdbId: number;
@@ -108,8 +109,11 @@ export function TitleSheet({
 
   /** Reflect a change we just made, without re-fetching the whole title. */
   const patch = useCallback(
-    (next: SheetTitle) => setLoaded({ for: id, data: next, error: null }),
-    [id],
+    (next: SheetTitle) => {
+      keepTitle(kind, tmdbId, next);
+      setLoaded({ for: id, data: next, error: null });
+    },
+    [id, kind, tmdbId],
   );
 
   const [busy, setBusy] = useState(false);
@@ -122,9 +126,8 @@ export function TitleSheet({
 
   useEffect(() => {
     let live = true;
-    fetch(`/api/title/${kind}/${tmdbId}`)
-      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
-      .then((d: SheetTitle) => live && setLoaded({ for: id, data: d, error: null }))
+    loadTitle<SheetTitle>(kind, tmdbId)
+      .then((d) => live && setLoaded({ for: id, data: d, error: null }))
       .catch((e: Error) => live && setLoaded({ for: id, data: null, error: e.message }));
     return () => {
       live = false;
