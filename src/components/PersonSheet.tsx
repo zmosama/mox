@@ -13,6 +13,7 @@ import { isTopSheet, popSheet, pushSheet } from "./sheets";
 import { cn } from "@/lib/cn";
 import { todayISO } from "@/lib/dates";
 import type { MediaKind } from "@/db/schema";
+import { useSwipeToClose } from "./useSwipeToClose";
 
 type Credit = CardTitle & { date: string; role: string; as: "acting" | "crew"; popularity: number };
 
@@ -55,6 +56,10 @@ export function PersonSheet({
   const [bioOpen, setBioOpen] = useState(false);
   const [open, setOpen] = useState<{ tmdbId: number; kind: MediaKind } | null>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
+  // Pull it down to close it, as the title sheet does.
+  const panelRef = useRef<HTMLDivElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  useSwipeToClose(panelRef, scrollRef, onClose);
 
   useEffect(() => {
     let live = true;
@@ -154,6 +159,7 @@ export function PersonSheet({
       className="fixed inset-0 z-50 flex items-end justify-center bg-black/80 backdrop-blur-xl sm:items-center sm:p-6"
     >
       <div
+        ref={panelRef}
         onClick={(e) => e.stopPropagation()}
         className={cn(
           "relative flex w-full max-w-[720px] flex-col overflow-hidden bg-bg shadow-[0_-10px_60px_rgba(0,0,0,.7)]",
@@ -161,6 +167,9 @@ export function PersonSheet({
           "sm:h-auto sm:max-h-[90dvh] sm:rounded-[28px] sm:border",
         )}
       >
+        <div className="absolute inset-x-0 top-0 z-10 flex h-8 touch-none justify-center pt-2.5 sm:hidden">
+          <span className="h-1 w-10 rounded-full bg-white/40" />
+        </div>
         <button
           ref={closeRef}
           type="button"
@@ -173,7 +182,7 @@ export function PersonSheet({
           </svg>
         </button>
 
-        <div className="min-h-0 flex-1 overflow-auto overscroll-contain px-5 pb-10 pt-8">
+        <div ref={scrollRef} className="min-h-0 flex-1 overflow-auto overscroll-contain px-5 pb-10 pt-8">
           {error ? (
             <p className="p-6 text-center text-ink-faint">Couldn’t load this person — {error}</p>
           ) : !data ? (

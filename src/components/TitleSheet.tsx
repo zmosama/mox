@@ -13,6 +13,7 @@ import { TitleCard, type CardTitle } from "./TitleCard";
 import { Episodes, shortDate, type ProgressData } from "./Episodes";
 import { isTopSheet, popSheet, pushSheet } from "./sheets";
 import { cn } from "@/lib/cn";
+import { useSwipeToClose } from "./useSwipeToClose";
 import { backdropUrl, localImage } from "@/lib/images";
 import type { MediaKind, Verdict } from "@/db/schema";
 
@@ -115,32 +116,9 @@ export function TitleSheet({
   const panelRef = useRef<HTMLDivElement>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
 
-  // Drag the sheet down to dismiss. Past a third of its height, let it go.
-  const [offset, setOffset] = useState(0);
-  const [sliding, setSliding] = useState(false);
-
-  const startDrag = (e: React.PointerEvent<HTMLDivElement>) => {
-    const startY = e.clientY;
-    const startedAt = performance.now();
-    const height = e.currentTarget.parentElement?.getBoundingClientRect().height ?? 600;
-    e.currentTarget.setPointerCapture(e.pointerId);
-    setSliding(false);
-
-    const move = (ev: PointerEvent) => setOffset(Math.max(0, ev.clientY - startY));
-    const end = (ev: PointerEvent) => {
-      document.removeEventListener("pointermove", move);
-      document.removeEventListener("pointerup", end);
-      setSliding(true);
-
-      const travelled = ev.clientY - startY;
-      const speed = travelled / Math.max(performance.now() - startedAt, 1);
-      // A quick flick should close it even if it barely moved.
-      if (travelled > height * 0.3 || speed > 0.6) onClose();
-      else setOffset(0);
-    };
-    document.addEventListener("pointermove", move);
-    document.addEventListener("pointerup", end);
-  };
+  // Pull it down to close it, from anywhere on it while it is scrolled to the top.
+  const scrollRef = useRef<HTMLDivElement>(null);
+  useSwipeToClose(panelRef, scrollRef, onClose);
 
   useEffect(() => {
     let live = true;
@@ -305,16 +283,10 @@ export function TitleSheet({
           // the actions crowded against the bottom edge.
           "h-[96dvh] rounded-t-[28px] border-x border-t border-white/10",
           "sm:h-auto sm:max-h-[90dvh] sm:rounded-[28px] sm:border sm:shadow-[0_30px_90px_rgba(0,0,0,.75)]",
-          sliding ? "transition-transform duration-200" : "",
         )}
-        style={offset ? { transform: `translateY(${offset}px)` } : undefined}
       >
-        {/* The handle is the visible affordance, but the whole strip across the
-            top drags — aiming at a 4px bar with a thumb is a poor target. */}
-        <div
-          onPointerDown={startDrag}
-          className="absolute inset-x-0 top-0 z-20 flex h-8 cursor-grab touch-none justify-center pt-2.5 active:cursor-grabbing sm:hidden"
-        >
+        {/* The handle says it can be pulled; the whole sheet can (useSwipeToClose). */}
+        <div className="absolute inset-x-0 top-0 z-20 flex h-8 touch-none justify-center pt-2.5 sm:hidden">
           <span className="h-1 w-10 rounded-full bg-white/40" />
         </div>
 
@@ -330,7 +302,7 @@ export function TitleSheet({
           </svg>
         </button>
 
-        <div className="min-h-0 flex-1 overflow-auto overscroll-contain" onScroll={() => rating && setRating(null)}>
+        <div ref={scrollRef} className="min-h-0 flex-1 overflow-auto overscroll-contain" onScroll={() => rating && setRating(null)}>
           {/* The picture, with the title set on it as it fades into the sheet. */}
           <div
             className="relative h-[260px] w-full bg-surface bg-cover bg-center"
