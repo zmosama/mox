@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, type RefObject } from "react";
+import { useEffect, useRef, type RefObject } from "react";
 
 /**
  * Pull a sheet down to close it, as on the iPhone: from anywhere on it, not
@@ -16,6 +16,13 @@ export function useSwipeToClose(
   scroller: RefObject<HTMLElement | null>,
   onClose: () => void,
 ) {
+  /* Read at the moment it closes, so a parent re-rendering mid-drag (callers
+     pass a fresh arrow each time) doesn't tear the listeners down under the finger. */
+  const close = useRef(onClose);
+  useEffect(() => {
+    close.current = onClose;
+  }, [onClose]);
+
   useEffect(() => {
     const el = panel.current;
     // Only where the sheet rises from the bottom edge: phones (below `sm`).
@@ -29,10 +36,19 @@ export function useSwipeToClose(
     let speed = 0;
     let mode: "undecided" | "drag" | "scroll" = "scroll";
     let closing = false;
+    // The dimmed page behind lightens as the sheet goes, as on the iPhone.
+    const shade = el.parentElement;
+    const dim = (dy: number) => {
+      if (shade) shade.style.backgroundColor = `rgba(0,0,0,${0.8 * (1 - Math.min(1, dy / el.offsetHeight))})`;
+    };
 
     const settle = (to: string, after?: () => void) => {
       el.style.transition = "transform 220ms cubic-bezier(.2,.8,.2,1)";
       el.style.transform = to;
+      if (shade) {
+        shade.style.transition = "background-color 220ms";
+        dim(to.includes("100%") ? el.offsetHeight : 0);
+      }
       let finished = false;
       const done = (e?: TransitionEvent) => {
         // A button's own transition inside bubbles up here too.
@@ -40,6 +56,7 @@ export function useSwipeToClose(
         finished = true;
         el.removeEventListener("transitionend", done);
         el.style.transition = "";
+        if (shade) shade.style.transition = shade.style.backgroundColor = "";
         after?.();
       };
       el.addEventListener("transitionend", done);
@@ -48,7 +65,8 @@ export function useSwipeToClose(
     };
 
     const start = (e: TouchEvent) => {
-      if (closing || e.touches.length !== 1) return;
+      // Mid-drag, a touch starting again must not drop the sheet where it is.
+      if (closing || mode === "drag" || e.touches.length !== 1) return;
       const t = e.touches[0];
       startX = t.clientX;
       startY = lastY = t.clientY;
@@ -65,7 +83,12 @@ export function useSwipeToClose(
       const dx = t.clientX - startX;
       const dy = t.clientY - startY;
       if (mode === "undecided") {
-        if (Math.abs(dx) < 6 && Math.abs(dy) < 6) return;
+        if (Math.abs(dx) < 6 && Math.abs(dy) < 6) {
+          /* Held from the first pixel down: let Safari begin its bounce at the
+             top and it stops letting us cancel the moves after it. */
+          if (dy > 0 && dy >= Math.abs(dx) && e.cancelable) e.preventDefault();
+          return;
+        }
         // Sideways is a rail's; upwards is a scroll.
         mode = Math.abs(dx) > Math.abs(dy) || dy < 0 ? "scroll" : "drag";
         if (mode === "scroll") return;
@@ -77,6 +100,7 @@ export function useSwipeToClose(
       lastY = t.clientY;
       lastAt = now;
       el.style.transform = `translateY(${Math.max(0, dy)}px)`;
+      dim(Math.max(0, dy));
     };
 
     const end = () => {
@@ -87,7 +111,7 @@ export function useSwipeToClose(
       const flick = speed > 0.5 && performance.now() - startedAt < 600;
       if (travelled > el.offsetHeight * 0.3 || (flick && travelled > 20)) {
         closing = true;
-        settle("translateY(100%)", onClose);
+        settle("translateY(100%)", () => close.current());
       } else {
         settle("translateY(0px)", () => (el.style.transform = ""));
       }
@@ -104,5 +128,5 @@ export function useSwipeToClose(
       el.removeEventListener("touchend", end);
       el.removeEventListener("touchcancel", end);
     };
-  }, [panel, scroller, onClose]);
+  }, [panel, scroller]);
 }
