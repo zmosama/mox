@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Sora, IBM_Plex_Sans_Arabic } from "next/font/google";
 import { GlassBar } from "@/components/GlassBar";
 import { TapGuard } from "@/components/TapGuard";
+import { TitlePrefetch } from "@/components/titleCache";
 import { currentUser } from "@/lib/auth";
 import { readPrefs, webTabs } from "@/lib/prefs";
 import "./globals.css";
@@ -14,6 +15,10 @@ const arabic = IBM_Plex_Sans_Arabic({
   weight: ["400", "500", "600", "700"],
   variable: "--font-plex-arabic",
   display: "swap",
+  /* Not preloaded: four weights were ~140KB fetched ahead of everything on
+     every page, most of which have no Arabic. Its unicode-range still pulls
+     it in the moment Arabic text is drawn. */
+  preload: false,
 });
 
 export const metadata: Metadata = {
@@ -56,6 +61,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         </main>
         <GlassBar tabs={tabs} />
         <TapGuard />
+        <TitlePrefetch />
       </body>
     </html>
   );
