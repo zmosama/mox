@@ -18,7 +18,7 @@
 import { todayISO } from "../src/lib/dates";
 import { pruneCache } from "../src/lib/tmdb";
 import { refreshWatchLinks } from "../src/lib/watch-links";
-import { catalogSize, enrichCatalog, mapImdb, packOldDetails, seedCatalog } from "../src/lib/catalog";
+import { catalogSize, enrichCatalog, mapImdb, packOldDetails, seedCatalog, withBackdrops } from "../src/lib/catalog";
 import { refreshCalendar } from "./refresh/calendar.mjs";
 import { refreshFeeds } from "./refresh/feeds.mjs";
 import { refreshServices } from "./refresh/services.mjs";
@@ -30,6 +30,8 @@ import { refreshWatchlist } from "./refresh/watchlist.mjs";
 import { refreshAges } from "./refresh/ages.mjs";
 import { gridImageKeys } from "../src/lib/f1";
 import { warmF1Images } from "../src/lib/f1-images";
+import { warmTmdbImages } from "../src/lib/tmdb-images";
+import { feed } from "../src/lib/queries";
 
 const TODAY = todayISO();
 const failed: string[] = [];
@@ -127,6 +129,19 @@ await step("f1 images", async () => {
   return { summary: `${fetched} fetched, ${kept} kept${missing ? `, ${missing} not found` : ""}`, value: null };
 });
 
+// The home page's big pictures on our own disk before anyone asks: the slides
+// across the top are the first thing every visitor waits for. Same file and
+// size as the page draws (Home.tsx, sharp), or it would only fill the disk.
+await step("home images", async () => {
+  const backdrops = withBackdrops(feed("trending", null, 40, false))
+    .map((t) => t.backdrop)
+    .filter((b): b is string => !!b)
+    .slice(0, 12)
+    .map((b) => b.replace(/\/w\d+\//, "/w1280/"));
+  const { fetched, kept, missing } = await warmTmdbImages(backdrops);
+  return { summary: `${fetched} fetched, ${kept} kept${missing ? `, ${missing} not found` : ""}`, value: null };
+});
+
 // Last, and after everything that might have wanted a warm cache this run.
 await step("cache", async () => {
   const { removed, freed } = await pruneCache();
@@ -135,7 +150,7 @@ await step("cache", async () => {
 });
 
 if (failed.length) {
-  console.error(`\n${failed.length} of 14 steps failed: ${failed.join(", ")}`);
+  console.error(`\n${failed.length} of 15 steps failed: ${failed.join(", ")}`);
   process.exit(1);
 }
 console.log("\nall steps current");

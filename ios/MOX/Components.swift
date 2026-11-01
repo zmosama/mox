@@ -82,13 +82,23 @@ enum ImageStore {
     static func cached(_ url: String) -> UIImage? { memory.object(forKey: url as NSString) }
 
     /// A TMDB picture comes from our own copy of it (/api/img/…), which keeps
-    /// whatever anyone has looked at; same file, same size.
+    /// whatever anyone has looked at; same file, same size. Only the sizes the
+    /// server keeps (images.ts KEPT_SIZES); any other stays TMDB's.
     private static let tmdb = "https://image.tmdb.org/t/p/"
+    private static let keptSizes: Set<Substring> = ["w92", "w154", "w185", "w300", "w342", "w500", "w780", "w1280"]
+
+    private static func ours(_ url: String) -> String? {
+        guard url.hasPrefix(tmdb) else { return nil }
+        let rest = url.dropFirst(tmdb.count)
+        let parts = rest.split(separator: "/")
+        guard parts.count == 2, keptSizes.contains(parts[0]) else { return nil }
+        return "/api/img/" + rest
+    }
 
     /// A path on our own server ("/api/f1/img/…") against the server in
     /// Settings — the same address the API uses — and anything else as it is.
     static func resolve(_ url: String) -> URL? {
-        if url.hasPrefix(tmdb) { return resolve("/api/img/" + url.dropFirst(tmdb.count)) }
+        if let path = ours(url) { return resolve(path) }
         guard url.hasPrefix("/") else { return URL(string: url) }
         let server = UserDefaults.standard.string(forKey: "server") ?? AppSettings.defaultServer
         return URL(string: url, relativeTo: URL(string: server.trimmingCharacters(in: .whitespaces)))?.absoluteURL
@@ -96,13 +106,21 @@ enum ImageStore {
 
     static func load(_ url: String) async -> UIImage? {
         if let hit = cached(url) { return hit }
-        guard let u = resolve(url),
-              let (data, _) = try? await URLSession.shared.data(from: u),
-              let raw = UIImage(data: data) else { return nil }
+        var raw = await fetch(resolve(url))
+        if raw == nil, ours(url) != nil { raw = await fetch(URL(string: url)) }
+        guard let raw else { return nil }
         // Decode off the main thread, so the first frame it appears in is cheap.
         let image = await raw.byPreparingForDisplay() ?? raw
         memory.setObject(image, forKey: url as NSString, cost: Int(image.size.width * image.size.height * image.scale * image.scale * 4))
         return image
+    }
+
+    /// Our server down or not yet updated: a TMDB picture is fetched from TMDB itself, not lost.
+    private static func fetch(_ url: URL?) async -> UIImage? {
+        guard let url, let (data, response) = try? await URLSession.shared.data(from: url),
+              (response as? HTTPURLResponse).map({ (200..<300).contains($0.statusCode) }) ?? true
+        else { return nil }
+        return UIImage(data: data)
     }
 }
 

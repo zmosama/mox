@@ -20,7 +20,13 @@ export function backdropUrl(src: string, size: "w780" | "w1280" = "w780"): strin
   return `${BASE}/${size}${src.startsWith("/") ? src : `/${src}`}`;
 }
 
-const TMDB_FILE = /^https:\/\/image\.tmdb\.org\/t\/p\/(w\d{2,4}|h\d{2,4})\/([A-Za-z0-9_-]{4,80}\.(?:jpg|png|svg|webp))$/;
+/**
+ * The TMDB sizes we keep our own copy of: the ones the site and the app ask
+ * for. Any other size stays a TMDB URL, so it still shows; it just isn't kept.
+ */
+export const KEPT_SIZES = new Set(["w92", "w154", "w185", "w300", "w342", "w500", "w780", "w1280"]);
+export const TMDB_FILE_NAME = /^[A-Za-z0-9_-]{4,80}\.(jpg|png|svg|webp)$/;
+const TMDB_FILE = /^https:\/\/image\.tmdb\.org\/t\/p\/(w\d+)\/([^/]+)$/;
 
 /**
  * A TMDB picture as loaded from our own copy (/api/img, see tmdb-images.ts);
@@ -30,5 +36,5 @@ const TMDB_FILE = /^https:\/\/image\.tmdb\.org\/t\/p\/(w\d{2,4}|h\d{2,4})\/([A-Z
 export function localImage<T extends string | null | undefined>(src: T): T {
   if (!src) return src;
   const m = TMDB_FILE.exec(src);
-  return (m ? `/api/img/${m[1]}/${m[2]}` : src) as T;
+  return (m && KEPT_SIZES.has(m[1]) && TMDB_FILE_NAME.test(m[2]) ? `/api/img/${m[1]}/${m[2]}` : src) as T;
 }

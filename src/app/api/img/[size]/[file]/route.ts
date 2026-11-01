@@ -15,7 +15,8 @@ export async function GET(_req: Request, ctx: { params: Promise<{ size: string; 
       headers: { location: tmdbImageUrl(size, file), "cache-control": "no-store" },
     });
   }
-  return new Response(new Uint8Array(bytes), {
+  // A view on the bytes, not a copy of them.
+  return new Response(new Uint8Array(bytes.buffer as ArrayBuffer, bytes.byteOffset, bytes.byteLength), {
     headers: {
       "content-type": imageType(file),
       "cache-control": "public, max-age=31536000, immutable",
