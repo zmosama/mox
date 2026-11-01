@@ -18,6 +18,7 @@ import { imdbRating } from "@/lib/imdb";
 import { watchLinks } from "@/lib/watch-links";
 import { seriesProgress, type TmdbSeasonSummary } from "@/lib/progress";
 import { todayISO } from "@/lib/dates";
+import { pickTrailer } from "@/lib/trailer";
 import { MEDIA_KINDS, type MediaKind } from "@/db/schema";
 
 type TmdbTitle = {
@@ -41,7 +42,7 @@ type TmdbTitle = {
     cast?: { id: number; name: string; character?: string; profile_path?: string | null }[];
     crew?: { id: number; name: string; job?: string; profile_path?: string | null }[];
   };
-  videos?: { results?: { site: string; key: string; type: string; official?: boolean }[] };
+  videos?: { results?: { site: string; key: string; type: string; official?: boolean; name?: string }[] };
   "watch/providers"?: { results?: WatchProviders };
   external_ids?: { imdb_id?: string | null };
   imdb_id?: string | null;
@@ -103,12 +104,8 @@ export async function GET(
   const releaseDate = d.release_date ?? d.first_air_date ?? null;
   const user = await currentUser();
 
-  // Prefer an official trailer, then any trailer, then a teaser.
-  const videos = (d.videos?.results ?? []).filter((v) => v.site === "YouTube" && v.key);
-  const trailer =
-    videos.find((v) => v.type === "Trailer" && v.official) ??
-    videos.find((v) => v.type === "Trailer") ??
-    videos.find((v) => v.type === "Teaser");
+  // Started now, alongside everything below; never a vertical cut.
+  const trailering = pickTrailer(d.videos?.results);
 
   const configured = db.select().from(schema.services).orderBy(schema.services.priority).all();
   const selectedIds = user
@@ -169,6 +166,7 @@ export async function GET(
   const own = names.length ? await watchLinks(kind, tmdbId, title) : new Map<number, string>();
 
   const more = await relating;
+  const trailer = await trailering;
   const apply = ageFilter(user?.id ?? null);
   const [parts, similar] = await Promise.all([
     apply(cardsFor(more.parts, user?.id ?? null)),
