@@ -2,6 +2,7 @@ import Link from "next/link";
 import { currentUser } from "@/lib/auth";
 import { readPrefs } from "@/lib/prefs";
 import { logoUrl, studiosFor, type Studio } from "@/lib/studios";
+import { localImage } from "@/lib/images";
 
 export const dynamic = "force-dynamic";
 
@@ -44,7 +45,7 @@ function Tiles({ studios }: { studios: Studio[] }) {
             {/* TMDB's logos are mostly dark lines on nothing: a light tile keeps them legible. */}
             <span className="block aspect-[16/9] overflow-hidden rounded-card bg-[#f2f2ee] p-4 transition-transform duration-150 group-hover:scale-[1.03]">
               {/* eslint-disable-next-line @next/next/no-img-element -- TMDB logo */}
-              <img src={logoUrl(s.logo)} alt="" className="size-full object-contain" loading="lazy" />
+              <img src={localImage(logoUrl(s.logo))} alt="" className="size-full object-contain" loading="lazy" />
             </span>
             <span className="truncate text-[13px] font-medium">{s.name}</span>
           </Link>

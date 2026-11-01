@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { cn } from "@/lib/cn";
 import type { ServiceChoice } from "@/lib/services";
+import { localImage } from "@/lib/images";
 
 /** `welcome`: a new account's first stop — saving goes on to Home. */
 export function ServiceSettings({ services, welcome = false }: { services: ServiceChoice[]; welcome?: boolean }) {
@@ -71,7 +72,7 @@ export function ServiceSettings({ services, welcome = false }: { services: Servi
             >
               {service.logo ? (
                 // eslint-disable-next-line @next/next/no-img-element -- provider-owned square logo
-                <img src={service.logo} alt="" className="size-8 rounded-lg object-cover" />
+                <img src={localImage(service.logo)} alt="" className="size-8 rounded-lg object-cover" />
               ) : (
                 <span className="grid size-8 place-items-center rounded-lg bg-raised font-bold">
                   {service.name.slice(0, 1)}

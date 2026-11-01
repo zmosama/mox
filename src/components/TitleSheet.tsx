@@ -13,7 +13,7 @@ import { TitleCard, type CardTitle } from "./TitleCard";
 import { Episodes, shortDate, type ProgressData } from "./Episodes";
 import { isTopSheet, popSheet, pushSheet } from "./sheets";
 import { cn } from "@/lib/cn";
-import { backdropUrl } from "@/lib/images";
+import { backdropUrl, localImage } from "@/lib/images";
 import type { MediaKind, Verdict } from "@/db/schema";
 
 export type SheetTitle = {
@@ -336,7 +336,7 @@ export function TitleSheet({
             className="relative h-[260px] w-full bg-surface bg-cover bg-center"
             style={
               data?.backdrop || data?.poster
-                ? { backgroundImage: `url('${backdropUrl(data.backdrop ?? data.poster!)}')` }
+                ? { backgroundImage: `url('${localImage(backdropUrl(data.backdrop ?? data.poster!))}')` }
                 : undefined
             }
           >
@@ -375,7 +375,7 @@ export function TitleSheet({
                   >
                     {p.logo ? (
                       // eslint-disable-next-line @next/next/no-img-element -- TMDB logo
-                      <img src={p.logo} alt="" className="size-[30px] rounded-[7px]" />
+                      <img src={localImage(p.logo)} alt="" className="size-[30px] rounded-[7px]" />
                     ) : null}
                     <span className="flex-1 text-[16px] font-semibold">{p.name}</span>
                     <svg viewBox="0 0 24 24" className="size-5 fill-love" aria-hidden>
@@ -394,7 +394,7 @@ export function TitleSheet({
                   >
                     {data.store.logo ? (
                       // eslint-disable-next-line @next/next/no-img-element -- TMDB logo
-                      <img src={data.store.logo} alt="" className="size-[30px] rounded-[7px]" />
+                      <img src={localImage(data.store.logo)} alt="" className="size-[30px] rounded-[7px]" />
                     ) : null}
                     <span className="flex flex-1 flex-col">
                       <span className="text-[16px] font-semibold">{data.store.name}</span>

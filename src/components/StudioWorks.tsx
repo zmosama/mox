@@ -9,6 +9,7 @@ import { TitleSheet } from "./TitleSheet";
 import { usePaged } from "./usePaged";
 import { cn } from "@/lib/cn";
 import type { MediaKind } from "@/db/schema";
+import { localImage } from "@/lib/images";
 
 const SORTS = [
   ["popular", "Most popular"],
@@ -69,7 +70,7 @@ export function StudioWorks({
       <div className="mb-5 flex items-center gap-4">
         <span className="block h-14 w-24 shrink-0 overflow-hidden rounded-xl bg-[#f2f2ee] p-2.5">
           {/* eslint-disable-next-line @next/next/no-img-element -- TMDB logo */}
-          <img src={logo} alt="" className="size-full object-contain" />
+          <img src={localImage(logo)} alt="" className="size-full object-contain" />
         </span>
         <h1 className="min-w-0 flex-1 truncate text-[28px] font-bold tracking-tight">{name}</h1>
         {/* Following moves it to the top of Studios. Plain about its state, as Follow is on a show. */}

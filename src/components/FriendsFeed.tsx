@@ -9,6 +9,7 @@ import { TitleSheet } from "./TitleSheet";
 import { usePaged } from "./usePaged";
 import type { Friend, FriendMark } from "@/lib/friends";
 import type { MediaKind, Verdict } from "@/db/schema";
+import { localImage } from "@/lib/images";
 
 type Item = { friend: FriendMark; at: number; title: CardTitle };
 
@@ -115,7 +116,7 @@ function Row({ item, onOpen }: { item: Item; onOpen: () => void }) {
   return (
     <button type="button" onClick={onOpen} className="flex w-full items-start gap-3.5 rounded-card py-2 text-start transition hover:bg-white/[0.03]">
       {/* eslint-disable-next-line @next/next/no-img-element -- TMDB poster */}
-      {card.poster ? <img src={card.poster} alt="" className="h-[93px] w-[62px] shrink-0 rounded-[10px] object-cover" loading="lazy" /> : (
+      {card.poster ? <img src={localImage(card.poster)} alt="" className="h-[93px] w-[62px] shrink-0 rounded-[10px] object-cover" loading="lazy" /> : (
         <span className="h-[93px] w-[62px] shrink-0 rounded-[10px] bg-surface" />
       )}
       <span className="min-w-0 flex-1">

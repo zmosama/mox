@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { cn } from "@/lib/cn";
 import type { MediaKind } from "@/db/schema";
 import { TitleSheet } from "./TitleSheet";
+import { localImage } from "@/lib/images";
 
 export type UpdateData = {
   kind: "premiere" | "arrival" | "person";
@@ -78,7 +79,7 @@ export function News({
                 <div className="relative aspect-video bg-card">
                   {u.image ? (
                     // eslint-disable-next-line @next/next/no-img-element -- TMDB serves its own sizes
-                    <img src={u.image} alt="" className="size-full object-cover" loading="lazy" />
+                    <img src={localImage(u.image)} alt="" className="size-full object-cover" loading="lazy" />
                   ) : null}
                   <span className="absolute left-2.5 top-2.5 rounded-full bg-black/65 px-2 py-0.5 text-[10.5px] font-semibold text-love-soft">
                     {u.kind === "premiere" ? "Premiere" : u.kind === "arrival" ? "Arrived" : "New"}
@@ -157,7 +158,7 @@ function Stories({ stories }: { stories: StoryData[] }) {
             <div className="aspect-[4/3] w-[104px] shrink-0 overflow-hidden rounded-[12px] bg-card sm:w-[124px]">
               {s.image ? (
                 // eslint-disable-next-line @next/next/no-img-element -- the newsroom's own picture
-                <img src={s.image} alt="" className="size-full object-cover" loading="lazy" referrerPolicy="no-referrer" />
+                <img src={localImage(s.image)} alt="" className="size-full object-cover" loading="lazy" referrerPolicy="no-referrer" />
               ) : null}
             </div>
             <div className="min-w-0 flex-1">

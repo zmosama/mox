@@ -1,6 +1,7 @@
 "use client";
 
 import { cn } from "@/lib/cn";
+import { localImage } from "@/lib/images";
 
 export type PersonChipData = {
   id: number;
@@ -57,7 +58,7 @@ export function Face({ src, name, size, className }: { src: string | null; name:
            low, so testers on iPhones saw a dark cap over every face. TMDB's
            portraits are 2:3, so the crop sits high — the head, not the chest. */
         // eslint-disable-next-line @next/next/no-img-element -- TMDB serves sized files
-        <img src={src} alt="" loading="lazy" className="absolute inset-0 size-full object-cover object-[50%_18%]" />
+        <img src={localImage(src)} alt="" loading="lazy" className="absolute inset-0 size-full object-cover object-[50%_18%]" />
       ) : (
         initials
       )}

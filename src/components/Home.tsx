@@ -18,6 +18,7 @@ import { dayLabel } from "@/lib/dates";
 import type { CalendarEpisode, FreshEpisode } from "@/lib/queries";
 import type { PersonNews } from "@/lib/people";
 import type { MediaKind } from "@/db/schema";
+import { localImage } from "@/lib/images";
 
 type Ref = { tmdbId: number; kind: MediaKind };
 type SearchPerson = { id: number; name: string; profile: string | null; department: string | null; knownFor: string[] };
@@ -327,7 +328,7 @@ function PlatformChip({ name, logo, url }: { name: string; logo: string | null; 
     <>
       {logo ? (
         // eslint-disable-next-line @next/next/no-img-element -- TMDB logo
-        <img src={logo} alt="" className="size-4 rounded" />
+        <img src={localImage(logo)} alt="" className="size-4 rounded" />
       ) : null}
       <span className="truncate">{name}</span>
     </>
@@ -342,10 +343,17 @@ function PlatformChip({ name, logo, url }: { name: string; logo: string | null; 
   );
 }
 
-function Thumb({ src, className }: { src: string | null; className?: string }) {
+/** `eager` for the one picture on screen at load: lazy, it arrived after the page did. */
+function Thumb({ src, className, eager }: { src: string | null; className?: string; eager?: boolean }) {
   return src ? (
     // eslint-disable-next-line @next/next/no-img-element -- TMDB serves sized files
-    <img src={src} alt="" loading="lazy" className={cn("bg-card object-cover", className)} />
+    <img
+      src={localImage(src)}
+      alt=""
+      loading={eager ? "eager" : "lazy"}
+      fetchPriority={eager ? "high" : undefined}
+      className={cn("bg-card object-cover", className)}
+    />
   ) : (
     <div className={cn("bg-card", className)} />
   );
@@ -529,6 +537,7 @@ function Spotlight({ spots, signedIn, onOpen }: { spots: Spot[]; signedIn: boole
               // By the picture, not the copy: moving back to the middle set
               // swaps copies, and comparing copies made it dim and relight.
               current={i % n === at % n}
+              first={i === home}
               signedIn={signedIn}
               onOpen={onOpen}
             />
@@ -580,7 +589,7 @@ const sharp = (url: string | null) => url?.replace(/\/w\d+\//, "/w1280/") ?? nul
  * shape. On a phone the words sit under it; on a computer over its lower
  * left, and the slide is only as wide as keeps the picture whole on screen.
  */
-function SpotSlide({ spot, rank, current, signedIn, onOpen }: { spot: Spot; rank: number; current: boolean; signedIn: boolean; onOpen: (r: Ref) => void }) {
+function SpotSlide({ spot, rank, current, first, signedIn, onOpen }: { spot: Spot; rank: number; current: boolean; first: boolean; signedIn: boolean; onOpen: (r: Ref) => void }) {
   const where = spot.platforms[0];
   return (
     <article
@@ -593,7 +602,7 @@ function SpotSlide({ spot, rank, current, signedIn, onOpen }: { spot: Spot; rank
       )}
     >
       <div className="relative aspect-video">
-        <Thumb src={sharp(spot.backdrop)} className="absolute inset-0 size-full" />
+        <Thumb src={sharp(spot.backdrop)} eager={first} className="absolute inset-0 size-full" />
         {/* Into the card below on a phone; under the words on a computer. */}
         <div className="absolute inset-x-0 bottom-0 h-1/3 bg-gradient-to-t from-surface to-transparent lg:hidden" />
         <div className="absolute inset-0 hidden bg-gradient-to-t from-black/90 via-black/30 to-transparent lg:block" />

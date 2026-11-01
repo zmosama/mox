@@ -81,9 +81,14 @@ enum ImageStore {
 
     static func cached(_ url: String) -> UIImage? { memory.object(forKey: url as NSString) }
 
+    /// A TMDB picture comes from our own copy of it (/api/img/…), which keeps
+    /// whatever anyone has looked at; same file, same size.
+    private static let tmdb = "https://image.tmdb.org/t/p/"
+
     /// A path on our own server ("/api/f1/img/…") against the server in
     /// Settings — the same address the API uses — and anything else as it is.
-    private static func resolve(_ url: String) -> URL? {
+    static func resolve(_ url: String) -> URL? {
+        if url.hasPrefix(tmdb) { return resolve("/api/img/" + url.dropFirst(tmdb.count)) }
         guard url.hasPrefix("/") else { return URL(string: url) }
         let server = UserDefaults.standard.string(forKey: "server") ?? AppSettings.defaultServer
         return URL(string: url, relativeTo: URL(string: server.trimmingCharacters(in: .whitespaces)))?.absoluteURL

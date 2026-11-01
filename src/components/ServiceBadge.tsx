@@ -1,6 +1,7 @@
 "use client";
 
 import { cn } from "@/lib/cn";
+import { localImage } from "@/lib/images";
 
 export type Service = {
   name: string;
@@ -38,7 +39,7 @@ export function ServiceBadge({
       {service.logo ? (
         // eslint-disable-next-line @next/next/no-img-element -- TMDB logo, already sized
         <img
-          src={service.logo}
+          src={localImage(service.logo)}
           alt={service.name}
           className="block size-[22px] rounded-[5px] object-cover"
         />

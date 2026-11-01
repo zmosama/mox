@@ -1,5 +1,5 @@
 import { cn } from "@/lib/cn";
-import { posterUrl, type PosterSize } from "@/lib/images";
+import { posterUrl, type PosterSize, localImage } from "@/lib/images";
 
 /**
  * A poster, always at the right aspect and always at a size close to how large
@@ -43,7 +43,7 @@ export function Poster({
   return (
     // eslint-disable-next-line @next/next/no-img-element -- TMDB serves already-sized files
     <img
-      src={posterUrl(src, size)}
+      src={localImage(posterUrl(src, size))}
       alt={alt}
       loading="lazy"
       decoding="async"

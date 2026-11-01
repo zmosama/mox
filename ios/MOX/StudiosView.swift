@@ -213,7 +213,7 @@ private struct LogoImage: View {
     let url: String
 
     var body: some View {
-        AsyncImage(url: URL(string: url)) { phase in
+        AsyncImage(url: ImageStore.resolve(url)) { phase in
             if let image = phase.image { image.resizable().scaledToFit() } else { Color.clear }
         }
     }

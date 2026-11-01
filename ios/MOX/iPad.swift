@@ -541,7 +541,7 @@ struct IPadSearch: View {
                             Color(hex: 0xF2F2EE)
                                 .frame(width: 200, height: 112)
                                 .overlay {
-                                    AsyncImage(url: URL(string: s.logo)) { phase in
+                                    AsyncImage(url: ImageStore.resolve(s.logo)) { phase in
                                         if let image = phase.image { image.resizable().scaledToFit() } else { Color.clear }
                                     }
                                     .padding(20)

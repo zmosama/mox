@@ -9,6 +9,7 @@ import { TitleSheet } from "./TitleSheet";
 import { cn } from "@/lib/cn";
 import { dayLabel } from "@/lib/dates";
 import type { MediaKind } from "@/db/schema";
+import { localImage } from "@/lib/images";
 
 export type ReleaseItem = CardTitle & { date: string };
 
@@ -153,7 +154,7 @@ export function NewReleases({
                   >
                     {logo ? (
                       // eslint-disable-next-line @next/next/no-img-element -- TMDB logo
-                      <img src={logo} alt={name} className="size-6 rounded-md object-cover" />
+                      <img src={localImage(logo)} alt={name} className="size-6 rounded-md object-cover" />
                     ) : (
                       <span className="px-1">{name}</span>
                     )}
@@ -191,7 +192,7 @@ export function NewReleases({
                         {list[0].platforms.find((p) => p.name === name)?.logo ? (
                           // eslint-disable-next-line @next/next/no-img-element -- TMDB logo
                           <img
-                            src={list[0].platforms.find((p) => p.name === name)!.logo!}
+                            src={localImage(list[0].platforms.find((p) => p.name === name)!.logo!)}
                             alt={name}
                             className="size-[22px] rounded-md object-cover"
                           />
