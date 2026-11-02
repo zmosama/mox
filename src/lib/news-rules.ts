@@ -9,6 +9,7 @@
  * keep turning up in what you rated well. No model is asked: a story ranks
  * because it names one of those, and the page says which.
  */
+import { cairoInstant } from "./push-plan";
 
 // ------------------------------------------------------------------ feeds
 
@@ -50,17 +51,19 @@ const ARABIC_MONTHS: Record<string, number> = {
  * A feed's publication date as unix seconds, or null.
  *
  * Most feeds write RFC 822, which Date reads. Youm7 writes Arabic — "الخميس،
- * 24 سبتمبر 2026 01:00 م" — in Cairo time, with ص and م for am and pm.
+ * 24 سبتمبر 2026 01:00 م" — in Cairo time, with ص and م for am and pm. The
+ * offset is read for that day: a fixed +3 put every Youm7 item an hour in the
+ * future once Egypt went back to winter time.
  */
-export function parseFeedDate(raw: string, cairoOffsetHours = 3): number | null {
+export function parseFeedDate(raw: string): number | null {
   const s = raw.trim();
   const ar = s.match(/(\d{1,2})\s+(\S+)\s+(\d{4})\s+(\d{1,2}):(\d{2})\s*([صم])?/);
   if (ar && ARABIC_MONTHS[ar[2]] !== undefined) {
     let hour = Number(ar[4]) % 12;
     if (ar[6] === "م") hour += 12;
     if (!ar[6]) hour = Number(ar[4]);
-    const utc = Date.UTC(Number(ar[3]), ARABIC_MONTHS[ar[2]], Number(ar[1]), hour - cairoOffsetHours, Number(ar[5]));
-    return Math.floor(utc / 1000);
+    const date = `${ar[3]}-${String(ARABIC_MONTHS[ar[2]] + 1).padStart(2, "0")}-${ar[1].padStart(2, "0")}`;
+    return Math.floor(cairoInstant(date, hour * 60 + Number(ar[5])) / 1000);
   }
   const ms = Date.parse(s);
   return Number.isNaN(ms) ? null : Math.floor(ms / 1000);

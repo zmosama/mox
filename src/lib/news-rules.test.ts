@@ -40,6 +40,8 @@ describe("parseFeed", () => {
     // 1:00 pm Cairo (UTC+3) is 10:00 UTC.
     expect(items[1].publishedAt).toBe(Date.UTC(2026, 8, 24, 10, 0) / 1000);
     expect(parseFeedDate("الخميس، 24 سبتمبر 2026 11:55 ص")).toBe(Date.UTC(2026, 8, 24, 8, 55) / 1000);
+    // After the clocks go back on the last Thursday of October, Cairo is UTC+2.
+    expect(parseFeedDate("الثلاثاء، 3 نوفمبر 2026 01:00 م")).toBe(Date.UTC(2026, 10, 3, 11, 0) / 1000);
     expect(parseFeedDate("nonsense")).toBeNull();
   });
 });
