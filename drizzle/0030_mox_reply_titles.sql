@@ -1,0 +1,1 @@
+ALTER TABLE `mox_messages` ADD `titles` text;

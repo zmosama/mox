@@ -20,6 +20,7 @@ import { followsFor, library, tasteFor, titlesByIds, verdictsFor } from "./queri
 import {
   buildMatchers, isList, isSoon, onTopic, parseFeed, scoreItem, thumbnail, type Interest,
 } from "./news-rules";
+import { sportsBoard } from "./sports-news";
 
 export const SOURCES: { id: string; name: string; url: string; lang: NewsLang }[] = [
   { id: "variety", name: "Variety", url: "https://variety.com/feed/", lang: "en" },
@@ -85,7 +86,8 @@ export async function refreshNews(): Promise<void> {
 async function ensureFresh() {
   if (Date.now() - lastRefresh < REFRESH_SECONDS * 1000) return;
   refreshing ??= refreshNews().finally(() => { refreshing = null; });
-  const any = db.select({ url: schema.newsItems.url }).from(schema.newsItems).limit(1).get();
+  // Film and TV stories only: sports rows in the store say nothing about whether this tab has any.
+  const any = db.select({ url: schema.newsItems.url }).from(schema.newsItems).where(eq(schema.newsItems.section, "screen")).limit(1).get();
   if (!any) await refreshing.catch(() => {});
 }
 
@@ -238,7 +240,11 @@ export async function newsBoard(userId: number | null, langs: NewsLang[]) {
   const rows = db
     .select()
     .from(schema.newsItems)
-    .where(and(inArray(schema.newsItems.lang, langs), gt(schema.newsItems.publishedAt, now - 4 * 86400)))
+    .where(and(
+      eq(schema.newsItems.section, "screen"),
+      inArray(schema.newsItems.lang, langs),
+      gt(schema.newsItems.publishedAt, now - 4 * 86400),
+    ))
     .orderBy(desc(schema.newsItems.publishedAt))
     .all();
 
@@ -289,6 +295,8 @@ export async function newsBoard(userId: number | null, langs: NewsLang[]) {
     updates: userId === null ? [] : await updatesFor(userId),
     forYou: forYou.slice(0, 20).map((s) => s.story),
     headlines: headlines.slice(0, 40),
+    // The Sports tab, in Arabic whatever the news languages (sports-news.ts).
+    sports: sportsBoard(),
     langs,
   };
 }

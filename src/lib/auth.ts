@@ -140,3 +140,14 @@ export function userById(id: number): SessionUser | null {
     .where(eq(schema.users.id, id))
     .get() ?? null;
 }
+
+/** Whether this account is the site's owner — the one MOX works for. */
+export function isOwner(userId: number): boolean {
+  return Boolean(db.select({ o: schema.users.isOwner }).from(schema.users).where(eq(schema.users.id, userId)).get()?.o);
+}
+
+/** The signed-in user if they are the owner, else null. */
+export async function currentOwner(): Promise<SessionUser | null> {
+  const user = await currentUser();
+  return user && isOwner(user.id) ? user : null;
+}

@@ -25,8 +25,13 @@ import { useEffect, useRef } from "react";
  * `--mox-energy` is published on <html> each frame so the screen-wide light in
  * Ambient rises and falls with the ring.
  */
-export function LivingRing({ size }: { size: number }) {
+export function LivingRing({ size, charged = false }: { size: number; /** MOX is thinking or answering: the light runs high and quick. */ charged?: boolean }) {
   const canvas = useRef<HTMLCanvasElement>(null);
+  // Read by the running loop each frame, so turning it on never restarts the drawing.
+  const charge = useRef(charged);
+  useEffect(() => {
+    charge.current = charged;
+  }, [charged]);
   // Room for the waves, which travel out to nearly twice the ring's size.
   const side = size * 2.2;
 
@@ -65,6 +70,7 @@ export function LivingRing({ size }: { size: number }) {
     const r = size / 2;
     const image = size / 0.593; // the artwork's ring sits at 59% of its width
 
+    let level = charge.current ? 1 : 0;
     const draw = (now: number) => {
       if (!running) return;
       frame = requestAnimationFrame(draw);
@@ -72,7 +78,9 @@ export function LivingRing({ size }: { size: number }) {
       last = now;
 
       const t = still ? 0 : Date.now() / 1000;
-      const e = still ? 0.5 : energy(t);
+      // Charged, it surges near the top of its range, at twice the pace; eased in and out over a second.
+      level += ((charge.current ? 1 : 0) - level) * 0.07;
+      const e = still ? 0.5 : energy(t) * (1 - level) + (0.62 + 0.38 * energy(t * 2.2)) * level;
       const value = e.toFixed(3);
       readers().forEach((r) => r.style.setProperty("--mox-energy", value));
 

@@ -8,8 +8,11 @@ export const dynamic = "force-dynamic";
 export const metadata = { title: "News · mox" };
 
 /** Your updates, stories about what you care for, then the day's film and TV headlines. */
-export default async function NewsPage() {
+export default async function NewsPage({ searchParams }: { searchParams: Promise<{ tab?: string }> }) {
   const user = await currentUser();
-  const board = await newsBoard(user?.id ?? null, readPrefs(user?.id ?? null).newsLangs);
-  return <News signedIn={user !== null} {...board} />;
+  const [board, { tab }] = await Promise.all([
+    newsBoard(user?.id ?? null, readPrefs(user?.id ?? null).newsLangs),
+    searchParams,
+  ]);
+  return <News signedIn={user !== null} {...board} initialTab={tab === "sports" ? "sports" : "screen"} />;
 }

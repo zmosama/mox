@@ -429,6 +429,9 @@ export const f1Watched = sqliteTable(
  * summary, its picture and the link — and the page sends you to the article
  * rather than reproducing it.
  */
+export const NEWS_SECTIONS = ["screen", "sports"] as const;
+export type NewsSection = (typeof NEWS_SECTIONS)[number];
+
 export const newsItems = sqliteTable(
   "news_items",
   {
@@ -442,8 +445,15 @@ export const newsItems = sqliteTable(
     categories: text("categories"),
     publishedAt: integer("published_at").notNull(),
     fetchedAt: integer("fetched_at").notNull().default(sql`(unixepoch())`),
+    /** Which tab: the film and TV press, or sport (Formula 1). */
+    section: text("section", { enum: NEWS_SECTIONS }).notNull().default("screen"),
+    /** A sports story in Arabic: MOX's translation of the title and a short summary, made once. */
+    titleAr: text("title_ar"),
+    summaryAr: text("summary_ar"),
+    /** When it was translated; null while waiting, -1 once given up on. */
+    translatedAt: integer("translated_at"),
   },
-  (t) => [index("news_published").on(t.publishedAt)],
+  (t) => [index("news_published").on(t.publishedAt), index("news_section").on(t.section, t.publishedAt)],
 );
 
 /**
@@ -648,3 +658,68 @@ export const watchLinks = sqliteTable("watch_links", {
   links: text("links").notNull(),
   checkedAt: integer("checked_at").notNull(),
 }, (t) => [primaryKey({ columns: [t.tmdbId, t.kind] })]);
+
+/**
+ * Speed as people actually felt it: one row per Core Web Vital a browser
+ * reported (useReportWebVitals), so a slow page shows up on a real phone and
+ * not only in a test. Kept a month.
+ */
+export const vitals = sqliteTable(
+  "vitals",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    name: text("name").notNull(),
+    value: real("value").notNull(),
+    rating: text("rating"),
+    /** The page's route, ids replaced by [id], so pages group. */
+    path: text("path").notNull(),
+    at: integer("at").notNull().default(sql`(unixepoch())`),
+  },
+  (t) => [index("vitals_at").on(t.at)],
+);
+
+// ------------------------------------------------------------------ MOX
+
+/**
+ * MOX, the owner's assistant (src/lib/mox/). Its soul — the personality the
+ * owner writes — and which model it talks with. One row, the owner's.
+ */
+export const moxSettings = sqliteTable("mox_settings", {
+  userId: integer("user_id").primaryKey().references(() => users.id, { onDelete: "cascade" }),
+  soul: text("soul"),
+  chatModel: text("chat_model"),
+  updatedAt: integer("updated_at").notNull().default(sql`(unixepoch())`),
+});
+
+/**
+ * What MOX has learned about the owner — "can't stand jump scares", "watches
+ * with his wife on Fridays". Each with where it came from; every one can be
+ * seen and deleted. His ratings and watchlist are not copied here: MOX reads
+ * those live.
+ */
+export const moxMemories = sqliteTable(
+  "mox_memories",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    userId: integer("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    text: text("text").notNull(),
+    source: text("source", { enum: ["chat", "told"] }).notNull(),
+    createdAt: integer("created_at").notNull().default(sql`(unixepoch())`),
+  },
+  (t) => [index("mox_memories_user").on(t.userId)],
+);
+
+/** The conversation with MOX, one ongoing thread: each message's content blocks, as JSON. */
+export const moxMessages = sqliteTable(
+  "mox_messages",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    userId: integer("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    role: text("role", { enum: ["user", "assistant"] }).notNull(),
+    content: text("content").notNull(),
+    /** The titles shown as posters under a reply ({tmdbId, kind, title…}[] as JSON), or null. */
+    titles: text("titles"),
+    createdAt: integer("created_at").notNull().default(sql`(unixepoch())`),
+  },
+  (t) => [index("mox_messages_user").on(t.userId, t.id)],
+);

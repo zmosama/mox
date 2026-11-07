@@ -140,3 +140,77 @@ export async function warmTmdbImages(urls: string[]) {
   }
   return { fetched, kept, missing };
 }
+
+// ------------------------------------------------------------------ webp
+
+/*
+ * The same picture as WebP, made once from our copy and kept beside it.
+ *
+ * The site asks for `/api/img/{size}/{name}.webp` where TMDB has
+ * `{name}.jpg`: the home page's big picture went from 213KB to
+ * 101KB at w1280, and to 41KB at w780, which is what a phone draws. Made on
+ * first view, one at a time — the server has one core — and never again,
+ * since the file it comes from never changes. If it cannot be made, the
+ * caller falls back to the original.
+ */
+const WEBP_QUALITY = 75;
+const making = new Map<string, Promise<Buffer | null>>();
+let queue: Promise<unknown> = Promise.resolve();
+
+const webpFile = (size: string, name: string) => join(DIR, size, "webp", `${name}.webp`);
+
+/** `x.webp` stands for TMDB's `x.jpg` — only JPEG photos are made WebP (localImage). */
+export function webpSource(file: string): string | null {
+  const m = /^(.+)\.webp$/.exec(file);
+  return m ? `${m[1]}.jpg` : null;
+}
+
+export async function tmdbWebp(size: string, file: string): Promise<Buffer | null> {
+  const source = webpSource(file);
+  if (!source || !validImage(size, source)) return null;
+  const name = file.slice(0, -".webp".length);
+  const path = webpFile(size, name);
+  try {
+    return await readFile(path);
+  } catch {
+    // not made yet
+  }
+  const id = `${size}/${name}`;
+  const missId = `webp:${id}`;
+  const until = misses.get(missId);
+  // A picture sharp could not read once, it will not read on the next view either.
+  if (until && until > Date.now()) return null;
+  const running = making.get(id);
+  if (running) return running;
+  const job = (async () => {
+    const original = await tmdbImage(size, source);
+    if (!original) return null;
+    const done = queue.then(async () => {
+      const { default: sharp } = await import("sharp");
+      return sharp(original).webp({ quality: WEBP_QUALITY }).toBuffer();
+    });
+    queue = done.catch(() => {});
+    let webp: Buffer;
+    try {
+      webp = await done;
+    } catch (e) {
+      console.error(`tmdb-images: no webp for ${id}:`, (e as Error).message);
+      missed(missId, 86_400_000);
+      return null;
+    }
+    // Shown either way; kept if it can be.
+    if (await roomToKeep()) {
+      try {
+        await mkdir(dirname(path), { recursive: true });
+        await writeFile(`${path}.part`, webp);
+        await rename(`${path}.part`, path);
+      } catch (e) {
+        console.error(`tmdb-images: could not keep webp ${id}:`, (e as Error).message);
+        await unlink(`${path}.part`).catch(() => {});
+      }
+    }
+    return webp;
+  })().finally(() => making.delete(id));
+  making.set(id, job);
+  return job;
+}

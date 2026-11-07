@@ -36,5 +36,7 @@ const TMDB_FILE = /^https:\/\/image\.tmdb\.org\/t\/p\/(w\d+)\/([^/]+)$/;
 export function localImage<T extends string | null | undefined>(src: T): T {
   if (!src) return src;
   const m = TMDB_FILE.exec(src);
-  return (m && KEPT_SIZES.has(m[1]) && TMDB_FILE_NAME.test(m[2]) ? `/api/img/${m[1]}/${m[2]}` : src) as T;
+  if (!m || !KEPT_SIZES.has(m[1]) || !TMDB_FILE_NAME.test(m[2])) return src;
+  // Photos as WebP, about half the bytes (tmdbWebp). PNG and SVG logos are small and stay themselves.
+  return `/api/img/${m[1]}/${m[2].replace(/\.jpg$/, ".webp")}` as T;
 }

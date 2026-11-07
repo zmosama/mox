@@ -3,6 +3,7 @@ import { Sora, IBM_Plex_Sans_Arabic } from "next/font/google";
 import { GlassBar } from "@/components/GlassBar";
 import { TapGuard } from "@/components/TapGuard";
 import { TitlePrefetch } from "@/components/titleCache";
+import { WebVitals } from "@/components/WebVitals";
 import { currentUser } from "@/lib/auth";
 import { readPrefs, webTabs } from "@/lib/prefs";
 import "./globals.css";
@@ -62,6 +63,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <GlassBar tabs={tabs} />
         <TapGuard />
         <TitlePrefetch />
+        <WebVitals />
       </body>
     </html>
   );

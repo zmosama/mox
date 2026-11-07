@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { WEB_TABS } from "./GlassBar";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
 import { AskBar, MOODS, MoodChips, type Mood } from "./AskBar";
 import { PeopleRow, type PersonChipData } from "./People";
@@ -48,7 +48,8 @@ export function Home({
   needsServices,
 }: {
   today: string;
-  user: { name: string; avatar: string | null } | null;
+  /** `mox`: this is the owner, who has MOX to talk to. */
+  user: { name: string; avatar: string | null; mox?: boolean } | null;
   forYou: FreshEpisode[];
   episodes: CalendarEpisode[];
   trending: Spot[];
@@ -163,6 +164,17 @@ export function Home({
               }}
             />
           </div>
+          {user?.mox ? (
+            <Link
+              href="/mox"
+              aria-label="Talk to MOX"
+              className="grid size-12 shrink-0 place-items-center rounded-full border border-white/10 bg-white/[0.06] shadow-pop transition hover:bg-white/[0.1] lg:size-14"
+            >
+              {/* The ring as a picture, not the live canvas: Home stays light. */}
+              {/* eslint-disable-next-line @next/next/no-img-element -- a fixed brand asset */}
+              <img src="/ring-tab.png" alt="" className="size-7 lg:size-8" draggable={false} />
+            </Link>
+          ) : null}
           {asking || !spots.length ? <Avatar user={user} /> : null}
         </header>
         {showMoods || mood ? (
@@ -345,11 +357,15 @@ function PlatformChip({ name, logo, url }: { name: string; logo: string | null; 
 }
 
 /** `eager` for the one picture on screen at load: lazy, it arrived after the page did. */
-function Thumb({ src, className, eager }: { src: string | null; className?: string; eager?: boolean }) {
+function Thumb({ src, className, eager, wide }: { src: string | null; className?: string; eager?: boolean; wide?: boolean }) {
   return src ? (
     // eslint-disable-next-line @next/next/no-img-element -- TMDB serves sized files
     <img
       src={localImage(src)}
+      /* A phone draws the week's picture about 400px wide: w780 is enough
+         there and a fifth of w1280's bytes; a computer still gets w1280. */
+      srcSet={wide ? `${localImage(src.replace(/\/w\d+\//, "/w780/"))} 780w, ${localImage(src.replace(/\/w\d+\//, "/w1280/"))} 1280w` : undefined}
+      sizes={wide ? "(min-width: 1024px) 70vw, 100vw" : undefined}
       alt=""
       loading={eager ? "eager" : "lazy"}
       fetchPriority={eager ? "high" : undefined}
@@ -442,6 +458,8 @@ function Board({
  * phone, arrows and dots on a computer, and on to the next by itself every
  * few seconds until you touch it.
  */
+const noSubscribe = () => () => {};
+
 function Spotlight({ spots, signedIn, onOpen }: { spots: Spot[]; signedIn: boolean; onOpen: (r: Ref) => void }) {
   const strip = useRef<HTMLDivElement>(null);
   const n = spots.length;
@@ -450,9 +468,16 @@ function Spotlight({ spots, signedIn, onOpen }: { spots: Spot[]; signedIn: boole
      rest in the first or last set it is moved, unseen, to the same slide in
      the middle. So the first slide has the last one on its left, never a
      gap. `at` counts across all three sets. */
-  const looped = n > 1 ? [...spots, ...spots, ...spots] : spots;
-  const home = n > 1 ? n : 0;
-  const [at, setAt] = useState(home);
+  /* Until the page has woken up there is one set only, so the server's HTML
+     already shows the first slide where the strip starts. The three sets
+     arrive with the first render in the browser, and the jump to the middle
+     one lands on the same picture, already drawn: before, the picture was
+     drawn twice — once from the HTML, once after the jump, seconds later on a
+     slow phone — and the second was what the page's load time counted. */
+  const awake = useSyncExternalStore(noSubscribe, () => true, () => false);
+  const looped = n > 1 && awake ? [...spots, ...spots, ...spots] : spots;
+  const home = n > 1 && awake ? n : 0;
+  const [at, setAt] = useState(0);
   const [held, setHeld] = useState(false);
   const settle = useRef<number | undefined>(undefined);
 
@@ -464,8 +489,9 @@ function Spotlight({ spots, signedIn, onOpen }: { spots: Spot[]; signedIn: boole
   }, []);
   const go = useCallback((i: number) => centre(i, "smooth"), [centre]);
 
-  // Start on the first slide of the middle set.
+  // Start on the first slide of the middle set, once there is one.
   useEffect(() => {
+    // The scroll this makes sets `at` (onScroll), so the dots follow.
     centre(home, "instant");
   }, [centre, home]);
 
@@ -538,6 +564,7 @@ function Spotlight({ spots, signedIn, onOpen }: { spots: Spot[]; signedIn: boole
               // By the picture, not the copy: moving back to the middle set
               // swaps copies, and comparing copies made it dim and relight.
               current={i % n === at % n}
+              // The slide on screen at load: slide 0 in the HTML, its middle-set copy after.
               first={i === home}
               signedIn={signedIn}
               onOpen={onOpen}
@@ -603,7 +630,7 @@ function SpotSlide({ spot, rank, current, first, signedIn, onOpen }: { spot: Spo
       )}
     >
       <div className="relative aspect-video">
-        <Thumb src={sharp(spot.backdrop)} eager={first} className="absolute inset-0 size-full" />
+        <Thumb src={sharp(spot.backdrop)} eager={first} wide className="absolute inset-0 size-full" />
         {/* Into the card below on a phone; under the words on a computer. */}
         <div className="absolute inset-x-0 bottom-0 h-1/3 bg-gradient-to-t from-surface to-transparent lg:hidden" />
         <div className="absolute inset-0 hidden bg-gradient-to-t from-black/90 via-black/30 to-transparent lg:block" />

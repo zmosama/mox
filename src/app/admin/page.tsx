@@ -1,6 +1,9 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { avatarUrl, currentUser } from "@/lib/auth";
+import { avatarUrl, currentUser, isOwner } from "@/lib/auth";
+import { SpeedReport } from "@/components/SpeedReport";
+import { vitalsSummary } from "@/lib/vitals";
+import { aiAvailable } from "@/lib/ai";
 import { ProfilePhoto } from "@/components/ProfilePhoto";
 import { stats, tasteFor } from "@/lib/queries";
 import { Preferences } from "@/components/Preferences";
@@ -21,6 +24,7 @@ export default async function AdminHome() {
   const traits = taste?.strongest("keyword", 4, 8) ?? [];
   const people = taste?.strongest("person", 4, 6) ?? [];
   const account = accountOf(user.id);
+  const owner = isOwner(user.id);
 
   return (
     <div className="flex flex-col gap-8">
@@ -71,6 +75,22 @@ export default async function AdminHome() {
           </div>
         ) : null}
       </section>
+
+      {owner ? (
+        <section>
+          <h2 className="mb-1 text-base font-semibold">MOX</h2>
+          <p className="mb-3 text-[13px] text-ink-faint">
+            {aiAvailable()
+              ? "Connected. Its memory, its soul and the model it thinks with are on its own page."
+              : "Not connected: the server has no ANTHROPIC_API_KEY. The key lives on the server, never in the database, which is backed up to Drive."}
+          </p>
+          <Link href="/mox" className="inline-block rounded-lg bg-ink px-4 py-2 text-[13px] font-semibold text-bg transition hover:opacity-90">
+            Open MOX
+          </Link>
+        </section>
+      ) : null}
+
+      {owner ? <SpeedReport rows={vitalsSummary()} /> : null}
 
       {/* The wordmark's black is transparent, so it sits on the page with no box. */}
       <section className="flex flex-col items-center gap-3 border-t border-line pt-8 text-center">

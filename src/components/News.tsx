@@ -46,14 +46,24 @@ export function News({
   updates,
   forYou,
   headlines,
+  sports,
   langs,
+  initialTab = "screen",
 }: {
   signedIn: boolean;
   updates: UpdateData[];
   forYou: StoryData[];
   headlines: StoryData[];
+  sports: StoryData[];
   langs: ("en" | "ar")[];
+  initialTab?: "screen" | "sports";
 }) {
+  const [tab, setTab] = useState(initialTab);
+  const pick = (next: "screen" | "sports") => {
+    setTab(next);
+    // In the address, so a refresh or a shared link opens the same tab.
+    window.history.replaceState(null, "", next === "sports" ? "?tab=sports" : window.location.pathname);
+  };
   const [open, setOpen] = useState<{ tmdbId: number; kind: MediaKind } | null>(null);
   const [lang, setLang] = useState<"all" | "en" | "ar">("all");
   const shown = useMemo(
@@ -63,8 +73,38 @@ export function News({
 
   return (
     <>
-      <h1 className="mb-7 text-[28px] font-bold tracking-tight">News</h1>
+      <div className="mb-7 flex flex-wrap items-center justify-between gap-3">
+        <h1 className="text-[28px] font-bold tracking-tight">News</h1>
+        <div role="tablist" aria-label="News" className="flex gap-1 rounded-full bg-surface p-1 text-[13.5px] font-medium">
+          {(["screen", "sports"] as const).map((t) => (
+            <button
+              key={t}
+              type="button"
+              role="tab"
+              aria-selected={tab === t}
+              onClick={() => pick(t)}
+              className={cn("rounded-full px-4 py-1.5 transition", tab === t ? "bg-white/[0.12] text-ink" : "text-ink-dim hover:text-ink")}
+            >
+              {t === "screen" ? "Movies & TV" : "Sports"}
+            </button>
+          ))}
+        </div>
+      </div>
 
+      {tab === "sports" ? (
+        <section>
+          <h2 className="mb-1 text-[20px] font-semibold tracking-tight">Formula 1</h2>
+          <p className="mb-4 text-[13px] text-ink-dim">
+            From Formula1.com, Motorsport.com and Autosport, in Arabic by MOX. Tap a story for the whole piece at its source.
+          </p>
+          {sports.length ? (
+            <Stories stories={sports} summaries />
+          ) : (
+            <p className="text-[14px] text-ink-dim">No Formula 1 news in Arabic yet — the first stories are on their way.</p>
+          )}
+        </section>
+      ) : (
+      <>
       {updates.length ? (
         <section className="mb-10">
           <h2 className="mb-3 text-[20px] font-semibold tracking-tight">Your updates</h2>
@@ -135,6 +175,8 @@ export function News({
           </p>
         ) : null}
       </section>
+      </>
+      )}
 
       {open ? (
         <TitleSheet tmdbId={open.tmdbId} kind={open.kind} signedIn={signedIn} onClose={() => setOpen(null)} />
@@ -143,7 +185,7 @@ export function News({
   );
 }
 
-function Stories({ stories }: { stories: StoryData[] }) {
+function Stories({ stories, summaries }: { stories: StoryData[]; summaries?: boolean }) {
   return (
     <ul className="grid gap-2.5 lg:grid-cols-2">
       {stories.map((s) => (
@@ -163,6 +205,9 @@ function Stories({ stories }: { stories: StoryData[] }) {
             </div>
             <div className="min-w-0 flex-1">
               <div className="line-clamp-3 text-[14.5px] font-semibold leading-snug">{s.title}</div>
+              {summaries && s.summary ? (
+                <p className="mt-1 line-clamp-3 text-[13px] leading-relaxed text-ink-dim">{s.summary}</p>
+              ) : null}
               <div className="mt-1.5 text-[12px] text-ink-faint" suppressHydrationWarning>
                 {s.source} · {ago(s.publishedAt)}
               </div>

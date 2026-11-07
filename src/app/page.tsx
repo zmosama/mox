@@ -1,5 +1,5 @@
 import { Home } from "@/components/Home";
-import { avatarUrl, currentUser } from "@/lib/auth";
+import { avatarUrl, currentUser, isOwner } from "@/lib/auth";
 import { todayISO } from "@/lib/dates";
 import { calendar, comingSoon, feed, forYou, newOnServices, picksFor, withReasons, mineFirst } from "@/lib/queries";
 import { withBackdrops } from "@/lib/catalog";
@@ -19,7 +19,7 @@ export default async function HomePage() {
   return (
     <Home
       today={today}
-      user={user ? { name: user.displayName ?? user.username, avatar: avatarUrl(user) } : null}
+      user={user ? { name: user.displayName ?? user.username, avatar: avatarUrl(user), mox: isOwner(user.id) } : null}
       forYou={id ? await aged(forYou(id, today)) : []}
       episodes={await agedEpisodes(aged, calendar(id, 14))}
       trending={withBackdrops(await aged(withReasons(id, mineFirst(feed("trending", id, 40, false)))))}

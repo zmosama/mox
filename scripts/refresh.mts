@@ -30,7 +30,7 @@ import { refreshWatchlist } from "./refresh/watchlist.mjs";
 import { refreshAges } from "./refresh/ages.mjs";
 import { gridImageKeys } from "../src/lib/f1";
 import { warmF1Images } from "../src/lib/f1-images";
-import { warmTmdbImages } from "../src/lib/tmdb-images";
+import { tmdbWebp, warmTmdbImages } from "../src/lib/tmdb-images";
 import { feed } from "../src/lib/queries";
 
 const TODAY = todayISO();
@@ -130,16 +130,23 @@ await step("f1 images", async () => {
 });
 
 // The home page's big pictures on our own disk before anyone asks: the slides
-// across the top are the first thing every visitor waits for. Same file and
-// size as the page draws (Home.tsx, sharp), or it would only fill the disk.
+// across the top are the first thing every visitor waits for. The files the
+// page draws (Home.tsx Thumb): w780 for a phone, w1280 for a computer, each
+// also made WebP — the page asks for the WebP, so warming only the JPEG left
+// the first visitor waiting on the encode.
 await step("home images", async () => {
   const backdrops = withBackdrops(feed("trending", null, 40, false))
     .map((t) => t.backdrop)
     .filter((b): b is string => !!b)
-    .slice(0, 12)
-    .map((b) => b.replace(/\/w\d+\//, "/w1280/"));
-  const { fetched, kept, missing } = await warmTmdbImages(backdrops);
-  return { summary: `${fetched} fetched, ${kept} kept${missing ? `, ${missing} not found` : ""}`, value: null };
+    .slice(0, 12);
+  const sized = backdrops.flatMap((b) => [b.replace(/\/w\d+\//, "/w780/"), b.replace(/\/w\d+\//, "/w1280/")]);
+  const { fetched, kept, missing } = await warmTmdbImages(sized);
+  let webp = 0;
+  for (const url of sized) {
+    const m = /\/(w\d+)\/([A-Za-z0-9_-]+)\.jpg$/.exec(url);
+    if (m && (await tmdbWebp(m[1], `${m[2]}.webp`))) webp++;
+  }
+  return { summary: `${fetched} fetched, ${kept} kept${missing ? `, ${missing} not found` : ""}, ${webp} as WebP`, value: null };
 });
 
 // Last, and after everything that might have wanted a warm cache this run.

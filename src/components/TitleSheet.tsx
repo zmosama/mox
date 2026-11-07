@@ -176,30 +176,46 @@ export function TitleSheet({
   const setVerdict = useCallback(
     async (verdict: Verdict) => {
       if (!data) return;
-      const next = data.verdict === verdict ? null : verdict;
+      if (busy) return;
+      const before = data.verdict;
+      const next = before === verdict ? null : verdict;
+      // Shown at once, put back if the server says no — as Home's save button
+      // does. One change at a time (busy), so a revert never undoes a newer one.
+      patch({ ...data, verdict: next });
       setBusy(true);
-      const res = await fetch("/api/verdict", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ tmdbId: data.tmdbId, kind: data.kind, verdict: next }),
-      });
-      setBusy(false);
-      if (res.ok) patch({ ...data, verdict: next });
+      try {
+        const res = await fetch("/api/verdict", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ tmdbId: data.tmdbId, kind: data.kind, verdict: next }),
+        });
+        if (!res.ok) patch({ ...data, verdict: before });
+      } catch {
+        patch({ ...data, verdict: before });
+      } finally {
+        setBusy(false);
+      }
     },
-    [data, patch],
+    [data, patch, busy],
   );
 
   const toggleFollow = useCallback(async () => {
-    if (!data) return;
+    if (!data || busy) return;
+    patch({ ...data, following: !data.following });
     setBusy(true);
-    const res = await fetch("/api/follow", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ tmdbId: data.tmdbId, following: !data.following }),
-    });
-    setBusy(false);
-    if (res.ok) patch({ ...data, following: !data.following });
-  }, [data, patch]);
+    try {
+      const res = await fetch("/api/follow", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ tmdbId: data.tmdbId, following: !data.following }),
+      });
+      if (!res.ok) patch(data);
+    } catch {
+      patch(data);
+    } finally {
+      setBusy(false);
+    }
+  }, [data, patch, busy]);
 
   /** Where the rating menu is drawn, fixed to the screen, or null when shut. */
   const [rating, setRating] = useState<{ left: number; top: number; above: boolean } | null>(null);

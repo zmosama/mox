@@ -24,6 +24,26 @@ const DEFAULT_TTL = 6 * 3600;
 
 export class TmdbError extends Error {}
 
+/* Every other outside call here had a time limit; TMDB, the one asked most,
+   had none, so a TMDB that stopped answering held a title page open until the
+   socket gave up. Eight seconds, then the same error a bad status raises —
+   which every caller already turns into the stored record or nothing. */
+const TIMEOUT_MS = 8000;
+
+async function ask(url: URL): Promise<Response> {
+  const started = Date.now();
+  try {
+    const res = await fetch(url, { cache: "no-store", signal: AbortSignal.timeout(TIMEOUT_MS) });
+    // The slow ones, in the server's log, so "TMDB is slow today" is a fact, not a feeling.
+    const took = Date.now() - started;
+    if (took > 2000) console.warn(`tmdb: ${url.pathname} took ${took}ms`);
+    return res;
+  } catch (e) {
+    const timedOut = e instanceof Error && e.name === "TimeoutError";
+    throw new TmdbError(timedOut ? `TMDB took over ${TIMEOUT_MS / 1000}s` : `TMDB unreachable: ${String(e)}`);
+  }
+}
+
 const apiKey = () => {
   const key = process.env.TMDB_API_KEY?.trim();
   if (!key) throw new TmdbError("TMDB_API_KEY is not set");
@@ -75,11 +95,11 @@ export async function tmdb<T>(
   for (const [k, v] of Object.entries(clean)) url.searchParams.set(k, v);
   url.searchParams.set("api_key", apiKey());
 
-  let res = await fetch(url, { cache: "no-store" });
+  let res = await ask(url);
   // Too many at once: TMDB says when to come back. Once, then it is an error.
   if (res.status === 429) {
     await new Promise((r) => setTimeout(r, (Number(res.headers.get("retry-after")) || 2) * 1000));
-    res = await fetch(url, { cache: "no-store" });
+    res = await ask(url);
   }
   if (!res.ok) throw new TmdbError(`TMDB ${res.status} on ${path}`);
   const body = (await res.json()) as T;

@@ -99,16 +99,27 @@ ssh "$HOST" "cd $APPS && docker compose up -d mox 2>&1 | sed 's/^/    /'"
 # schema while it serves, so a migration that drops a column it selects would
 # break the live site for the length of the transfer. Migrations are therefore
 # written to be safe for the new code against the old schema, and run here.
+# A migration that fails must fail the deploy: the grep used to swallow its
+# exit code, so new code could go on serving against a schema it doesn't
+# match. Failing here takes the rollback below.
 say "migrating the database"
-ssh "$HOST" "docker exec apps-mox-1 npx drizzle-kit migrate 2>&1 | grep -E 'applied|error|Error' | sed 's/^/    /'"
+migrated=1
+if ! ssh "$HOST" "set -o pipefail; docker exec apps-mox-1 npx drizzle-kit migrate 2>&1 | sed 's/^/    /'"; then
+  echo "!! the migration failed" >&2
+  migrated=0
+fi
 
+# Two screens that read different tables, so a column the new code expects
+# and the database lacks shows up as a failure here, not on someone's phone.
 say "checking it answers"
 ok=0
 for i in 1 2 3 4 5 6 7 8 9 10; do
+  [ "$migrated" = "1" ] || break
   sleep 3
   code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 15 "$URL/api/app/home" || true)
-  if [ "$code" = "200" ]; then echo "    $URL -> 200"; ok=1; break; fi
-  echo "    attempt $i: $code"
+  news=$(curl -s -o /dev/null -w '%{http_code}' --max-time 15 "$URL/api/news" || true)
+  if [ "$code" = "200" ] && [ "$news" = "200" ]; then echo "    $URL -> 200, news 200"; ok=1; break; fi
+  echo "    attempt $i: home $code, news $news"
 done
 
 if [ "$ok" != "1" ]; then
