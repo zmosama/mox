@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import Link from "next/link";
+import { useState, useSyncExternalStore } from "react";
 import { LivingRing } from "./LivingRing";
 import { cn } from "@/lib/cn";
 
@@ -21,18 +22,7 @@ export type Mood = (typeof MOODS)[number][0];
 
 // ---------------------------------------------------------------- ask bar
 
-type Recognition = {
-  lang: string;
-  interimResults: boolean;
-  continuous: boolean;
-  start: () => void;
-  stop: () => void;
-  onresult: ((e: { results: ArrayLike<ArrayLike<{ transcript: string }>> }) => void) | null;
-  onend: (() => void) | null;
-  onerror: (() => void) | null;
-};
 
-const noSubscribe = () => () => {};
 const WIDE = "(min-width: 1024px)";
 export const subscribeWide = (change: () => void) => {
   const query = window.matchMedia(WIDE);
@@ -40,12 +30,12 @@ export const subscribeWide = (change: () => void) => {
   return () => query.removeEventListener("change", change);
 };
 export const isWide = () => window.matchMedia(WIDE).matches;
-const speechSupported = () => {
-  const w = window as unknown as { SpeechRecognition?: unknown; webkitSpeechRecognition?: unknown };
-  return Boolean(w.SpeechRecognition ?? w.webkitSpeechRecognition);
-};
 
-/** "+" for moods, the question, and the mic — the mockup's bar. */
+/**
+ * "+" for moods, the question, and — for the owner — the ring that opens MOX.
+ * The ring took the microphone's place: dictation never worked reliably in
+ * the browsers people use, and the keyboard's own mic does it better.
+ */
 export function AskBar({
   query,
   onQuery,
@@ -54,6 +44,7 @@ export function AskBar({
   showMoods,
   onToggleMoods,
   onClear,
+  mox = false,
 }: {
   query: string;
   onQuery: (v: string) => void;
@@ -62,38 +53,9 @@ export function AskBar({
   showMoods: boolean;
   onToggleMoods: () => void;
   onClear: () => void;
+  /** The owner, who has MOX to talk to. */
+  mox?: boolean;
 }) {
-  const [listening, setListening] = useState(false);
-  // False on the server and in the first render; a mic the browser cannot
-  // use is worse than none.
-  const canListen = useSyncExternalStore(noSubscribe, speechSupported, () => false);
-  const recognition = useRef<Recognition | null>(null);
-
-  useEffect(() => () => recognition.current?.stop(), []);
-
-  const toggleMic = () => {
-    if (listening) {
-      recognition.current?.stop();
-      return;
-    }
-    const w = window as unknown as { SpeechRecognition?: new () => Recognition; webkitSpeechRecognition?: new () => Recognition };
-    const Ctor = w.SpeechRecognition ?? w.webkitSpeechRecognition;
-    if (!Ctor) return;
-    const r = new Ctor();
-    r.lang = navigator.language;
-    r.interimResults = true;
-    r.continuous = false;
-    r.onresult = (e) => {
-      const text = Array.from(e.results).map((res) => res[0].transcript).join("");
-      onQuery(text);
-    };
-    r.onend = () => setListening(false);
-    r.onerror = () => setListening(false);
-    recognition.current = r;
-    setListening(true);
-    r.start();
-  };
-
   return (
     <div className="relative z-10 flex h-14 w-full max-w-[640px] items-center lg:h-16 lg:max-w-[720px] lg:px-2.5 gap-2.5 rounded-full border border-white/10 bg-white/[0.06] px-2 shadow-pop">
       <button
@@ -110,7 +72,7 @@ export function AskBar({
       <input
         value={query}
         onChange={(e) => onQuery(e.target.value)}
-        placeholder={listening ? "Listening…" : "Films, series, people…"}
+        placeholder="Films, series, people…"
         aria-label="Search"
         enterKeyHint="search"
         autoComplete="off"
@@ -130,20 +92,16 @@ export function AskBar({
         </button>
       ) : null}
 
-      {canListen ? (
-        <button
-          type="button"
-          onClick={toggleMic}
-          aria-label={listening ? "Stop listening" : "Speak"}
-          className={cn(
-            "grid size-[38px] shrink-0 place-items-center rounded-full transition",
-            listening ? "animate-pulse bg-love/30 text-love" : "bg-ink/10 text-ink hover:bg-ink/15",
-          )}
+      {mox ? (
+        <Link
+          href="/mox"
+          aria-label="Talk to MOX"
+          className="grid size-[38px] shrink-0 place-items-center rounded-full bg-ink/10 transition hover:bg-ink/15"
         >
-          <svg viewBox="0 0 24 24" className="size-[18px] fill-current" aria-hidden>
-            <path d="M12 14a3 3 0 0 0 3-3V5a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.9V21h2v-3.1A7 7 0 0 0 19 11h-2z" />
-          </svg>
-        </button>
+          {/* The ring as a picture, not the live canvas: the bar stays light. */}
+          {/* eslint-disable-next-line @next/next/no-img-element -- a fixed brand asset */}
+          <img src="/ring-tab.png" alt="" className="size-6" draggable={false} />
+        </Link>
       ) : (
         <span className="w-1" />
       )}

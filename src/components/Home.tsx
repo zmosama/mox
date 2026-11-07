@@ -162,19 +162,9 @@ export function Home({
                 setQuery("");
                 setMood(null);
               }}
+              mox={user?.mox}
             />
           </div>
-          {user?.mox ? (
-            <Link
-              href="/mox"
-              aria-label="Talk to MOX"
-              className="grid size-12 shrink-0 place-items-center rounded-full border border-white/10 bg-white/[0.06] shadow-pop transition hover:bg-white/[0.1] lg:size-14"
-            >
-              {/* The ring as a picture, not the live canvas: Home stays light. */}
-              {/* eslint-disable-next-line @next/next/no-img-element -- a fixed brand asset */}
-              <img src="/ring-tab.png" alt="" className="size-7 lg:size-8" draggable={false} />
-            </Link>
-          ) : null}
           {asking || !spots.length ? <Avatar user={user} /> : null}
         </header>
         {showMoods || mood ? (
