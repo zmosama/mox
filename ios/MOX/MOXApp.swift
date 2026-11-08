@@ -21,8 +21,17 @@ struct MOXApp: App {
         _api = State(initialValue: API(settings: settings))
         _router = State(initialValue: router)
         // Before the first screen: a tap on a notification may be what launched us.
-        Self.opener.open = { router.title = $0 }
-        Self.opener.openTab = { router.tab = .tab($0) }
+        // MOX covers everything, and nothing presents over it: close it first,
+        // and open the title once it has gone.
+        Self.opener.open = { ref in
+            guard router.mox else { router.title = ref; return }
+            router.mox = false
+            Task { @MainActor in
+                try? await Task.sleep(for: .milliseconds(450))
+                router.title = ref
+            }
+        }
+        Self.opener.openTab = { router.mox = false; router.tab = .tab($0) }
         UNUserNotificationCenter.current().delegate = Self.opener
     }
 
@@ -58,6 +67,8 @@ final class Router {
     var title: TitleRef?
     var person: PersonRef?
     var settings = false
+    /// MOX's conversation, over everything (the owner only).
+    var mox = false
     var tab: AppTab = .home
     /// A screen opened from Home's sections that is not in the dock.
     var screen: TabID?
@@ -146,6 +157,7 @@ struct RootView: View {
         .sheet(isPresented: $router.settings) {
             SettingsView()
         }
+        .fullScreenCover(isPresented: $router.mox) { MoxView() }
         .sheet(item: $router.screen) { id in
             NavigationStack {
                 screen(id)
@@ -166,6 +178,8 @@ struct RootView: View {
             if let t = UserDefaults.standard.string(forKey: "moxTitle")?.split(separator: "/"), t.count == 2, let id = Int(t[1]) {
                 router.title = TitleRef(tmdbId: id, kind: String(t[0]))
             }
+            // `-moxChat YES`: MOX's conversation (an owner account).
+            if UserDefaults.standard.bool(forKey: "moxChat") { router.mox = true }
             // `-moxWelcome YES`: the services step a new account sees.
             if UserDefaults.standard.bool(forKey: "moxWelcome") {
                 router.settings = true

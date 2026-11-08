@@ -486,8 +486,10 @@ struct IPadSearch: View {
                 .buttonStyle(.plain)
                 .accessibilityLabel("Clear")
             }
+            if api.user?.mox == true { MoxButton(size: 40) }
         }
-        .padding(.horizontal, 18)
+        .padding(.leading, 18)
+        .padding(.trailing, api.user?.mox == true ? 7 : 18)
         .frame(height: 54)
         .glassEffect(.regular.interactive(), in: .capsule)
         .padding(.horizontal, IPad.margin)

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { withBackdrops } from "@/lib/catalog";
-import { avatarUrl, currentUser } from "@/lib/auth";
+import { avatarUrl, currentUser, isOwner } from "@/lib/auth";
 import { todayISO } from "@/lib/dates";
 import { calendar, comingSoon, feed, forYou, newOnServices, picksFor, withReasons, mineFirst } from "@/lib/queries";
 import { newFromPeople, within } from "@/lib/people";
@@ -23,7 +23,7 @@ export async function GET() {
     {
       today,
       user: user
-        ? { id: user.id, username: user.username, displayName: user.displayName, avatar: avatarUrl(user) }
+        ? { id: user.id, username: user.username, displayName: user.displayName, avatar: avatarUrl(user), mox: isOwner(user.id) }
         : null,
       forYou: id ? withBackdrops(await aged(forYou(id, today))) : [],
       calendar: await agedEpisodes(aged, calendar(id, 14)),

@@ -31,6 +31,8 @@ nonisolated struct NewsPayload: Codable, Sendable {
     let forYou: [Story]
     let headlines: [Story]
     let langs: [String]
+    /// Formula 1, in Arabic. Absent from servers before the Sports tab.
+    let sports: [Story]?
 }
 
 /// The News tab: your updates from mox's own data, stories about what you care
@@ -43,6 +45,8 @@ struct NewsView: View {
     @State private var loadError: String?
     @State private var lang = "all"
     @State private var reading: URL?
+    /// Movies & TV, or Sports — remembered, as the web keeps it in the address.
+    @AppStorage("newsSection") private var section = "screen"
 
     var body: some View {
         ScrollView {
@@ -54,7 +58,20 @@ struct NewsView: View {
                     .padding(.top, 12)
 
                 if let payload {
-                    content(payload)
+                    if payload.sports != nil {
+                        Picker("Section", selection: $section) {
+                            Text("Movies & TV").tag("screen")
+                            Text("Sports").tag("sports")
+                        }
+                        .pickerStyle(.segmented)
+                        .pickerWidth()
+                        .padding(.horizontal, 20)
+                    }
+                    if section == "sports", let sports = payload.sports {
+                        sportsContent(sports)
+                    } else {
+                        content(payload)
+                    }
                 } else if let loadError {
                     Text(loadError).font(.sora(14)).foregroundStyle(Theme.muted).padding(.horizontal, 20)
                 } else {
@@ -119,10 +136,24 @@ struct NewsView: View {
         }
     }
 
-    private func stories(_ list: [Story]) -> some View {
+    /// Formula 1 from the official site, Motorsport and Autosport, translated —
+    /// each with its summary, as the web's Sports tab.
+    @ViewBuilder
+    private func sportsContent(_ list: [Story]) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            SectionTitle(text: "Formula 1")
+            if list.isEmpty {
+                Text("No F1 news in the last few days yet.")
+                    .font(.sora(14)).foregroundStyle(Theme.muted).padding(.horizontal, 20)
+            }
+            stories(list, summaries: true)
+        }
+    }
+
+    private func stories(_ list: [Story], summaries: Bool = false) -> some View {
         Rows(spacing: 10, minWidth: 380) {
             ForEach(list) { story in
-                Button { reading = URL(string: story.url) } label: { StoryRow(story: story) }
+                Button { reading = URL(string: story.url) } label: { StoryRow(story: story, summary: summaries) }
                     .buttonStyle(.plain)
             }
         }
@@ -171,6 +202,7 @@ private struct UpdateCard: View {
 
 private struct StoryRow: View {
     let story: Story
+    var summary = false
 
     var body: some View {
         HStack(alignment: .top, spacing: 14) {
@@ -186,6 +218,14 @@ private struct StoryRow: View {
                     // Leading is the right-hand edge for an Arabic story: the row is laid out right to left.
                     .multilineTextAlignment(.leading)
                     .frame(maxWidth: .infinity, alignment: .leading)
+                if summary, let text = story.summary, !text.isEmpty {
+                    Text(text)
+                        .font(.sora(13, relativeTo: .footnote))
+                        .foregroundStyle(Theme.muted)
+                        .lineLimit(4)
+                        .multilineTextAlignment(.leading)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
                 Text("\(story.source) · \(Self.ago(story.publishedAt))")
                     .font(.sora(12, relativeTo: .caption))
                     .foregroundStyle(Theme.faint)

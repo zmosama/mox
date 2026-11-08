@@ -35,7 +35,7 @@ final class API {
         self.settings = settings
     }
 
-    private func url(_ path: String, _ query: [String: String] = [:]) throws -> URL {
+    func url(_ path: String, _ query: [String: String] = [:]) throws -> URL {
         guard var parts = URLComponents(string: settings.server.trimmingCharacters(in: .whitespaces)),
               parts.scheme != nil else { throw APIError.badServer }
         parts.path = (parts.path.hasSuffix("/") ? String(parts.path.dropLast()) : parts.path) + path
@@ -44,7 +44,7 @@ final class API {
         return url
     }
 
-    private func send<T: Decodable>(_ request: URLRequest) async throws -> T {
+    func send<T: Decodable>(_ request: URLRequest) async throws -> T {
         let (data, response) = try await session.data(for: request)
         let code = (response as? HTTPURLResponse)?.statusCode ?? 0
         guard (200..<300).contains(code) else {
@@ -324,15 +324,17 @@ final class API {
 
     func signIn(username: String, password: String) async throws {
         try await post("/api/auth/login", ["username": username, "password": password])
-        await refreshUser()
+        // A home from before signing in must not answer who is signed in now.
         forget()
+        await refreshUser()
         revision += 1
     }
 
     func signUp(name: String, email: String, username: String, password: String) async throws {
         try await post("/api/auth/signup", ["displayName": name, "email": email, "username": username, "password": password])
-        await refreshUser()
+        // A home from before signing in must not answer who is signed in now.
         forget()
+        await refreshUser()
         revision += 1
         welcoming = true
     }
@@ -345,8 +347,9 @@ final class API {
         request.setValue("application/json", forHTTPHeaderField: "content-type")
         request.httpBody = try JSONSerialization.data(withJSONObject: ["idToken": token])
         let result: GoogleResult = try await send(request)
-        await refreshUser()
+        // A home from before signing in must not answer who is signed in now.
         forget()
+        await refreshUser()
         revision += 1
         welcoming = result.created == true
     }

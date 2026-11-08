@@ -18,6 +18,11 @@ struct LivingRing: View {
     /// shader behind it: a 30 fps animation nobody is looking at was keeping
     /// the app at several percent of the processor on every tab, all the time.
     var active: Bool = true
+    /// Thinking (MOX at work): the light runs higher and quicker, eased in and out.
+    var charged: Bool = false
+    @State private var chargeChanged = Date.distantPast
+    /// The level when `charged` last changed: a ramp carries on from there, never from the far end.
+    @State private var chargeFrom = 0.0
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     /// The image is cropped wide enough that its edges are pure black: the
@@ -27,7 +32,7 @@ struct LivingRing: View {
     var body: some View {
         TimelineView(.animation(minimumInterval: 1 / 30, paused: reduceMotion || !active)) { context in
             let t = reduceMotion ? 0 : context.date.timeIntervalSinceReferenceDate
-            let e = reduceMotion ? 0.5 : energy(t)
+            let e = reduceMotion ? 0.5 : charge(energy(t), t, context.date)
             ZStack {
                 Image("Ring")
                     .resizable()
@@ -67,6 +72,24 @@ struct LivingRing: View {
         // image and the wide light spill over the screen without taking space.
         .frame(width: size * 1.25, height: size * 1.25)
         .accessibilityHidden(true)
+        .onChange(of: charged) { old, _ in
+            let now = Date.now
+            chargeFrom = chargeLevel(now, toward: old)
+            chargeChanged = now
+        }
+    }
+
+    private func chargeLevel(_ now: Date, toward target: Bool) -> Double {
+        let ramp = min(1, max(0, now.timeIntervalSince(chargeChanged) / 0.8))
+        return chargeFrom + ((target ? 1 : 0) - chargeFrom) * ramp
+    }
+
+    /// The resting energy, blended toward a brighter, faster one while charged.
+    private func charge(_ resting: Double, _ t: Double, _ now: Date) -> Double {
+        let level = chargeLevel(now, toward: charged)
+        guard level > 0 else { return resting }
+        let busy = 0.62 + 0.38 * energy(t * 2.2)
+        return resting * (1 - level) + busy * level
     }
 
     /// How charged the ring is right now, about 0...1.2.

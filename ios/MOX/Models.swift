@@ -63,6 +63,8 @@ nonisolated struct User: Codable, Hashable, Sendable {
     let displayName: String?
     /// Server path of the profile photo (versioned), or nil for none.
     let avatar: String?
+    /// The owner, who has MOX to talk to. Absent from servers before MOX.
+    let mox: Bool?
 
     var name: String { displayName ?? username }
 }

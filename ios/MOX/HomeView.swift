@@ -92,6 +92,7 @@ struct HomeView: View {
         .task(id: trimmed) { await search() }
         .task(id: mood) { await discover() }
         .onDisappear { dictation.stop() }
+        .onChange(of: api.user?.mox) { if api.user?.mox == true { dictation.stop() } }
     }
 
     /// The biggest titles of the week that have a picture.
@@ -201,7 +202,7 @@ struct HomeView: View {
         .accessibilityLabel("Account and settings")
     }
 
-    /// "+" for moods, the question, and the mic — the mockup's bar.
+    /// "+" for moods, the question, and the mic — or, for the owner, the ring that opens MOX.
     private var askBar: some View {
         HStack(spacing: 10) {
             Button { showMoods.toggle() } label: {
@@ -234,19 +235,24 @@ struct HomeView: View {
                 .accessibilityLabel("Clear")
             }
 
-            Button {
-                fieldFocused = false
-                Task { await dictation.toggle { query = $0 } }
-            } label: {
-                Image(systemName: dictation.listening ? "waveform" : "mic.fill")
-                    .font(.system(size: 16, weight: .medium))
-                    .symbolEffect(.variableColor.iterative, isActive: dictation.listening)
-                    .frame(width: 38, height: 38)
-                    .background(dictation.listening ? Theme.green.opacity(0.3) : Theme.paper.opacity(0.12), in: .circle)
-                    .foregroundStyle(dictation.listening ? Theme.green : Theme.paper)
+            if api.user?.mox == true {
+                // The owner's ring opens MOX, where the mic was.
+                MoxButton()
+            } else {
+                Button {
+                    fieldFocused = false
+                    Task { await dictation.toggle { query = $0 } }
+                } label: {
+                    Image(systemName: dictation.listening ? "waveform" : "mic.fill")
+                        .font(.system(size: 16, weight: .medium))
+                        .symbolEffect(.variableColor.iterative, isActive: dictation.listening)
+                        .frame(width: 38, height: 38)
+                        .background(dictation.listening ? Theme.green.opacity(0.3) : Theme.paper.opacity(0.12), in: .circle)
+                        .foregroundStyle(dictation.listening ? Theme.green : Theme.paper)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(dictation.listening ? "Stop listening" : "Speak")
             }
-            .buttonStyle(.plain)
-            .accessibilityLabel(dictation.listening ? "Stop listening" : "Speak")
         }
         .padding(.leading, 8)
         .padding(.trailing, 8)
