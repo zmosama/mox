@@ -76,36 +76,71 @@ extension View {
 struct CornerGlow: View {
     /// Breathing: the light dims a little and comes back, slowly.
     @State private var dim = false
+    @State private var picture: UIImage?
+    @Environment(\.displayScale) private var scale
+    /// One picture per screen size, kept for the life of the app.
+    @MainActor private static var drawn: [String: UIImage] = [:]
+
+    var body: some View {
+        GeometryReader { geo in
+            ZStack {
+                Color.black
+                // The light is drawn once, into a still picture: as live
+                // SwiftUI its blurs were redrawn on every frame of a scroll,
+                // and Home scrolled at a fraction of 120Hz. The breathing only
+                // fades the picture, which costs the GPU next to nothing.
+                if let picture {
+                    Image(uiImage: picture)
+                        .resizable()
+                        .opacity(dim ? 0.8 : 1)
+                }
+            }
+            .task(id: geo.size) { draw(geo.size) }
+        }
+        .ignoresSafeArea()
+        .allowsHitTesting(false)
+        .onAppear {
+            withAnimation(.easeInOut(duration: 2.5).repeatForever(autoreverses: true)) { dim = true }
+        }
+    }
+
+    private func draw(_ size: CGSize) {
+        guard size.width > 0, size.height > 0 else { return }
+        let key = "\(Int(size.width))x\(Int(size.height))@\(scale)"
+        if let kept = Self.drawn[key] { picture = kept; return }
+        let renderer = ImageRenderer(content: GlowArt(w: size.width, h: size.height))
+        renderer.scale = scale
+        renderer.isOpaque = false
+        if let image = renderer.uiImage {
+            Self.drawn[key] = image
+            picture = image
+        }
+    }
+}
+
+private struct GlowArt: View {
+    let w: CGFloat
+    let h: CGFloat
     /// The screen's own corner, near enough on every current iPhone.
     private let radius: CGFloat = 56
     private let teal = Color(hex: 0x5EEAD4)
     private let lime = Color(hex: 0xBEF264)
 
     var body: some View {
-        GeometryReader { geo in
-            let w = geo.size.width
-            let h = geo.size.height
-            // Along the edges from the corner: whole at the corner, half by a
-            // quarter of the way, gone a little past halfway.
-            let stops: [Gradient.Stop] = [.init(color: .white, location: 0), .init(color: .white.opacity(0.85), location: 0.12),
-                                          .init(color: .white.opacity(0.35), location: 0.35), .init(color: .clear, location: 0.62)]
-            ZStack {
-                Color.black
-                // The glow inside, set in from the corner so there is a gap
-                // between it and the edge.
-                RadialGradient(colors: [Theme.green.opacity(0.15), Theme.green.opacity(0.05), .clear],
-                               center: UnitPoint(x: 0.3, y: 0.2), startRadius: 0, endRadius: max(w, h) * 0.38)
-                    .mask(RadialGradient(colors: [.clear, .clear, .white], center: .topLeading,
-                                         startRadius: 0, endRadius: 240))
-                rimLight(w: w, h: h, stops: stops)
-            }
-            .frame(width: w, height: h)
-            .onAppear {
-                withAnimation(.easeInOut(duration: 2.5).repeatForever(autoreverses: true)) { dim = true }
-            }
+        // Along the edges from the corner: whole at the corner, half by a
+        // quarter of the way, gone a little past halfway.
+        let stops: [Gradient.Stop] = [.init(color: .white, location: 0), .init(color: .white.opacity(0.85), location: 0.12),
+                                      .init(color: .white.opacity(0.35), location: 0.35), .init(color: .clear, location: 0.62)]
+        ZStack {
+            // The glow inside, set in from the corner so there is a gap
+            // between it and the edge.
+            RadialGradient(colors: [Theme.green.opacity(0.15), Theme.green.opacity(0.05), .clear],
+                           center: UnitPoint(x: 0.3, y: 0.2), startRadius: 0, endRadius: max(w, h) * 0.38)
+                .mask(RadialGradient(colors: [.clear, .clear, .white], center: .topLeading,
+                                     startRadius: 0, endRadius: 240))
+            rimLight(w: w, h: h, stops: stops)
         }
-        .ignoresSafeArea()
-        .allowsHitTesting(false)
+        .frame(width: w, height: h)
     }
 
     @ViewBuilder
@@ -121,10 +156,6 @@ struct CornerGlow: View {
                     rim(inset: 6, width: 2, color: Theme.green.opacity(0.35)).blur(radius: 1.5)
                 }
                 .mask { EllipticalGradient(stops: stops, center: .topLeading, startRadiusFraction: 0, endRadiusFraction: 1) }
-                // Drawn once into one picture: the breathing only fades it,
-                // instead of redoing six blurs on every frame of a scroll.
-                .drawingGroup()
-                .opacity(dim ? 0.7 : 1)
                 // A white highlight where the glass curves round the corner.
                 rim(inset: 0.5, width: 2.5, color: .white)
                     .blur(radius: 0.6)

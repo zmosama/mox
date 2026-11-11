@@ -33,6 +33,7 @@ struct MOXApp: App {
         }
         Self.opener.openTab = { router.mox = false; router.tab = .tab($0) }
         UNUserNotificationCenter.current().delegate = Self.opener
+        FrameMeter.shared.startIfAsked()
     }
 
     var body: some Scene {
