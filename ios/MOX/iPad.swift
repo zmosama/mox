@@ -213,15 +213,17 @@ struct FeaturedCarousel: View {
         }
     }
 
-    /// TMDB's larger picture for the same file: w780 was soft at this size.
+    /// The picture at a size that is sharp across an iPad: 1920 wide, which the
+    /// server makes from TMDB's original. TMDB's own largest, 1280, covered
+    /// about two thousand pixels here and showed it.
     private func sharp(_ url: String?) -> String? {
-        url?.replacingOccurrences(of: #"/w\d+/"#, with: "/w1280/", options: .regularExpression)
+        url?.replacingOccurrences(of: #"/w\d+/"#, with: "/w1920/", options: .regularExpression)
     }
 
     private func slide(_ card: Card, rank: Int) -> some View {
         ZStack(alignment: .bottomLeading) {
             Color.clear
-                .overlay { RemoteImage(url: sharp(card.backdrop ?? card.poster)) }
+                .overlay { RemoteImage(url: sharp(card.backdrop) ?? card.poster) }
                 .clipped()
             LinearGradient(colors: [.black.opacity(0.9), .black.opacity(0.25), .clear], startPoint: .bottom, endPoint: .center)
             LinearGradient(colors: [.black.opacity(0.6), .clear], startPoint: .leading, endPoint: .center)
@@ -322,7 +324,7 @@ struct IPadHome: View {
                         WideShelf(title: "Coming soon", detail: "most anticipated", cards: coming) { router.title = $0 }
                     }
                     // Before Airing: signed out, Airing is a long table to scroll past.
-                    ScreenStrip(columns: 4)
+                    ScreenStrip(tiles: payload.explore, columns: 3)
                         .padding(.horizontal, IPad.margin - 20)
                     AiringSection(episodes: payload.calendar, today: payload.today, signedIn: payload.user != nil)
                         .padding(.horizontal, IPad.margin - 20)
@@ -335,7 +337,7 @@ struct IPadHome: View {
                     .frame(maxWidth: .infinity)
                     .padding(.top, 200)
                 } else {
-                    ProgressView().frame(maxWidth: .infinity).padding(.top, 200)
+                    Skeleton(kind: .shelves).padding(.top, 12)
                 }
             }
             .padding(.bottom, 60)
@@ -476,7 +478,7 @@ struct IPadSearch: View {
                 .autocorrectionDisabled()
                 .onChange(of: query) { if !query.isEmpty { mood = nil } }
             if looking {
-                ProgressView().controlSize(.small)
+                MoxPulse(size: 22)
             } else if !query.isEmpty || mood != nil {
                 Button {
                     query = ""; mood = nil
@@ -567,7 +569,8 @@ struct IPadSearch: View {
         if !people.isEmpty {
             PeopleRow(title: "People", people: people) { router.person = PersonRef(id: $0) }
         }
-        VStack(alignment: .leading, spacing: 16) {
+        // Lazy, so the spinner at the end exists only once it is scrolled to.
+        LazyVStack(alignment: .leading, spacing: 16) {
             Text(mood.map(\.label) ?? "Top results")
                 .font(.sora(24, .bold, relativeTo: .title2)).foregroundStyle(Theme.paper)
             if results.isEmpty && !looking {
@@ -581,7 +584,10 @@ struct IPadSearch: View {
                 }
             }
             if next != nil {
-                ProgressView().frame(maxWidth: .infinity).padding(.vertical, 24)
+                // A new spinner for each page (and each query), so reaching it
+                // asks for the next one every time, not only the first.
+                MoxPulse().frame(maxWidth: .infinity).padding(.vertical, 24)
+                    .id("\(trimmed):\(next ?? 0)")
                     .onAppear { Task { await more() } }
             }
         }

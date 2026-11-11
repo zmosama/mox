@@ -225,7 +225,7 @@ struct HomeView: View {
                 .onChange(of: query) { if !query.isEmpty { mood = nil } }
 
             if looking {
-                ProgressView().controlSize(.small)
+                MoxPulse(size: 20)
             } else if asking {
                 Button {
                     query = ""; mood = nil; fieldFocused = false
@@ -312,7 +312,7 @@ struct HomeView: View {
                 }
             }
             if mood == nil && nextPage != nil {
-                ProgressView()
+                MoxPulse()
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 20)
                     .onAppear { Task { await searchMore() } }
@@ -358,13 +358,13 @@ struct HomeView: View {
                            }) { router.title = $0 }
             }
             // Before Airing: signed out, Airing is a long table to scroll past.
-            if !wide { ScreenStrip() }
+            if !wide { ScreenStrip(tiles: payload.explore) }
             AiringSection(episodes: payload.calendar, today: payload.today, signedIn: payload.user != nil)
             if !payload.inStore.isEmpty {
                 PosterRail(title: "New in the store", cards: payload.inStore, caption: { $0.price }) { router.title = $0 }
             }
         } else {
-            ProgressView().padding(.top, 40)
+            Skeleton(kind: .shelves).padding(.top, 12)
         }
     }
 
@@ -545,21 +545,44 @@ struct AiringSection: View {
 
     private var active: Filter { filter ?? (signedIn ? .mine : .all) }
 
-    private var days: [(String, [CalendarEpisode])] {
-        let shown = episodes.filter {
+    /// The second of the two weeks the server sends.
+    @State private var second = false
+    /// The day whose whole list is open, past the first few.
+    @State private var open: String?
+    @Environment(\.horizontalSizeClass) private var sizeClass
+
+    private static let room = 4
+
+    private var shown: [CalendarEpisode] {
+        episodes.filter {
             switch active {
             case .mine: $0.following
             case .available: !$0.platforms.isEmpty
             case .all: true
             }
         }
-        let grouped = Dictionary(grouping: shown, by: \.airs)
-        return grouped.keys.sorted().prefix(7).map { ($0, grouped[$0]!) }
     }
 
     var body: some View {
+        let byDay = Dictionary(grouping: shown, by: \.airs)
+        let week = (0..<7).map { Day.adding($0 + (second ? 7 : 0), to: today) }
+        let nextWeek = Day.adding(7, to: today)
+        let later = byDay.keys.contains { $0 >= nextWeek }
+
         VStack(alignment: .leading, spacing: 14) {
-            SectionTitle(text: "Airing", detail: "next two weeks")
+            HStack(alignment: .firstTextBaseline) {
+                SectionTitle(text: "Airing", detail: second ? "the week after" : "this week")
+                Spacer(minLength: 0)
+                if later || second {
+                    Button(second ? "‹ This week" : "Next week ›") { withAnimation(.snappy) { second.toggle() } }
+                        .font(.sora(13, .medium, relativeTo: .footnote))
+                        .foregroundStyle(Theme.muted)
+                        .padding(.horizontal, 12).padding(.vertical, 7)
+                        .overlay { Capsule().strokeBorder(Theme.faint, lineWidth: 1) }
+                        .buttonStyle(.plain)
+                        .padding(.trailing, 20)
+                }
+            }
             Picker("Show", selection: Binding(get: { active }, set: { filter = $0 })) {
                 ForEach(Filter.allCases, id: \.self) { Text($0.rawValue) }
             }
@@ -567,52 +590,100 @@ struct AiringSection: View {
             .pickerWidth()
             .padding(.horizontal, 20)
 
-            if days.isEmpty {
+            if shown.isEmpty {
                 Text(active == .mine ? "None of the shows you follow air in the next two weeks." : "Nothing on the calendar.")
                     .font(.sora(14))
                     .foregroundStyle(Theme.muted)
                     .padding(.horizontal, 20)
             }
 
-            ForEach(days, id: \.0) { day, list in
-                VStack(alignment: .leading, spacing: 8) {
-                    Text(Day.label(day, today: today))
-                        .font(.sora(13, .semibold, relativeTo: .footnote))
-                        .foregroundStyle(day == today ? Theme.green : Theme.muted)
-                        .padding(.horizontal, 20)
-                    Rows(spacing: 8, minWidth: 340) {
-                    ForEach(list) { ep in
-                        Button {
-                            if let id = ep.tmdbId { router.title = TitleRef(tmdbId: id, kind: "tv") }
-                        } label: {
-                            HStack(spacing: 12) {
-                                RemoteImage(url: ep.poster)
-                                    .frame(width: 40, height: 60)
-                                    .clipShape(.rect(cornerRadius: 8))
-                                VStack(alignment: .leading, spacing: 3) {
-                                    Text(ep.show)
-                                        .font(.sora(15, .medium, relativeTo: .subheadline))
-                                        .foregroundStyle(Theme.paper)
-                                        .lineLimit(1)
-                                    Text([ep.code, ep.platforms.first?.name].compactMap { $0 }.joined(separator: " · "))
-                                        .font(.sora(12, relativeTo: .caption))
-                                        .foregroundStyle(Theme.muted)
-                                }
-                                Spacer()
-                                if ep.following {
-                                    Image(systemName: "bookmark.fill").font(.caption).foregroundStyle(Theme.green)
-                                }
-                            }
-                            .padding(10)
-                            .background(Theme.raised, in: .rect(cornerRadius: 16))
-                        }
-                        .buttonStyle(.plain)
+            // A week at a time, a column a day — empty days included, so it
+            // reads as a calendar.
+            // Tried in order: all seven across where each still has room for
+            // a name (an iPad on its side), else the row you swipe along.
+            ViewThatFits(in: .horizontal) {
+                HStack(alignment: .top, spacing: 8) {
+                    ForEach(week, id: \.self) { day in column(day, byDay[day] ?? []).frame(minWidth: 164, maxWidth: .infinity) }
+                }
+                .padding(.horizontal, 20)
+
+                ScrollView(.horizontal) {
+                    HStack(alignment: .top, spacing: 8) {
+                        ForEach(week, id: \.self) { day in column(day, byDay[day] ?? []).frame(width: sizeClass == .regular ? 190 : 168) }
                     }
-                    }
+                    .scrollTargetLayout()
                     .padding(.horizontal, 20)
                 }
+                .scrollIndicators(.hidden)
+                .scrollTargetBehavior(.viewAligned)
             }
         }
+    }
+
+    private func column(_ day: String, _ list: [CalendarEpisode]) -> some View {
+        let isToday = day == today
+        let head = Day.column(day)
+        let all = open == day
+        return VStack(alignment: .leading, spacing: 6) {
+            HStack(alignment: .firstTextBaseline) {
+                Text(isToday ? "TODAY" : head.weekday.uppercased())
+                    .font(.sora(11.5, .semibold, relativeTo: .caption))
+                    .kerning(0.8)
+                    .foregroundStyle(isToday ? Theme.green : Theme.muted)
+                Spacer(minLength: 0)
+                Text("\(head.number)")
+                    .font(.sora(18, .bold, relativeTo: .headline))
+                    .foregroundStyle(isToday ? Theme.green : (list.isEmpty ? Theme.faint : Theme.paper))
+            }
+            .padding(.horizontal, 4)
+            .padding(.bottom, 2)
+
+            if list.isEmpty {
+                Text("Nothing")
+                    .font(.sora(12, relativeTo: .caption))
+                    .foregroundStyle(Theme.faint)
+                    .frame(maxWidth: .infinity, minHeight: 60)
+            }
+            ForEach(all ? list : Array(list.prefix(Self.room))) { ep in
+                Button {
+                    if let id = ep.tmdbId { router.title = TitleRef(tmdbId: id, kind: "tv") }
+                } label: {
+                    HStack(spacing: 8) {
+                        RemoteImage(url: ep.poster)
+                            .frame(width: 32, height: 48)
+                            .clipShape(.rect(cornerRadius: 6))
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(ep.show)
+                                .font(.sora(12.5, .medium, relativeTo: .footnote))
+                                .foregroundStyle(Theme.paper)
+                                .lineLimit(2)
+                                .multilineTextAlignment(.leading)
+                            Text(["S\(ep.season) E\(ep.episode)", ep.platforms.first?.name].compactMap { $0 }.joined(separator: " · "))
+                                .font(.sora(11, relativeTo: .caption2))
+                                .foregroundStyle(ep.following ? Theme.green : Theme.muted)
+                                .lineLimit(1)
+                        }
+                        Spacer(minLength: 0)
+                    }
+                    .padding(6)
+                    .background(Theme.surface, in: .rect(cornerRadius: 12))
+                    .contentShape(.rect(cornerRadius: 12))
+                }
+                .buttonStyle(.plain)
+            }
+            if list.count > Self.room {
+                Button(all ? "Show fewer" : "+\(list.count - Self.room) more") { withAnimation(.snappy) { open = all ? nil : day } }
+                    .font(.sora(12, .medium, relativeTo: .caption))
+                    .foregroundStyle(Theme.muted)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 5)
+                    .buttonStyle(.plain)
+            }
+        }
+        .padding(8)
+        .frame(maxHeight: .infinity, alignment: .top)
+        .background((isToday ? Theme.green.opacity(0.07) : Theme.raised.opacity(0.6)), in: .rect(cornerRadius: 16))
+        .overlay { RoundedRectangle(cornerRadius: 16).strokeBorder(isToday ? Theme.green.opacity(0.4) : Theme.faint.opacity(0.35), lineWidth: 1) }
     }
 }
 
@@ -710,49 +781,33 @@ struct Spotlight: View {
 }
 
 
-/// Every screen in MOX as a grid on Home ("Explore"), so the dock is
-/// not the only way in: a screen in the dock switches to its tab, any other
-/// opens over Home.
+/// Every screen in MOX as cards on Home ("Explore"), so the dock is not the
+/// only way in: a screen in the dock switches to its tab, any other opens over
+/// Home. Each card is a glimpse of its screen — its own colour, what is in
+/// there right now, and a few posters from inside — rather than a label.
 struct ScreenStrip: View {
     @Environment(API.self) private var api
     @Environment(Router.self) private var router
     @Environment(AppSettings.self) private var settings
     @Environment(\.horizontalSizeClass) private var sizeClass
-    /// Two across on a phone, four on an iPad.
+    /// What the server knows about each screen right now, keyed by tab id.
+    var tiles: [String: ExploreTile]?
+    /// Two across on a phone, with Today across both; three on an iPad.
     var columns = 2
     /// The next race, read once from what F1 last loaded — not on every redraw.
     @State private var f1Next: String?
 
     var body: some View {
+        let all = TabID.allCases
         VStack(alignment: .leading, spacing: 12) {
             SectionTitle(text: "Explore")
-            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 10), count: columns), spacing: 10) {
-                ForEach(TabID.allCases) { id in
-                    Button {
-                        // The iPad's sidebar holds every screen but Calendar and Tasks
-                        // until they are chosen; the phone's dock only your four.
-                        let inSidebar = sizeClass == .regular && !id.needsDevice
-                        if settings.tabs.contains(id) || inSidebar { router.tab = .tab(id) } else { router.screen = id }
-                    } label: {
-                        let tint = id == .f1 ? Color(hex: 0xE10600) : Theme.green
-                        HStack(spacing: 11) {
-                            Image(systemName: id.icon)
-                                .font(.system(size: 15, weight: .semibold))
-                                .foregroundStyle(tint)
-                                .frame(width: 34, height: 34)
-                                .background(tint.opacity(0.14), in: .rect(cornerRadius: 10))
-                            VStack(alignment: .leading, spacing: 1) {
-                                Text(id.label).font(.sora(14, .semibold)).foregroundStyle(Theme.paper)
-                                Text(line(id)).font(.sora(11)).foregroundStyle(Theme.muted).lineLimit(1)
-                            }
-                            Spacer(minLength: 0)
-                        }
-                        .padding(.horizontal, 11)
-                        .padding(.vertical, 10)
-                        .background(Theme.surface, in: .rect(cornerRadius: 16))
-                        .contentShape(.rect(cornerRadius: 16))
-                    }
-                    .buttonStyle(.plain)
+            Grid(horizontalSpacing: 10, verticalSpacing: 10) {
+                if columns == 2, let first = all.first {
+                    // Nine screens: Today across the top leaves eight, four full rows.
+                    GridRow { card(first, wide: true).gridCellColumns(2) }
+                    rows(Array(all.dropFirst()))
+                } else {
+                    rows(all)
                 }
             }
             .padding(.horizontal, 20)
@@ -761,6 +816,103 @@ struct ScreenStrip: View {
             if let next = (api.peek("/api/f1") as F1Board?)?.next, let d = F1Time.parse(next.at) {
                 f1Next = "\(next.locality) · in \(F1Time.until(d, from: .now))"
             }
+        }
+    }
+
+    @ViewBuilder
+    private func rows(_ ids: [TabID]) -> some View {
+        ForEach(Array(stride(from: 0, to: ids.count, by: columns)), id: \.self) { start in
+            GridRow {
+                ForEach(ids[start..<min(start + columns, ids.count)]) { id in card(id, wide: false) }
+            }
+        }
+    }
+
+    private func card(_ id: TabID, wide: Bool) -> some View {
+        let tint = Self.tint(id)
+        let tile = tiles?[id.rawValue]
+        // A phone's half-width card has no room for posters beside the words.
+        let posters = (wide || sizeClass == .regular) ? (tile?.posters ?? []) : []
+        return Button {
+            // The iPad's sidebar holds every screen but Calendar and Tasks
+            // until they are chosen; the phone's dock only your four.
+            let inSidebar = sizeClass == .regular && !id.needsDevice
+            if settings.tabs.contains(id) || inSidebar { router.tab = .tab(id) } else { router.screen = id }
+        } label: {
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(spacing: 6) {
+                    Image(systemName: id.icon).font(.system(size: 13, weight: .semibold))
+                    Text(id.label).font(.sora(12.5, .semibold, relativeTo: .footnote))
+                }
+                .foregroundStyle(tint)
+                Spacer(minLength: 0)
+                HStack(alignment: .bottom, spacing: 10) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(tile?.line ?? line(id))
+                            .font(.sora(wide ? 20 : 16, .bold, relativeTo: .headline))
+                            .foregroundStyle(Theme.paper)
+                            .lineLimit(2)
+                            .minimumScaleFactor(0.85)
+                        Text(tile?.line != nil ? (tile?.sub ?? line(id)) : (tile?.sub ?? " "))
+                            .font(.sora(12, relativeTo: .caption))
+                            .foregroundStyle(Theme.muted)
+                            .lineLimit(1)
+                    }
+                    Spacer(minLength: 0)
+                    if !posters.isEmpty { hand(posters, logos: id == .studios, large: wide) }
+                }
+            }
+            .padding(14)
+            .frame(maxWidth: .infinity, minHeight: wide ? 118 : 108, alignment: .leading)
+            .background {
+                ZStack {
+                    Theme.surface
+                    LinearGradient(colors: [tint.opacity(0.16), tint.opacity(0)], startPoint: .topLeading, endPoint: .center)
+                }
+            }
+            .clipShape(.rect(cornerRadius: 18))
+            .overlay { RoundedRectangle(cornerRadius: 18).strokeBorder(tint.opacity(0.24), lineWidth: 1) }
+            .contentShape(.rect(cornerRadius: 18))
+        }
+        .buttonStyle(.plain)
+        .accessibilityElement(children: .combine)
+    }
+
+    /// A few posters overlapping like a hand of cards.
+    private func hand(_ posters: [String], logos: Bool, large: Bool) -> some View {
+        let w: CGFloat = large ? 48 : 40
+        return HStack(spacing: -12) {
+            ForEach(Array(posters.prefix(3).enumerated()), id: \.offset) { n, src in
+                Group {
+                    if logos {
+                        RemoteImage(url: src, contentMode: .fit).padding(5).background(Color(hex: 0xF2F2EE))
+                    } else {
+                        RemoteImage(url: src)
+                    }
+                }
+                .frame(width: w, height: w * 1.5)
+                .clipShape(.rect(cornerRadius: 7))
+                .overlay { RoundedRectangle(cornerRadius: 7).strokeBorder(.black.opacity(0.4), lineWidth: 1) }
+                .shadow(color: .black.opacity(0.5), radius: 4, y: 2)
+                .rotationEffect(.degrees(Double(n) * 4))
+                .zIndex(Double(3 - n))
+            }
+        }
+        .accessibilityHidden(true)
+    }
+
+    /// Each screen's own colour; F1's is the sport's red, Today's the mark's green.
+    private static func tint(_ id: TabID) -> Color {
+        switch id {
+        case .today: Theme.green
+        case .news: Color(hex: 0x4A9EFF)
+        case .library: Color(hex: 0xFFB020)
+        case .picks: Color(hex: 0x22D3EE)
+        case .studios: Color(hex: 0xA78BFA)
+        case .friends: Color(hex: 0xFF6B9D)
+        case .f1: Color(hex: 0xFF3B30)
+        case .calendar: Color(hex: 0xFF8A3D)
+        case .tasks: Color(hex: 0x9BE15D)
         }
     }
 

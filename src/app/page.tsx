@@ -6,6 +6,7 @@ import { withBackdrops } from "@/lib/catalog";
 import { newFromPeople, within } from "@/lib/people";
 import { hasPickedServices } from "@/lib/services";
 import { agedEpisodes, agedTitles, ageFilter } from "@/lib/age-filter";
+import { explore } from "@/lib/explore";
 
 /** Reads the database on every request; nothing here is worth caching. */
 export const dynamic = "force-dynamic";
@@ -28,6 +29,7 @@ export default async function HomePage() {
       picks={id ? withBackdrops(await aged(picksFor(id).slice(0, 20))) : []}
       fromPeople={id ? (await agedTitles(aged, await within(2500, newFromPeople(id, today), []))).map((n) => ({ ...n, title: withBackdrops([n.title])[0] })) : []}
       needsServices={Boolean(user) && !hasPickedServices(user!.id)}
+      explore={await explore(id, today, aged)}
     />
   );
 }

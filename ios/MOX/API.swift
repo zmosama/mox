@@ -8,6 +8,9 @@ enum APIError: LocalizedError {
 
     var errorDescription: String? {
         switch self {
+        // What the server said wins: a wrong password is a 401 too, and
+        // "Sign in first." under the sign-in button explained nothing.
+        case .status(401, let message?) where message.lowercased() != "sign in first": message
         case .status(401, _): "Sign in first."
         case .status(_, let message?): message
         case .status(let code, nil): "The server answered \(code)."

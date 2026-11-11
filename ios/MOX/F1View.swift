@@ -309,7 +309,7 @@ struct F1View: View {
                 } else if let loadError {
                     Text(loadError).font(.sora(14)).foregroundStyle(Theme.muted).padding(.horizontal, 20)
                 } else {
-                    ProgressView().frame(maxWidth: .infinity).padding(.top, 40)
+                    Skeleton(kind: .rows).padding(.top, 12)
                 }
             }
             .padding(.bottom, 48)
@@ -1108,7 +1108,7 @@ private struct F1RoundPage: View {
                                 changed()
                             }
                         } else {
-                            ProgressView().frame(maxWidth: .infinity).padding(.vertical, 30)
+                            MoxPulse().frame(maxWidth: .infinity).padding(.vertical, 30)
                         }
                     } else {
                         Text("The podium and every result land here once the race is run.")
@@ -1161,7 +1161,7 @@ private struct F1DriverPage: View {
             } else if failed {
                 Text("This driver can't be loaded right now.").font(.sora(14)).foregroundStyle(Theme.muted).padding(40)
             } else {
-                ProgressView().frame(maxWidth: .infinity).padding(.top, 120)
+                MoxPulse(size: 44).frame(maxWidth: .infinity).padding(.top, 120)
             }
         }
         .background(Theme.ink)
@@ -1274,7 +1274,7 @@ private struct F1TeamPage: View {
             } else if failed {
                 Text("This team can't be loaded right now.").font(.sora(14)).foregroundStyle(Theme.muted).padding(40)
             } else {
-                ProgressView().frame(maxWidth: .infinity).padding(.top, 120)
+                MoxPulse(size: 44).frame(maxWidth: .infinity).padding(.top, 120)
             }
         }
         .background(Theme.ink)

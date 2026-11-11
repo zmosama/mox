@@ -1,4 +1,4 @@
-import { imageType, tmdbImage, tmdbImageUrl, tmdbWebp, validImage, webpSource } from "@/lib/tmdb-images";
+import { imageType, madeSize, tmdbImage, tmdbImageUrl, tmdbWebp, validImage, validWebp, webpSource } from "@/lib/tmdb-images";
 
 const HEADERS = {
   "cache-control": "public, max-age=31536000, immutable",
@@ -23,9 +23,13 @@ export async function GET(_req: Request, ctx: { params: Promise<{ size: string; 
 
   const source = webpSource(file);
   if (source) {
-    if (!validImage(size, source)) return new Response("not found", { status: 404 });
+    if (!validWebp(size, source)) return new Response("not found", { status: 404 });
     const webp = await tmdbWebp(size, file);
     if (webp) return new Response(body(webp), { headers: { "content-type": "image/webp", ...HEADERS } });
+    // A size of our own that could not be made just now: the largest TMDB has, rather than nothing.
+    if (madeSize(size)) {
+      return new Response(null, { status: 302, headers: { location: `/api/img/w1280/${file}`, "cache-control": "no-store" } });
+    }
     // No WebP: the JPEG from our copy if we have it, TMDB's own if not.
     const original = await tmdbImage(size, source);
     if (original) return new Response(body(original), { headers: { "content-type": imageType(source), ...HEADERS } });

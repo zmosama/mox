@@ -129,7 +129,7 @@ struct RateView: View {
                 if let loadError {
                     Text(loadError).font(.sora(14)).foregroundStyle(Theme.muted)
                 } else if items.isEmpty {
-                    ProgressView().frame(maxWidth: .infinity).padding(.top, 40)
+                    Skeleton(kind: .rows).padding(.top, 12)
                 }
 
                 LazyVGrid(columns: columns, spacing: 16) {

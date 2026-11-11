@@ -112,7 +112,7 @@ struct FriendsView: View {
                 } else {
                     chips
                     if !loaded {
-                        ProgressView().frame(maxWidth: .infinity).padding(.top, 40)
+                        Skeleton(kind: .rows).padding(.top, 12)
                     } else if items.isEmpty {
                         Text("Nothing rated here yet.").font(.sora(14)).foregroundStyle(Theme.muted).padding(.horizontal, 20)
                     } else {
@@ -121,7 +121,7 @@ struct FriendsView: View {
                         }
                         .padding(.horizontal, 20)
                         if next != nil {
-                            ProgressView().frame(maxWidth: .infinity).padding(.vertical, 20).onAppear { Task { await more() } }
+                            MoxPulse().frame(maxWidth: .infinity).padding(.vertical, 20).onAppear { Task { await more() } }
                         }
                     }
                 }

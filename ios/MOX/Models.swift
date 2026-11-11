@@ -9,6 +9,14 @@ nonisolated struct Platform: Codable, Hashable, Sendable {
     let url: String?
 }
 
+nonisolated struct StoreOffer: Codable, Hashable, Sendable {
+    let name: String
+    let logo: String?
+    let url: String?
+    /// "Rent EGP 49.99 · Buy EGP 149.99", when the store's price is known.
+    let price: String?
+}
+
 nonisolated struct Card: Codable, Hashable, Sendable, Identifiable {
     let tmdbId: Int
     let kind: String
@@ -94,6 +102,18 @@ nonisolated struct HomePayload: Codable, Sendable {
     let coming: [Card]?
     /// What your ratings recommend, with why.
     let picks: [Card]?
+    /// What each screen holds right now, for Home's "Explore"; keyed by the tab's id.
+    let explore: [String: ExploreTile]?
+}
+
+/// One screen's card in "Explore": a headline, a line under it, a few posters from inside.
+nonisolated struct ExploreTile: Codable, Hashable, Sendable {
+    /// "12 new this week". Nil falls back to the screen's fixed caption.
+    let line: String?
+    let sub: String?
+    /// Posters, newest first — or studio logos, for Studios. Optional, like
+    /// everything here: a card missing a field must not stop Home from opening.
+    let posters: [String]?
 }
 
 nonisolated struct TodayPayload: Codable, Sendable {
@@ -183,6 +203,9 @@ nonisolated struct TitleDetail: Codable, Sendable {
     /// Directors first, then the cast, with faces.
     let people: [PersonChip]?
     let platforms: [Platform]
+    /// Rent or buy on the Apple TV Store, apart from `platforms` on purpose:
+    /// those are included in a subscription, this costs money.
+    let store: StoreOffer?
     let verdict: String?
     /// What your friends made of it.
     let friends: [FriendMark]?

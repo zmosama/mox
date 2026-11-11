@@ -93,7 +93,7 @@ struct PersonSheet: View {
             } else if let loadError {
                 Text(loadError).font(.sora(14)).foregroundStyle(Theme.muted).padding(40)
             } else {
-                ProgressView().padding(.top, 120)
+                Skeleton(kind: .sheet)
             }
         }
         .scrollIndicators(.hidden)

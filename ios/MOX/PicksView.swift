@@ -47,7 +47,7 @@ struct PicksView: View {
                         .padding(.horizontal, 20)
                     }
                 } else {
-                    ProgressView().frame(maxWidth: .infinity).padding(.top, 40)
+                    Skeleton(kind: .posters).padding(.top, 12)
                 }
             }
             .padding(.bottom, 48)

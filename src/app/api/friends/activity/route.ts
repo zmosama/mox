@@ -20,7 +20,7 @@ const key = (tmdbId: number, kind: MediaKind) => `${tmdbId}:${kind}`;
  */
 export async function GET(req: Request) {
   const user = await currentUser();
-  if (!user) return NextResponse.json({ friends: [], items: [], next: null });
+  if (!user) return NextResponse.json({ friends: [], items: [], next: null }, { headers: { "cache-control": "no-store" } });
 
   const q = new URL(req.url).searchParams;
   const friendId = q.get("friend") ? Number(q.get("friend")) : undefined;

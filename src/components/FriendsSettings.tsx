@@ -90,8 +90,11 @@ export function FriendsSettings({ initial, username }: { initial: Friend[]; user
       <form
         onSubmit={(e) => {
           e.preventDefault();
-          if (suggestions.length) void call("POST", { id: suggestions[0].id });
-          else if (typed) void call("POST", { who });
+          // What was typed in full wins; a half-typed name takes the first suggestion.
+          const exact = suggestions.find((p) => p.username === typed.toLowerCase().replace(/^@/, ""));
+          if (exact) void call("POST", { id: exact.id });
+          else if (typed.includes("@") || !suggestions.length) void call("POST", { who });
+          else void call("POST", { id: suggestions[0].id });
         }}
         className="relative flex gap-2"
       >
@@ -99,6 +102,7 @@ export function FriendsSettings({ initial, username }: { initial: Friend[]; user
           value={who}
           onChange={(e) => setWho(e.target.value)}
           placeholder="Start typing a name"
+          aria-label="Add a friend by name, username or email"
           autoCapitalize="none"
           autoCorrect="off"
           className="min-w-0 flex-1 rounded-lg border border-line-strong bg-surface px-3.5 py-2.5 text-[15px] outline-none transition focus:border-like"

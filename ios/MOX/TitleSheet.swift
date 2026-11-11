@@ -28,7 +28,7 @@ struct TitleSheet: View {
             } else if let loadError {
                 Text(loadError).font(.sora(14)).foregroundStyle(Theme.muted).padding(40)
             } else {
-                ProgressView().padding(.top, 120)
+                Skeleton(kind: .sheet)
             }
         }
         .scrollIndicators(.hidden)
@@ -78,7 +78,7 @@ struct TitleSheet: View {
             }
 
             VStack(alignment: .leading, spacing: 10) {
-                Text(d.platforms.isEmpty ? "Not on your services in Egypt" : "Watch on")
+                Text(!d.platforms.isEmpty ? "Watch on" : d.store != nil ? "Rent or buy" : "Not on your services in Egypt")
                     .font(.sora(13, .semibold, relativeTo: .footnote))
                     .foregroundStyle(Theme.muted)
                 ForEach(d.platforms, id: \.name) { p in
@@ -92,6 +92,28 @@ struct TitleSheet: View {
                             Text(p.name).font(.sora(16, .semibold)).foregroundStyle(Theme.paper)
                             Spacer()
                             Image(systemName: "play.fill").foregroundStyle(Theme.green)
+                        }
+                        .padding(12)
+                        .background(Theme.raised, in: .rect(cornerRadius: 16))
+                    }
+                    .buttonStyle(.plain)
+                }
+                // Its own row under the services, saying rent or buy and the
+                // price, so it never reads as included in a subscription.
+                if let store = d.store {
+                    Button {
+                        if let s = store.url, let url = URL(string: s) { openURL(url) }
+                    } label: {
+                        HStack(spacing: 12) {
+                            if let logo = store.logo {
+                                RemoteImage(url: logo).frame(width: 30, height: 30).clipShape(.rect(cornerRadius: 7))
+                            }
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(store.name).font(.sora(16, .semibold)).foregroundStyle(Theme.paper)
+                                Text(store.price ?? "Rent or buy").font(.sora(13, relativeTo: .footnote)).foregroundStyle(Theme.muted)
+                            }
+                            Spacer()
+                            Image(systemName: "play.fill").foregroundStyle(Theme.muted)
                         }
                         .padding(12)
                         .background(Theme.raised, in: .rect(cornerRadius: 16))

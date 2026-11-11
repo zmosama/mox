@@ -1,5 +1,6 @@
 "use client";
 
+import { MoxPulse } from "./Loading";
 import Link from "next/link";
 import { useState, useSyncExternalStore } from "react";
 import { LivingRing } from "./LivingRing";
@@ -80,7 +81,7 @@ export function AskBar({
       />
 
       {looking ? (
-        <span aria-label="Searching" className="size-4 shrink-0 animate-spin rounded-full border-2 border-ink-dim border-t-transparent" />
+        <MoxPulse size={20} label="Searching" />
       ) : asking ? (
         <button
           type="button"

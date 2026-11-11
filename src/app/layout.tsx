@@ -2,9 +2,9 @@ import type { Metadata, Viewport } from "next";
 import { Sora, IBM_Plex_Sans_Arabic } from "next/font/google";
 import { GlassBar } from "@/components/GlassBar";
 import { TapGuard } from "@/components/TapGuard";
-import { TitlePrefetch } from "@/components/titleCache";
+import { KeepFresh, TitlePrefetch } from "@/components/titleCache";
 import { WebVitals } from "@/components/WebVitals";
-import { currentUser } from "@/lib/auth";
+import { avatarUrl, currentUser } from "@/lib/auth";
 import { readPrefs, webTabs } from "@/lib/prefs";
 import "./globals.css";
 
@@ -56,13 +56,14 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   return (
     <html lang="en" className={`${sora.variable} ${arabic.variable}`}>
       <body className="min-h-dvh">
-        {/* pb leaves room for the floating bar plus the home indicator. */}
-        <main className="mx-auto max-w-[1180px] px-4 pb-[calc(7rem+env(safe-area-inset-bottom))] pt-[calc(0.75rem+env(safe-area-inset-top))] sm:px-6">
+        {/* pb leaves room for the floating bar plus the home indicator; on a computer the bar is at the top, so the room moves there. */}
+        <main className="mx-auto max-w-[1180px] px-4 pb-[calc(7rem+env(safe-area-inset-bottom))] pt-[calc(0.75rem+env(safe-area-inset-top))] sm:px-6 lg:pb-16 lg:pt-[5.25rem]">
           {children}
         </main>
-        <GlassBar tabs={tabs} />
+        <GlassBar tabs={tabs} user={user ? { name: user.displayName ?? user.username, avatar: avatarUrl(user) } : null} />
         <TapGuard />
         <TitlePrefetch />
+        <KeepFresh />
         <WebVitals />
       </body>
     </html>

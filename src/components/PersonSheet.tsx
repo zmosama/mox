@@ -1,5 +1,6 @@
 "use client";
 
+import { SheetSkeleton } from "./Loading";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
@@ -186,7 +187,7 @@ export function PersonSheet({
           {error ? (
             <p className="p-6 text-center text-ink-faint">Couldn’t load this person — {error}</p>
           ) : !data ? (
-            <p className="p-6 text-center text-ink-faint">Loading…</p>
+            <SheetSkeleton />
           ) : (
             <div className="flex flex-col gap-7">
               <header className="flex flex-col items-center gap-3 text-center">

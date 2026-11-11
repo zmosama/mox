@@ -5,6 +5,7 @@ import { todayISO } from "@/lib/dates";
 import { calendar, comingSoon, feed, forYou, newOnServices, picksFor, withReasons, mineFirst } from "@/lib/queries";
 import { newFromPeople, within } from "@/lib/people";
 import { agedEpisodes, agedTitles, ageFilter } from "@/lib/age-filter";
+import { explore } from "@/lib/explore";
 
 /**
  * Everything the iPhone app's home screen draws, in one round trip.
@@ -39,6 +40,9 @@ export async function GET() {
          Kept as an empty list because the shipped iPhone app decodes it as
          required, and an empty rail simply isn't drawn. */
       inStore: [],
+      /* A headline, a line and a few posters for each screen in "Explore".
+         Optional to the app: an older one ignores it. */
+      explore: await explore(id, today, aged),
     },
     { headers: { "cache-control": "no-store" } },
   );

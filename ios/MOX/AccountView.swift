@@ -154,7 +154,7 @@ struct AccountView: View {
             } else if let loadError {
                 Text(loadError).foregroundStyle(.red)
             } else {
-                ProgressView().frame(maxWidth: .infinity)
+                MoxPulse().frame(maxWidth: .infinity)
             }
         }
         .scrollContentBackground(.hidden)

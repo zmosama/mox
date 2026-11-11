@@ -344,6 +344,14 @@ export async function deleteOwnAccount(userId: number, current: string | undefin
  * account has the same email, and is linked now — which is how an account made
  * with a password before Google sign-in existed reaches the same ratings; or a
  * new account is made, with a username from the email and no password.
+ *
+ * Linking by email hands the account to whoever Google says owns the address,
+ * and nothing here ever checked that the person who typed that address into
+ * sign-up owned it. So the link also ends everything the old credentials could
+ * do: the password is replaced with one nobody knows and every session is
+ * signed out. Someone who registered another person's address to wait for them
+ * is left with nothing; the real owner of a password account signs in with
+ * Google from then on, and can set a new password in Settings.
  */
 export async function googleAccount(profile: {
   sub: string;
@@ -359,7 +367,13 @@ export async function googleAccount(profile: {
   const byEmail = db.select({ id: schema.users.id }).from(schema.users)
     .where(eq(schema.users.email, email)).get();
   if (byEmail) {
-    db.update(schema.users).set({ googleSub: profile.sub }).where(eq(schema.users.id, byEmail.id)).run();
+    const unknown = await hashPassword(randomBytes(32).toString("base64url"));
+    db.transaction((tx) => {
+      tx.update(schema.users)
+        .set({ googleSub: profile.sub, passwordHash: unknown, passwordSet: false })
+        .where(eq(schema.users.id, byEmail.id)).run();
+      tx.delete(schema.sessions).where(eq(schema.sessions.userId, byEmail.id)).run();
+    });
     return { ok: true, value: { id: byEmail.id, created: false } };
   }
 

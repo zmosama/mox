@@ -1,5 +1,7 @@
 "use client";
 
+import type { Explore } from "@/lib/explore";
+import { MoxPulse } from "./Loading";
 import Link from "next/link";
 import { WEB_TABS } from "./GlassBar";
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
@@ -14,7 +16,7 @@ import { Tabs } from "./Tabs";
 import { TitleCard, type CardTitle } from "./TitleCard";
 import { TitleSheet } from "./TitleSheet";
 import { cn } from "@/lib/cn";
-import { dayLabel } from "@/lib/dates";
+import { addDaysISO, dayLabel } from "@/lib/dates";
 import type { CalendarEpisode, FreshEpisode } from "@/lib/queries";
 import type { PersonNews } from "@/lib/people";
 import type { MediaKind } from "@/db/schema";
@@ -46,7 +48,10 @@ export function Home({
   picks,
   fromPeople,
   needsServices,
+  explore,
 }: {
+  /** A true line and a picture for each screen in "Explore". */
+  explore: Explore;
   today: string;
   /** `mox`: this is the owner, who has MOX to talk to. */
   user: { name: string; avatar: string | null; mox?: boolean } | null;
@@ -140,8 +145,9 @@ export function Home({
         {!asking && spots.length ? (
           <div className="relative z-10 pt-4 sm:pt-6">
             <Spotlight spots={spots} signedIn={user !== null} onOpen={setOpen} />
-            {/* Your photo in the top corner, over the picture, as on the iPad. */}
-            <div className="absolute end-3 top-7 z-20 sm:end-4 sm:top-10">
+            {/* Your photo in the top corner, over the picture — on a phone.
+                A computer has it beside the bar at the top (GlassBar). */}
+            <div className="absolute end-3 top-7 z-20 sm:end-4 sm:top-10 lg:hidden">
               <Avatar user={user} />
             </div>
           </div>
@@ -165,7 +171,7 @@ export function Home({
               mox={user?.mox}
             />
           </div>
-          {asking || !spots.length ? <Avatar user={user} /> : null}
+          {asking || !spots.length ? <span className="lg:hidden"><Avatar user={user} /></span> : null}
         </header>
         {showMoods || mood ? (
           <MoodChips
@@ -202,6 +208,7 @@ export function Home({
               coming={coming}
               picks={picks}
               fromPeople={fromPeople}
+              explore={explore}
               onOpen={setOpen}
             />
           </div>
@@ -289,7 +296,7 @@ function Answers({
       {sentinel ? <div ref={sentinel} aria-hidden className="h-px" /> : null}
       {more ? (
         <div className="flex justify-center py-6">
-          <span aria-label="Loading more" className="size-5 animate-spin rounded-full border-2 border-ink-dim border-t-transparent" />
+          <MoxPulse label="Loading more" />
         </div>
       ) : null}
     </div>
@@ -352,9 +359,12 @@ function Thumb({ src, className, eager, wide }: { src: string | null; className?
     // eslint-disable-next-line @next/next/no-img-element -- TMDB serves sized files
     <img
       src={localImage(src)}
-      /* A phone draws the week's picture about 400px wide: w780 is enough
-         there and a fifth of w1280's bytes; a computer still gets w1280. */
-      srcSet={wide ? `${localImage(src.replace(/\/w\d+\//, "/w780/"))} 780w, ${localImage(src.replace(/\/w\d+\//, "/w1280/"))} 1280w` : undefined}
+      /* The browser picks by how many real pixels the picture covers. A
+         phone draws it about 400px wide: w780 is enough there and a fifth of
+         w1280's bytes. A computer with a sharp screen covers two thousand or
+         more, where w1280 was visibly soft — so it gets the 1920 or 2560 we
+         make from TMDB's original (MADE_SIZES). */
+      srcSet={wide ? [780, 1280, 1920, 2560].map((w) => `${localImage(src.replace(/\/w\d+\//, `/w${w}/`))} ${w}w`).join(", ") : undefined}
       sizes={wide ? "(min-width: 1024px) 70vw, 100vw" : undefined}
       alt=""
       loading={eager ? "eager" : "lazy"}
@@ -379,8 +389,10 @@ function Board({
   coming,
   picks,
   fromPeople,
+  explore,
   onOpen,
 }: {
+  explore: Explore;
   today: string;
   signedIn: boolean;
   needsServices: boolean;
@@ -436,7 +448,7 @@ function Board({
         />
       ) : null}
       {/* Before Airing: signed out, Airing is a long table to scroll past. */}
-      <Sections />
+      <Sections explore={explore} />
 
       <Airing episodes={episodes} today={today} signedIn={signedIn} onOpen={onOpen} />
     </div>
@@ -757,33 +769,89 @@ const SECTIONS: { id: string; line: string }[] = [
  * Every screen as a grid on Home ("Explore"), so the bar is not the only way
  * in — the same as the app.
  */
-function Sections() {
+/** Each screen's own colour in "Explore"; F1's is the sport's red, Today's the mark's green. */
+const SECTION_TINT: Record<string, string> = {
+  today: "#00d084",
+  news: "#4a9eff",
+  library: "#ffb020",
+  studios: "#a78bfa",
+  friends: "#ff6b9d",
+  f1: "#ff3b30",
+  universes: "#22d3ee",
+};
+
+function Sections({ explore }: { explore: Explore }) {
   return (
     <section>
       <Heading title="Explore" />
-      <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-4">
-        {SECTIONS.map(({ id, line }) => {
+      {/* Seven screens: the first is twice as wide, so the grid closes with
+          no hole at two columns (1 + 3 rows of 2) and at four (2 rows). */}
+      <div className="grid grid-cols-2 gap-2.5 lg:grid-cols-4 lg:gap-3">
+        {SECTIONS.map(({ id, line }, i) => {
           const t = WEB_TABS[id];
-          const f1 = id === "f1";
+          const now = explore[id];
+          const wide = i === 0;
+          const posters = now?.posters ?? [];
           return (
             <Link
               key={id}
               href={t.href}
-              className="flex items-center gap-3 rounded-[16px] bg-surface px-3 py-2.5 transition hover:bg-card"
+              style={{ "--tint": SECTION_TINT[id] } as React.CSSProperties}
+              className={cn(
+                "group relative isolate flex min-h-[112px] flex-col justify-between gap-3 overflow-hidden rounded-[18px] p-3.5 ring-1 ring-inset ring-[color-mix(in_srgb,var(--tint)_22%,transparent)] transition duration-200",
+                "bg-[linear-gradient(135deg,color-mix(in_srgb,var(--tint)_13%,var(--color-surface)),var(--color-surface)_62%)]",
+                "hover:ring-[color-mix(in_srgb,var(--tint)_55%,transparent)] focus-visible:ring-2 focus-visible:ring-[var(--tint)] active:scale-[0.99] lg:min-h-[128px] lg:p-4",
+                wide && "col-span-2",
+              )}
             >
-              <span
-                className={cn(
-                  "grid size-9 shrink-0 place-items-center rounded-[10px]",
-                  f1 ? "bg-[#e10600]/15 text-[#e10600]" : "bg-love/15 text-love",
-                )}
-              >
-                <svg viewBox="0 0 24 24" className="size-[18px]" fill="currentColor" aria-hidden>
+              {id === "f1" ? (
+                // No poster is ours to use here; the flag is.
+                <span
+                  aria-hidden
+                  className="absolute inset-y-0 end-0 -z-10 w-2/3 bg-[repeating-conic-gradient(color-mix(in_srgb,var(--tint)_26%,transparent)_0_25%,transparent_0_50%)] bg-[length:26px_26px] [mask-image:linear-gradient(to_left,#000,transparent)]"
+                />
+              ) : null}
+
+              <span className="flex items-center gap-2 text-[12.5px] font-semibold text-[var(--tint)]">
+                <svg viewBox="0 0 24 24" className="size-4" fill="currentColor" aria-hidden>
                   <path d={t.icon} fillRule="evenodd" />
                 </svg>
+                {t.label}
               </span>
-              <span className="min-w-0">
-                <span className="block text-[14px] font-semibold">{t.label}</span>
-                <span className="block truncate text-[11.5px] text-ink-dim">{line}</span>
+
+              <span className="flex items-end gap-3">
+                <span className="min-w-0 flex-1">
+                  <span className={cn("block font-bold leading-tight tracking-tight", wide ? "text-[20px] lg:text-[22px]" : "text-[16px] lg:text-[19px]")}>
+                    {now?.line ?? line}
+                  </span>
+                  <span className="mt-0.5 block truncate text-[12px] text-ink-dim lg:text-[13px]">
+                    {now?.line ? (now.sub ?? line) : now?.sub ?? "\u00a0"}
+                  </span>
+                </span>
+
+                {/* A few posters from inside, overlapping like a hand of cards.
+                    On a phone only the wide card has the room. */}
+                {posters.length ? (
+                  <span aria-hidden className={cn("shrink-0 items-end ps-3", wide ? "flex" : "hidden lg:flex")}>
+                    {posters.map((src, n) => (
+                      // eslint-disable-next-line @next/next/no-img-element -- a small poster, a logo or a newsroom's picture
+                      <img
+                        key={src}
+                        src={localImage(src)}
+                        alt=""
+                        loading="lazy"
+                        style={{ zIndex: posters.length - n }}
+                        className={cn(
+                          "-ms-3 h-[66px] w-[44px] rounded-[7px] shadow-card ring-1 ring-black/40 transition duration-300 group-hover:-translate-y-1",
+                          id === "studios" ? "bg-[#f2f2ee] object-contain p-1.5" : "object-cover",
+                          n === 1 && "rotate-3 group-hover:delay-75",
+                          n === 2 && "rotate-6 group-hover:delay-150",
+                          wide && "lg:h-[78px] lg:w-[52px]",
+                        )}
+                      />
+                    ))}
+                  </span>
+                ) : null}
               </span>
             </Link>
           );
@@ -1014,52 +1082,110 @@ function Airing({
   const shown = episodes.filter((e) =>
     filter === "mine" ? e.following : filter === "available" ? e.platforms.length > 0 : true,
   );
-  const days = new Map<string, CalendarEpisode[]>();
-  for (const e of shown) days.set(e.airs, [...(days.get(e.airs) ?? []), e]);
-  const week = [...days].slice(0, 7);
+  const byDay = new Map<string, CalendarEpisode[]>();
+  for (const e of shown) byDay.set(e.airs, [...(byDay.get(e.airs) ?? []), e]);
+
+  /* A week at a time, a column a day — empty days included, so it reads as a
+     calendar and "nothing on Thursday" is something you can see. It used to
+     be a list of rows as wide as the screen, with only the days that had
+     something. */
+  const [second, setSecond] = useState(false);
+  const from = second ? 7 : 0;
+  const week = Array.from({ length: 7 }, (_, n) => addDaysISO(today, from + n));
+  const later = [...byDay.keys()].some((d) => d >= addDaysISO(today, 7));
+  const [open, setOpen] = useState<string | null>(null);
+  const ROOM = 4;
 
   return (
     <section>
-      <Heading title="Airing" detail="next two weeks" />
-      <Tabs className="mb-4 sm:max-w-md" value={filter} onChange={setFilter} options={AIRING_TABS.map(([id, l]) => [id, l])} />
-      {!week.length ? (
-        <p className="text-[14px] text-ink-dim">
+      <div className="mb-3 flex flex-wrap items-center gap-x-4 gap-y-2 lg:mb-4">
+        <h2 className="flex items-baseline gap-2 text-[20px] font-semibold tracking-tight lg:text-[24px] lg:font-bold">
+          Airing
+          <span className="text-[13px] font-normal text-ink-dim">{second ? "the week after" : "this week"}</span>
+        </h2>
+        <Tabs className="w-full sm:ms-auto sm:w-[360px]" value={filter} onChange={setFilter} options={AIRING_TABS.map(([id, l]) => [id, l])} />
+        {later || second ? (
+          <button
+            type="button"
+            onClick={() => setSecond((v) => !v)}
+            className="flex h-9 items-center gap-1 rounded-full border border-line-strong px-3.5 text-[13px] font-medium text-ink-dim transition hover:border-white/30 hover:text-ink"
+          >
+            {second ? "‹ This week" : "Next week ›"}
+          </button>
+        ) : null}
+      </div>
+
+      {!shown.length ? (
+        <p className="mb-3 text-[14px] text-ink-dim">
           {filter === "mine" ? "None of the shows you follow air in the next two weeks." : "Nothing on the calendar."}
         </p>
       ) : null}
-      <div className="flex flex-col gap-5">
-        {week.map(([day, list]) => (
-          <div key={day}>
-            <div className={cn("mb-2 text-[13px] font-semibold", day === today ? "text-love" : "text-ink-dim")}>
-              {dayLabel(day, today)}
-            </div>
-            <div className="grid gap-2 sm:grid-cols-2">
-              {list.map((ep) => (
-                <button
-                  key={`${ep.show}-${ep.season}-${ep.episode}`}
-                  type="button"
-                  onClick={() => ep.tmdbId && onOpen({ tmdbId: ep.tmdbId, kind: "tv" })}
-                  className="flex items-center gap-3 rounded-2xl bg-surface p-2.5 text-start transition hover:bg-card"
-                >
-                  <Thumb src={ep.poster} className="h-[60px] w-10 rounded-lg" />
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate text-[15px] font-medium">{ep.show}</span>
-                    <span className="numeric block text-[12px] text-ink-dim">
-                      {[`S${String(ep.season).padStart(2, "0")}E${String(ep.episode).padStart(2, "0")}`, ep.platforms[0]?.name]
-                        .filter(Boolean)
-                        .join(" · ")}
-                    </span>
-                  </span>
-                  {ep.following ? (
-                    <svg viewBox="0 0 24 24" className="me-1 size-4 fill-love" aria-label="Following">
-                      <path d="M6 3h12a1 1 0 0 1 1 1v17l-7-4.2L5 21V4a1 1 0 0 1 1-1z" />
-                    </svg>
+
+      {/* All seven across only where each column still has room for a
+          show's name (a wide computer window). Narrower than that — a phone,
+          a tablet, a small window — the same columns keep a readable width in
+          a row you swipe along: seven squeezed into a tablet cut every name
+          off after a few letters. */}
+      <div className="-mx-4 flex snap-x snap-mandatory scroll-px-4 gap-2 overflow-x-auto px-4 pb-1 sm:scroll-px-6 [scrollbar-width:none] sm:-mx-6 sm:px-6 xl:mx-0 xl:grid xl:grid-cols-7 xl:gap-2.5 xl:overflow-visible xl:px-0 [&::-webkit-scrollbar]:hidden">
+        {week.map((day) => {
+          const list = byDay.get(day) ?? [];
+          const isToday = day === today;
+          const at = new Date(`${day}T12:00:00Z`);
+          const all = open === day;
+          return (
+            <div
+              key={day}
+              className={cn(
+                "flex w-[46%] shrink-0 snap-start flex-col rounded-2xl border p-2 sm:w-[200px] xl:w-auto xl:min-w-0",
+                isToday ? "border-love/40 bg-love/[0.06]" : "border-line bg-surface/50",
+              )}
+            >
+              <div className="mb-2 flex items-baseline justify-between px-1 pt-0.5">
+                <span className={cn("text-[12px] font-semibold uppercase tracking-wider", isToday ? "text-love" : "text-ink-dim")}>
+                  {isToday ? "Today" : at.toLocaleDateString("en-GB", { weekday: "short", timeZone: "UTC" })}
+                </span>
+                <span className={cn("numeric text-[18px] font-bold leading-none", isToday ? "text-love" : list.length ? "text-ink" : "text-ink-faint")}>
+                  {at.getUTCDate()}
+                </span>
+              </div>
+
+              {list.length ? (
+                <div className="flex flex-col gap-1.5">
+                  {(all ? list : list.slice(0, ROOM)).map((ep) => (
+                    <button
+                      key={`${ep.show}-${ep.season}-${ep.episode}`}
+                      type="button"
+                      onClick={() => ep.tmdbId && onOpen({ tmdbId: ep.tmdbId, kind: "tv" })}
+                      className="flex items-center gap-2 rounded-xl bg-surface p-1.5 text-start transition hover:bg-card"
+                    >
+                      <Thumb src={ep.poster} className="h-[54px] w-9 shrink-0 rounded-md" />
+                      <span className="min-w-0 flex-1">
+                        <span className="line-clamp-2 text-[12.5px] font-medium leading-tight [overflow-wrap:anywhere]">{ep.show}</span>
+                        {/* The episode and the service each on its own line: joined, a
+                            column's width cut them to "S17 E23 ·…". */}
+                        <span className={cn("numeric mt-0.5 block text-[11px] leading-tight", ep.following ? "text-love" : "text-ink-dim")}>
+                          S{ep.season} E{ep.episode}
+                          {ep.platforms[0] ? <span className="block truncate text-ink-faint">{ep.platforms[0].name}</span> : null}
+                        </span>
+                      </span>
+                    </button>
+                  ))}
+                  {list.length > ROOM ? (
+                    <button
+                      type="button"
+                      onClick={() => setOpen(all ? null : day)}
+                      className="rounded-lg py-1.5 text-[12px] font-medium text-ink-dim transition hover:text-ink"
+                    >
+                      {all ? "Show fewer" : `+${list.length - ROOM} more`}
+                    </button>
                   ) : null}
-                </button>
-              ))}
+                </div>
+              ) : (
+                <div className="grid min-h-[60px] flex-1 place-items-center text-[12px] text-ink-faint">Nothing</div>
+              )}
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </section>
   );

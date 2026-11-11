@@ -227,7 +227,7 @@ export function MoxChat({
           e.preventDefault();
           void send(draft);
         }}
-        className="sticky bottom-[calc(5.5rem+env(safe-area-inset-bottom))] z-20 mt-5 flex h-14 items-center gap-2 rounded-full border border-white/10 bg-[#1c1f1e]/95 ps-5 pe-2 shadow-pop"
+        className="sticky bottom-[calc(5.5rem+env(safe-area-inset-bottom))] lg:bottom-6 z-20 mt-5 flex h-14 items-center gap-2 rounded-full border border-white/10 bg-[#1c1f1e]/95 ps-5 pe-2 shadow-pop"
       >
         <input
           value={draft}

@@ -147,6 +147,9 @@ export async function fetchTitle(
   }
 }
 
+/** A title checked this recently had its services watched: a few missed nights are forgiven. */
+const WATCHED_WITHIN = 4 * 86400;
+
 /**
  * Write a title and what it streams on.
  *
@@ -185,6 +188,17 @@ export function saveTitle(tx: Tx, { tmdbId, kind, detail, platforms }: Fetched) 
    * made; refreshing is not the place to overturn it. New titles take TMDB's
    * name because there is nothing else to go on.
    */
+  /* Whether where it streams was being watched until now: it has been through
+     here within the last few nights. Two thirds of the library was imported
+     once and is fetched again only if somebody saves it, so a row merely
+     existing says nothing about what it streamed on last week. */
+  const last = tx
+    .select({ updatedAt: s.titles.updatedAt })
+    .from(s.titles)
+    .where(and(eq(s.titles.tmdbId, tmdbId), eq(s.titles.kind, kind)))
+    .get();
+  const watched = last !== undefined && current.updatedAt - last.updatedAt < WATCHED_WITHIN;
+
   tx.insert(s.titles)
     .values({ tmdbId, kind, title: detail.title ?? detail.name ?? "Untitled", ...current })
     .onConflictDoUpdate({ target: [s.titles.tmdbId, s.titles.kind], set: current })
@@ -209,8 +223,13 @@ export function saveTitle(tx: Tx, { tmdbId, kind, detail, platforms }: Fetched) 
         updatedAt: now,
         /* The day it arrived is the day it was first seen here. A provider
            that was already carrying it keeps its old date — including 0,
-           "arrived before anyone was counting". */
-        firstSeen: before.get(provider)?.firstSeen ?? now,
+           "arrived before anyone was counting". A title met for the first
+           time, or not looked at in days, gets 0 as well: nobody was
+           watching where it streamed, so
+           there is no telling a film that reached Netflix today from one
+           that has been there for years, and saying "Now on Netflix" about
+           the second is worse than staying quiet about the first. */
+        firstSeen: before.get(provider)?.firstSeen ?? (watched ? now : 0),
       })
       .onConflictDoNothing()
       .run();

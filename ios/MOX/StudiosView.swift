@@ -36,7 +36,7 @@ struct StudiosView: View {
                     } else if failed {
                         Text("Can't reach the MOX server.").font(.sora(14)).foregroundStyle(Theme.muted)
                     } else {
-                        ProgressView().frame(maxWidth: .infinity).padding(.top, 40)
+                        Skeleton(kind: .tiles).padding(.top, 12)
                     }
                 }
                 .padding(.horizontal, 20)
@@ -150,7 +150,7 @@ struct StudioView: View {
                 .scrollIndicators(.hidden)
 
                 if !loaded {
-                    ProgressView().frame(maxWidth: .infinity).padding(.top, 40)
+                    Skeleton(kind: .posters).padding(.top, 12)
                 } else if cards.isEmpty {
                     Text("Nothing here yet.").font(.sora(14)).foregroundStyle(Theme.muted)
                 } else {
@@ -163,7 +163,7 @@ struct StudioView: View {
                         }
                     }
                     if next != nil {
-                        ProgressView()
+                        MoxPulse()
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 20)
                             .onAppear { Task { await more() } }

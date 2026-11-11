@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { currentUser } from "@/lib/auth";
 import { addFriend, addFriendById, friendsOf, removeFriend } from "@/lib/friends";
+import { takeRequest } from "@/lib/rate-limit";
 
 const noStore = { headers: { "cache-control": "no-store" } };
 
@@ -19,6 +20,14 @@ const Add = z.union([z.object({ id: z.number().int().positive() }), z.object({ w
 export async function POST(req: Request) {
   const user = await currentUser();
   if (!user) return NextResponse.json({ error: "sign in first" }, { status: 401 });
+  // Adding by email says whether an address has an account here; nobody adds twenty friends an hour.
+  const limited = takeRequest(`friends:add:${user.id}`, 20, 60 * 60_000);
+  if (!limited.allowed) {
+    return NextResponse.json(
+      { error: "That's a lot of people at once. Try again later." },
+      { status: 429, headers: { "retry-after": String(limited.retryAfter) } },
+    );
+  }
   const parsed = Add.safeParse(await req.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ error: "Type their username or email." }, { status: 400 });
   const result = "id" in parsed.data ? addFriendById(user.id, parsed.data.id) : addFriend(user.id, parsed.data.who);

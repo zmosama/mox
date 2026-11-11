@@ -1,5 +1,6 @@
 "use client";
 
+import { MoxPulse } from "./Loading";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
@@ -142,7 +143,7 @@ export function Chip({ on, onClick, children }: { on: boolean; onClick: () => vo
 export function Spinner() {
   return (
     <div className="flex justify-center py-8">
-      <span aria-label="Loading" className="size-5 animate-spin rounded-full border-2 border-ink-dim border-t-transparent" />
+      <MoxPulse />
     </div>
   );
 }

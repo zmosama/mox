@@ -138,3 +138,15 @@
 @media (prefers-reduced-motion: reduce) {
   .f1-draw { animation: none; stroke-dashoffset: 0; }
 }
+
+/* The MOX mark breathing while something loads (Loading.tsx). */
+@keyframes mox-pulse {
+  from { transform: scale(0.88); opacity: 0.5; }
+  to { transform: scale(1.1); opacity: 1; }
+}
+.mox-pulse {
+  animation: mox-pulse 0.85s ease-in-out infinite alternate;
+}
+@media (prefers-reduced-motion: reduce) {
+  .mox-pulse { animation: none; opacity: 0.8; }
+}

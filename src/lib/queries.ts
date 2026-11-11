@@ -16,6 +16,8 @@ import type { Service } from "@/components/ServiceBadge";
 import type { CardTitle } from "@/components/TitleCard";
 import { addDaysISO, episodeCode, todayISO } from "./dates";
 import { friendMarks } from "./friends";
+import { catalogued } from "./catalog";
+import { posterPath } from "./tmdb";
 
 const key = (tmdbId: number, kind: MediaKind) => `${tmdbId}:${kind}`;
 
@@ -756,7 +758,11 @@ export function withReasons<T extends CardTitle>(userId: number | null, cards: T
 // ---------------------------------------------------------------- my list
 
 /** Shows you follow, then what you said you want to watch. */
-export function library(userId: number): { following: CardTitle[]; watchlist: CardTitle[] } {
+export function library(
+  userId: number,
+  /** Only titles whose streaming has been checked — see `alerts`. */
+  { checkedOnly = false }: { checkedOnly?: boolean } = {},
+): { following: CardTitle[]; watchlist: CardTitle[] } {
   const followed = db
     .select({ tmdbId: schema.follows.tmdbId })
     .from(schema.follows)
@@ -773,12 +779,31 @@ export function library(userId: number): { following: CardTitle[]; watchlist: Ca
 
   const all = [...followed, ...wanted];
   const titles = titlesByIds(all);
+  /* Search and people's pages reach the whole catalogue, but `titles` only
+     holds what a refresh has fetched. Something saved from there would be
+     missing from this list until the night's run, which reads as a lost tap,
+     so it is drawn from the catalogue meanwhile. Where it streams is not
+     known yet; the refresh fills that in. */
+  const light = checkedOnly ? new Map() as ReturnType<typeof catalogued> : catalogued(all.filter((r) => !titles.has(key(r.tmdbId, r.kind))));
   const avail = availabilityFor(all.map((r) => r.tmdbId), userId);
   const lookup = serviceLookup();
 
   const card = (r: { tmdbId: number; kind: MediaKind }): CardTitle | null => {
     const t = titles.get(key(r.tmdbId, r.kind));
-    if (!t) return null;
+    if (!t) {
+      const c = light.get(key(r.tmdbId, r.kind));
+      if (!c?.title) return null;
+      return {
+        tmdbId: c.tmdbId,
+        kind: c.kind,
+        title: c.title,
+        year: c.year,
+        poster: posterPath(c.posterPath),
+        rating: c.rating === null ? null : Math.round(c.rating * 10) / 10,
+        verdict: null,
+        platforms: [],
+      };
+    }
     return {
       tmdbId: t.tmdbId,
       kind: t.kind,
@@ -798,7 +823,8 @@ export function library(userId: number): { following: CardTitle[]; watchlist: Ca
      then what is coming, soonest first — each coming one tagged with its
      date, so "when can I watch it" is on the poster. */
   const today = todayISO();
-  const released = (r: { tmdbId: number; kind: MediaKind }) => titles.get(key(r.tmdbId, r.kind))?.releaseDate ?? null;
+  const released = (r: { tmdbId: number; kind: MediaKind }) =>
+    (titles.get(key(r.tmdbId, r.kind)) ?? light.get(key(r.tmdbId, r.kind)))?.releaseDate ?? null;
   const out = wanted.filter((r) => (released(r) ?? "") !== "" && released(r)! <= today)
     .sort((a, b) => released(b)!.localeCompare(released(a)!));
   const coming = wanted.filter((r) => !out.includes(r))
@@ -904,7 +930,10 @@ export function alerts(
       platforms: forSeason(r.tmdbId!, r.season, avail.get(key(r.tmdbId!, "tv")) ?? []).map((p) => p.name),
     }));
 
-  const watchlist = library(userId).watchlist.map((c) => ({
+  /* Checked titles only. The phone announces a title it has seen with nowhere
+     to watch and now sees with somewhere, so one sent before its first check
+     would be announced as arriving the morning after it was saved. */
+  const watchlist = library(userId, { checkedOnly: true }).watchlist.map((c) => ({
     tmdbId: c.tmdbId,
     kind: c.kind,
     title: c.title,

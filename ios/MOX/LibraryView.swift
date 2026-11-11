@@ -5,6 +5,8 @@ struct LibraryView: View {
     @Environment(API.self) private var api
     @Environment(Router.self) private var router
     @State private var payload: LibraryPayload?
+    /// Why the last load failed, while there is nothing older to show instead.
+    @State private var failed: String?
 
     @Environment(\.horizontalSizeClass) private var size
     private var columns: [GridItem] {
@@ -58,8 +60,18 @@ struct LibraryView: View {
                             router.person = PersonRef(id: $0)
                         }
                     }
+                } else if let failed {
+                    VStack(spacing: 12) {
+                        Text(failed).font(.sora(14)).foregroundStyle(Theme.muted).multilineTextAlignment(.center)
+                        Button("Try again") { Task { await load() } }
+                            .font(.sora(14, .semibold))
+                            .padding(.horizontal, 18).padding(.vertical, 10)
+                            .glassEffect(.regular.interactive(), in: .capsule)
+                            .buttonStyle(.plain)
+                    }
+                    .frame(maxWidth: .infinity).padding(.horizontal, 20).padding(.top, 40)
                 } else {
-                    ProgressView().frame(maxWidth: .infinity).padding(.top, 40)
+                    Skeleton(kind: .posters).padding(.top, 12)
                 }
             }
             .padding(.bottom, 48)
@@ -90,6 +102,15 @@ struct LibraryView: View {
     private func load() async {
         if payload == nil { payload = api.peek("/api/app/library") }
         if api.user == nil { await api.refreshUser() }
-        payload = try? await api.library()
+        // A failed refresh keeps the list already on screen; it used to wipe
+        // it and leave a spinner that never stopped.
+        do {
+            payload = try await api.library()
+            failed = nil
+        } catch is CancellationError {
+        } catch let error as URLError where error.code == .cancelled {
+        } catch {
+            failed = payload == nil ? error.localizedDescription : nil
+        }
     }
 }

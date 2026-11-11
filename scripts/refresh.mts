@@ -142,7 +142,10 @@ await step("home images", async () => {
   const sized = backdrops.flatMap((b) => [b.replace(/\/w\d+\//, "/w780/"), b.replace(/\/w\d+\//, "/w1280/")]);
   const { fetched, kept, missing } = await warmTmdbImages(sized);
   let webp = 0;
-  for (const url of sized) {
+  /* And the two sizes we make ourselves for a sharp computer screen, which
+     cost a download of the original and a resize the first time. */
+  const made = backdrops.flatMap((b) => [b.replace(/\/w\d+\//, "/w1920/"), b.replace(/\/w\d+\//, "/w2560/")]);
+  for (const url of [...sized, ...made]) {
     const m = /\/(w\d+)\/([A-Za-z0-9_-]+)\.jpg$/.exec(url);
     if (m && (await tmdbWebp(m[1], `${m[2]}.webp`))) webp++;
   }

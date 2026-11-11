@@ -15,7 +15,7 @@
  */
 import { mkdir, readFile, rename, statfs, unlink, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
-import { KEPT_SIZES, TMDB_FILE_NAME } from "./images";
+import { KEPT_SIZES, MADE_SIZES, TMDB_FILE_NAME } from "./images";
 
 const DIR = join(dirname(process.env.MOX_DB ?? "./data/mox.db"), "tmdb-images");
 const TMDB = "https://image.tmdb.org/t/p";
@@ -165,9 +165,51 @@ export function webpSource(file: string): string | null {
   return m ? `${m[1]}.jpg` : null;
 }
 
+/** A size we make ourselves from TMDB's original (MADE_SIZES), not one TMDB serves. */
+export const madeSize = (size: string) => Object.hasOwn(MADE_SIZES, size);
+
+/** Whether `/api/img/{size}/{name}.webp` is something we would make, given the JPEG it stands for. */
+export const validWebp = (size: string, source: string) =>
+  madeSize(size) ? TMDB_FILE_NAME.test(source) : validImage(size, source);
+
+/**
+ * TMDB's original, for making a size of our own from. Not kept: it can be
+ * over a megabyte, and once the smaller picture is made nothing asks again.
+ */
+async function original(source: string): Promise<Buffer | null> {
+  const id = `original/${source}`;
+  const until = misses.get(id);
+  if (until && until > Date.now()) return null;
+  try {
+    const res = await fetch(tmdbImageUrl("original", source), {
+      headers: { "user-agent": "mox (https://mox.mosama.me)" },
+      signal: AbortSignal.timeout(15_000),
+    });
+    if (!res.ok || !res.headers.get("content-type")?.startsWith("image/")) {
+      missed(id, res.status === 404 ? 86_400_000 : 60_000);
+      return null;
+    }
+    const bytes = Buffer.from(await res.arrayBuffer());
+    if (!bytes.length) {
+      missed(id, 60_000);
+      return null;
+    }
+    return bytes;
+  } catch {
+    missed(id, 60_000);
+    return null;
+  }
+}
+
+/** Sharper than the 75 the smaller sizes get: this is the one picture looked at closely. */
+const MADE_QUALITY = 82;
+/** How many pictures may be waiting to be made before a made size is refused. */
+const MADE_WAITING = 16;
+class NoSource extends Error {}
+
 export async function tmdbWebp(size: string, file: string): Promise<Buffer | null> {
   const source = webpSource(file);
-  if (!source || !validImage(size, source)) return null;
+  if (!source || !validWebp(size, source)) return null;
   const name = file.slice(0, -".webp".length);
   const path = webpFile(size, name);
   try {
@@ -183,17 +225,30 @@ export async function tmdbWebp(size: string, file: string): Promise<Buffer | nul
   const running = making.get(id);
   if (running) return running;
   const job = (async () => {
-    const original = await tmdbImage(size, source);
-    if (!original) return null;
+    const width = madeSize(size) ? MADE_SIZES[size] : null;
+    /* A size of our own starts from TMDB's original, a megabyte or more. It
+       is fetched inside the queue, so only one is ever held in memory however
+       many are asked for at once — the server has 2GB — and beyond a handful
+       waiting, the rest are told no and shown the 1280 instead. */
+    if (width && making.size >= MADE_WAITING) return null;
+    const small = width ? null : await tmdbImage(size, source);
+    if (!width && !small) return null;
     const done = queue.then(async () => {
+      const from = width ? await original(source) : small;
+      if (!from) throw new NoSource();
       const { default: sharp } = await import("sharp");
-      return sharp(original).webp({ quality: WEBP_QUALITY }).toBuffer();
+      return width
+        ? // Never enlarged: an original narrower than this is kept at its own width.
+          sharp(from).resize({ width, withoutEnlargement: true }).webp({ quality: MADE_QUALITY }).toBuffer()
+        : sharp(from).webp({ quality: WEBP_QUALITY }).toBuffer();
     });
     queue = done.catch(() => {});
     let webp: Buffer;
     try {
       webp = await done;
     } catch (e) {
+      // The original could not be fetched: `original` remembers that itself, for less long.
+      if (e instanceof NoSource) return null;
       console.error(`tmdb-images: no webp for ${id}:`, (e as Error).message);
       missed(missId, 86_400_000);
       return null;

@@ -1,5 +1,6 @@
 "use client";
 
+import { SheetSkeleton } from "./Loading";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { FriendsOnTitle } from "./Friends";
 import type { FriendMark } from "@/lib/friends";
@@ -16,7 +17,7 @@ import { cn } from "@/lib/cn";
 import { useSwipeToClose } from "./useSwipeToClose";
 import { backdropUrl, localImage } from "@/lib/images";
 import type { MediaKind, Verdict } from "@/db/schema";
-import { keepTitle, loadTitle } from "./titleCache";
+import { keepTitle, loadTitle, useRefreshOnClose } from "./titleCache";
 
 export type SheetTitle = {
   tmdbId: number;
@@ -117,6 +118,8 @@ export function TitleSheet({
   );
 
   const [busy, setBusy] = useState(false);
+  // A rating, a save or a follow made in here shows on the page behind once this shuts.
+  useRefreshOnClose();
   const panelRef = useRef<HTMLDivElement>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
 
@@ -343,7 +346,7 @@ export function TitleSheet({
           {error ? (
             <p className="p-6 text-center text-ink-faint">Couldn’t load this title — {error}</p>
           ) : !data ? (
-            <p className="p-6 text-center text-ink-faint">Loading…</p>
+            <SheetSkeleton />
           ) : (
             <div className="flex flex-col gap-5 px-5 pb-10 pt-5">
               <section className="flex flex-col gap-2.5">

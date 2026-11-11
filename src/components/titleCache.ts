@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
+import { usePathname, useRouter } from "next/navigation";
 
 /**
  * Titles the sheet has fetched, kept for a few minutes.
@@ -31,11 +32,53 @@ export function loadTitle<T>(kind: string, tmdbId: number): Promise<T> {
 /** What the sheet just changed (a rating, a follow), so reopening shows it. */
 export function keepTitle(kind: string, tmdbId: number, title: unknown) {
   kept.set(`${kind}:${tmdbId}`, { at: Date.now(), title: Promise.resolve(title) });
+  changedAt = Date.now();
 }
 
 /** Something changed a title outside its sheet (a rating, an episode ticked): ask afresh next time. */
 export function forgetTitles() {
   kept.clear();
+  changedAt = Date.now();
+}
+
+/**
+ * When this account last rated, saved, followed or ticked something.
+ *
+ * Pages are drawn on the server from those and then kept by the browser for
+ * `staleTimes.dynamic` seconds (next.config.ts), so without this a title saved
+ * on Home was missing from My List for half a minute, and one removed inside a
+ * sheet stayed in the grid behind it.
+ */
+let changedAt = 0;
+
+/** How long the browser keeps a page, plus a little. Matches next.config.ts. */
+const KEPT_FOR = 35_000;
+
+/** In a sheet: redraw the page behind it on closing, if the sheet changed anything. */
+export function useRefreshOnClose() {
+  const router = useRouter();
+  useEffect(() => {
+    const opened = Date.now();
+    return () => {
+      if (changedAt >= opened) router.refresh();
+    };
+  }, [router]);
+}
+
+/** On <body> once: a page reached just after a change is asked for again, not taken from the browser's copy. */
+export function KeepFresh() {
+  const router = useRouter();
+  const path = usePathname();
+  /** When each page was last drawn from the server. */
+  const drawn = useRef(new Map<string, number>());
+  useEffect(() => {
+    const now = Date.now();
+    const before = drawn.current.get(path);
+    drawn.current.set(path, now);
+    // Only a copy the browser may still be holding, made before the change.
+    if (before !== undefined && before <= changedAt && now - before < KEPT_FOR) router.refresh();
+  }, [path, router]);
+  return null;
 }
 
 /** On <body> once: fetch the title under a resting mouse pointer. */

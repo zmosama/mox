@@ -144,7 +144,7 @@ struct TodayView: View {
                 }
             }
         } else {
-            ProgressView().frame(maxWidth: .infinity).padding(.top, 40)
+            Skeleton(kind: .rows).padding(.top, 12)
         }
     }
 

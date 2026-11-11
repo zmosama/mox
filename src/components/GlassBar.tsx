@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
+import { useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/cn";
 
 /** Where each tab goes on the website, and how it is drawn. Home's sections use it too. */
@@ -51,9 +52,13 @@ export const WEB_TABS: Record<string, { href: string; label: string; icon: strin
  * The floating glass bar, as in the iPhone app: your tabs either side of the
  * ring, which is home and never moves. Which tabs, and in what order, is the
  * account's choice (Settings), shared with the app. The ring carries no label
- * — the logo is the name. The same bar on every screen size.
+ * — the logo is the name. That is a phone or a tablet; a computer gets
+ * `TopBar` instead.
  */
-export function GlassBar({ tabs }: { tabs: string[] }) {
+/** Who is signed in, for the photo beside the bar on a computer. */
+type BarUser = { name: string; avatar: string | null } | null;
+
+export function GlassBar({ tabs, user }: { tabs: string[]; user: BarUser }) {
   const path = usePathname();
   const home = path === "/";
   const shown = tabs.filter((id) => WEB_TABS[id]);
@@ -68,19 +73,24 @@ export function GlassBar({ tabs }: { tabs: string[] }) {
     );
   };
 
+  /* A computer: the bar sits at the top, as on the iPad — names, no icons,
+     and the screens that are not in your bar under "More". */
+  const more = Object.keys(WEB_TABS).filter((id) => !shown.includes(id));
+
   return (
     <>
+      <TopBar path={path} tabs={shown} more={more} user={user} />
       {/* Content fades as it slides under the bar, as on iOS — only just
           behind the bar: a taller, blacker fade dimmed every poster in the
           bottom third of a large screen. */}
       <div
         aria-hidden
-        className="pointer-events-none fixed inset-x-0 bottom-0 z-[45] h-[calc(4.5rem+env(safe-area-inset-bottom))] bg-gradient-to-b from-transparent to-black/80"
+        className="pointer-events-none fixed inset-x-0 bottom-0 z-[45] h-[calc(4.5rem+env(safe-area-inset-bottom))] bg-gradient-to-b from-transparent to-black/80 lg:hidden"
       />
     <nav
       aria-label="Sections"
       /* Above page content and search results, below the title sheet (z-50). */
-      className="fixed inset-x-0 bottom-[calc(0.75rem+env(safe-area-inset-bottom))] z-[46] flex justify-center px-4"
+      className="fixed inset-x-0 bottom-[calc(0.75rem+env(safe-area-inset-bottom))] z-[46] flex justify-center px-4 lg:hidden"
     >
       <ul className="flex items-center gap-0.5 rounded-full border border-white/10 bg-[#1c1f1e]/95 p-1.5 shadow-pop sm:gap-1">
         {left.map(tab)}
@@ -103,6 +113,156 @@ export function GlassBar({ tabs }: { tabs: string[] }) {
         {right.map(tab)}
       </ul>
     </nav>
+    </>
+  );
+}
+
+/** The bar on a computer: one pill at the top, centred. */
+function TopBar({ path, tabs, more, user }: { path: string; tabs: string[]; more: string[]; user: BarUser }) {
+  const router = useRouter();
+  const [open, setOpen] = useState(false);
+  const menu = useRef<HTMLLIElement>(null);
+  const on = (href: string) => (href === "/" ? path === "/" : path === href || path.startsWith(`${href}/`));
+
+  // The menu shuts on a click anywhere else, on Escape, and on arriving somewhere.
+  useEffect(() => {
+    if (!open) return;
+    const away = (e: MouseEvent) => !menu.current?.contains(e.target as Node) && setOpen(false);
+    const key = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
+    document.addEventListener("click", away);
+    document.addEventListener("keydown", key);
+    return () => {
+      document.removeEventListener("click", away);
+      document.removeEventListener("keydown", key);
+    };
+  }, [open]);
+
+  /** Search lives on Home: go there if need be, then put the cursor in it. */
+  const search = () => {
+    if (path !== "/") router.push("/");
+    let tries = 0;
+    const focus = () => {
+      const box = document.querySelector<HTMLInputElement>('input[aria-label="Search"]');
+      if (box && window.location.pathname === "/") {
+        box.focus();
+        box.scrollIntoView({ block: "center", behavior: "smooth" });
+      } else if (tries++ < 40) setTimeout(focus, 50);
+    };
+    focus();
+  };
+
+  const item = "flex h-10 items-center rounded-full px-4 text-[15px] font-medium transition";
+  const state = (active: boolean) => (active ? "bg-white/[0.12] text-love" : "text-ink hover:bg-white/[0.06]");
+
+  return (
+    <>
+      <div
+        aria-hidden
+        className="pointer-events-none fixed inset-x-0 top-0 z-[45] hidden h-24 bg-gradient-to-t from-transparent to-black/80 lg:block"
+      />
+      {/* Your photo in the top corner, level with the bar, as on the iPad —
+          on every screen, not only Home. On a phone it stays on Home's picture. */}
+      <Link
+        href={user ? "/admin" : "/admin/login"}
+        aria-label={user ? "Account and settings" : "Sign in"}
+        className={cn(
+          "fixed end-6 top-[18px] z-[46] hidden size-10 place-items-center overflow-hidden rounded-full border-[1.5px] border-love/70 text-[17px] font-semibold shadow-pop transition hover:opacity-85 lg:grid xl:end-10",
+          user ? "bg-love-soft text-bg" : "bg-card text-ink",
+        )}
+      >
+        {user?.avatar ? (
+          // eslint-disable-next-line @next/next/no-img-element -- a small, already-sized photo
+          <img src={user.avatar} alt="" className="size-full object-cover" />
+        ) : user ? (
+          user.name.slice(0, 1).toUpperCase()
+        ) : (
+          <svg viewBox="0 0 24 24" className="size-5 fill-current" aria-hidden>
+            <path d="M12 12a5 5 0 1 0 0-10 5 5 0 0 0 0 10zm0 2c-4.400 0-8 2.500-8 5.500V22h16v-2.500c0-3-3.600-5.500-8-5.500z" />
+          </svg>
+        )}
+      </Link>
+      <nav aria-label="Sections" className="fixed inset-x-0 top-3 z-[46] hidden justify-center px-4 lg:flex">
+        <ul className="flex items-center gap-0.5 rounded-full border border-white/10 bg-[#1c1f1e]/95 p-1.5 shadow-pop">
+          <li>
+            <Link href="/" aria-current={on("/") ? "page" : undefined} className={cn(item, "gap-2 ps-2.5", state(on("/")))}>
+              {/* eslint-disable-next-line @next/next/no-img-element -- a fixed brand asset */}
+              <img src="/ring-tab.png" alt="" className="size-6" draggable={false} />
+              Home
+            </Link>
+          </li>
+          {tabs.map((id) => {
+            const t = WEB_TABS[id];
+            return (
+              <li key={id}>
+                <Link href={t.href} aria-current={on(t.href) ? "page" : undefined} className={cn(item, state(on(t.href)))}>
+                  {t.label}
+                </Link>
+              </li>
+            );
+          })}
+          <li ref={menu} className="relative">
+            <button
+              type="button"
+              aria-haspopup="menu"
+              aria-expanded={open}
+              onClick={() => setOpen((o) => !o)}
+              className={cn(item, "gap-1", state(open || more.some((id) => on(WEB_TABS[id].href)) || on("/admin")))}
+            >
+              More
+              <svg viewBox="0 0 24 24" className={cn("size-4 transition", open && "rotate-180")} fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                <path d="M6 9l6 6 6-6" />
+              </svg>
+            </button>
+            {open ? (
+              <ul
+                role="menu"
+                className="absolute end-0 top-[calc(100%+0.6rem)] w-52 overflow-hidden rounded-2xl border border-white/10 bg-[#1c1f1e] py-1.5 shadow-pop"
+              >
+                {more.map((id) => {
+                  const t = WEB_TABS[id];
+                  return (
+                    <li key={id} role="none">
+                      <Link
+                        role="menuitem"
+                        href={t.href}
+                        onClick={() => setOpen(false)}
+                        className={cn("flex items-center gap-3 px-4 py-2.5 text-[14px] font-medium transition hover:bg-white/[0.06]", on(t.href) ? "text-love" : "text-ink")}
+                      >
+                        <svg viewBox="0 0 24 24" className="size-[18px] fill-current" aria-hidden>
+                          <path d={t.icon} fillRule="evenodd" />
+                        </svg>
+                        {t.label}
+                      </Link>
+                    </li>
+                  );
+                })}
+                {more.length ? <li role="none" className="my-1.5 h-px bg-white/10" /> : null}
+                <li role="none">
+                  <Link
+                    role="menuitem"
+                    href="/admin"
+                    onClick={() => setOpen(false)}
+                    className={cn("flex items-center gap-3 px-4 py-2.5 text-[14px] font-medium transition hover:bg-white/[0.06]", on("/admin") ? "text-love" : "text-ink")}
+                  >
+                    <svg viewBox="0 0 24 24" className="size-[18px] fill-current" aria-hidden>
+                      <path d="M12 12a4.500 4.500 0 1 0 0-9 4.500 4.500 0 0 0 0 9zm0 2c-4.400 0-8 2.500-8 5.500V21h16v-1.500c0-3-3.600-5.500-8-5.500z" />
+                    </svg>
+                    Settings
+                  </Link>
+                </li>
+              </ul>
+            ) : null}
+          </li>
+          <li>
+            <button type="button" aria-label="Search" onClick={search} className="grid size-10 place-items-center rounded-full text-ink transition hover:bg-white/[0.06]">
+              <svg viewBox="0 0 24 24" className="size-5" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" aria-hidden>
+                <circle cx="11" cy="11" r="6.500" />
+                <path d="M16 16l4.500 4.500" />
+              </svg>
+            </button>
+          </li>
+        </ul>
+      </nav>
     </>
   );
 }

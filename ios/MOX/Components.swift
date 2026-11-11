@@ -24,6 +24,23 @@ enum Day {
 
     static func date(_ s: String) -> Date? { iso.date(from: String(s.prefix(10))) }
 
+    /// The day `days` after this one, as the server writes dates.
+    static func adding(_ days: Int, to s: String) -> String {
+        guard let d = date(s) else { return s }
+        var cal = Calendar(identifier: .gregorian)
+        cal.timeZone = zone
+        return iso.string(from: cal.date(byAdding: .day, value: days, to: d) ?? d)
+    }
+
+    /// "Thu" and 12, for a calendar column's head.
+    static func column(_ s: String) -> (weekday: String, number: Int) {
+        guard let d = date(s) else { return (s, 0) }
+        var cal = Calendar(identifier: .gregorian)
+        cal.timeZone = zone
+        let names = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
+        return (names[cal.component(.weekday, from: d) - 1], cal.component(.day, from: d))
+    }
+
     /// Today in Cairo, as the server writes dates.
     static var todayISO: String { iso.string(from: .now) }
 
@@ -87,12 +104,30 @@ enum ImageStore {
     private static let tmdb = "https://image.tmdb.org/t/p/"
     private static let keptSizes: Set<Substring> = ["w92", "w154", "w185", "w300", "w342", "w500", "w780", "w1280"]
 
+    /// Sizes TMDB does not have, which the server makes from the original
+    /// (images.ts MADE_SIZES) for the big picture on an iPad. They exist only
+    /// on our server, and only as WebP.
+    private static let madeSizes: Set<Substring> = ["w1920", "w2560"]
+
     private static func ours(_ url: String) -> String? {
         guard url.hasPrefix(tmdb) else { return nil }
         let rest = url.dropFirst(tmdb.count)
         let parts = rest.split(separator: "/")
-        guard parts.count == 2, keptSizes.contains(parts[0]) else { return nil }
+        guard parts.count == 2 else { return nil }
+        if madeSizes.contains(parts[0]), parts[1].hasSuffix(".jpg") {
+            return "/api/img/\(parts[0])/\(parts[1].dropLast(4)).webp"
+        }
+        guard keptSizes.contains(parts[0]) else { return nil }
         return "/api/img/" + rest
+    }
+
+    /// The largest size TMDB itself has, for when a made one cannot be had:
+    /// a server not yet updated, or one that is down.
+    private static func plain(_ url: String) -> String? {
+        guard url.hasPrefix(tmdb) else { return nil }
+        let parts = url.dropFirst(tmdb.count).split(separator: "/")
+        guard parts.count == 2, madeSizes.contains(parts[0]) else { return nil }
+        return tmdb + "w1280/" + parts[1]
     }
 
     /// A path on our own server ("/api/f1/img/…") against the server in
@@ -107,7 +142,13 @@ enum ImageStore {
     static func load(_ url: String) async -> UIImage? {
         if let hit = cached(url) { return hit }
         var raw = await fetch(resolve(url))
-        if raw == nil, ours(url) != nil { raw = await fetch(URL(string: url)) }
+        if raw == nil, let smaller = plain(url) {
+            // No such size on TMDB to fall back to: the 1280 instead, ours then theirs.
+            raw = await fetch(resolve(smaller))
+            if raw == nil { raw = await fetch(URL(string: smaller)) }
+        } else if raw == nil, ours(url) != nil {
+            raw = await fetch(URL(string: url))
+        }
         guard let raw else { return nil }
         // Decode off the main thread, so the first frame it appears in is cheap.
         let image = await raw.byPreparingForDisplay() ?? raw

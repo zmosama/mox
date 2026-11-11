@@ -321,8 +321,24 @@ describe("your own account", () => {
     const again = await users.googleAccount({ sub: "g-1", email: "fresh.person@gmail.com" });
     expect(again.value).toEqual({ id: first.value.id, created: false });
 
+    // An account made with a password, and a session from before the link.
+    const otherId = accountId("tester_other");
+    const sqlite = new Database(file);
+    sqlite.prepare("INSERT INTO sessions (id, user_id, expires_at) VALUES (?, ?, ?)")
+      .run("from-before-google", otherId, Math.floor(Date.now() / 1000) + 3600);
+    sqlite.close();
+
     const linked = await users.googleAccount({ sub: "g-2", email: "other@example.com" });
-    expect(linked.value).toEqual({ id: accountId("tester_other"), created: false });
+    expect(linked.value).toEqual({ id: otherId, created: false });
+
+    // Nobody proved they owned that address when it was typed into sign-up, so
+    // the link ends what the old password and its sessions could do.
+    const { signIn } = await import("./auth");
+    expect(await signIn("tester_other", "a-long-enough-password")).toBeNull();
+    expect(users.accountOf(otherId)).toMatchObject({ hasPassword: false, google: true });
+    const check = new Database(file, { readonly: true });
+    expect((check.prepare("SELECT count(*) AS n FROM sessions WHERE user_id = ?").get(otherId) as { n: number }).n).toBe(0);
+    check.close();
 
     // Same local part, different address: a second, distinct username.
     const twin = await users.googleAccount({ sub: "g-3", email: "fresh.person@example.org" });
@@ -339,8 +355,8 @@ describe("your own account", () => {
   it("deletes your own account, but never the owner's", async () => {
     expect((await users.deleteOwnAccount(owner.id, "owner-password")).ok).toBe(false);
     const id = accountId("tester_other");
-    expect((await users.deleteOwnAccount(id, "wrong-password")).ok).toBe(false);
-    expect((await users.deleteOwnAccount(id, "a-long-enough-password")).ok).toBe(true);
+    // Linked to Google above, so it has no password to ask for.
+    expect((await users.deleteOwnAccount(id, undefined)).ok).toBe(true);
     expect(users.accountOf(id)).toBeNull();
   });
 });
