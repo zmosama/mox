@@ -25,3 +25,6 @@ export async function fetchSchedule(): Promise<Schedule> {
   if (!res.ok) throw new Error(`TVmaze ${res.status} on /schedule/full`);
   return indexSchedule((await res.json()) as ScheduleEntry[]);
 }
+
+// One show's full list lives in src/lib so following a show can use it too.
+export { fetchShowEpisodes } from "../../src/lib/tvmaze";

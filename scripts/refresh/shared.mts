@@ -103,7 +103,7 @@ export type Detail = {
      landing-date shift, "just aired" can still be reaching us this morning. */
   last_episode_to_air?: { season_number: number; air_date?: string | null } | null;
   /** Who broadcasts it, which decides whether its air date needs shifting. */
-  networks?: { name?: string | null }[];
+  networks?: { name?: string | null; origin_country?: string | null }[];
   /** Where it was made, which decides it for a streamer like Disney+. */
   origin_country?: string[];
   /** How a series is found in TVmaze, which knows what time it airs. */

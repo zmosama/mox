@@ -21,13 +21,13 @@
  * is the right thing to spend to make "it fixes itself" true.
  */
 import { and, eq, gte, inArray, isNotNull, notInArray } from "drizzle-orm";
-import { airsInLocalPrime, arrivalOf, landsOn } from "../../src/lib/airing";
+import { airsInLocalPrime, MAX_PLATFORM_GAP, needsHistory, seasonArrivals } from "../../src/lib/airing";
 import { addDaysISO } from "../../src/lib/dates";
 import {
   catalogue, db, HOME, mapPool, s, saveTitle, fetchTitle, subscribed, type Fetched,
 } from "./shared.mjs";
 import { includedOn, type WatchProviders } from "../../src/lib/providers";
-import { fetchSchedule } from "./tvmaze.mjs";
+import { fetchSchedule, fetchShowEpisodes } from "./tvmaze.mjs";
 import {
   EMPTY_SCHEDULE, episodeKey, type Schedule, type ShowSchedule,
 } from "../../src/lib/tvmaze";
@@ -44,10 +44,11 @@ type Airing = { season: number; episode: number; airs: string; airsAt: number | 
  * One season's episodes, dated by when they reach us rather than by when the
  * network showed them.
  *
- * The scan starts a day before `from` because that is exactly the episode the
- * shift is for: an HBO Sunday is our Monday, so yesterday's printed date can
- * still be today's arrival. Anything that lands before `from` once shifted is
- * dropped here, so the widened scan never widens the result.
+ * The scan reaches {@link MAX_PLATFORM_GAP} days either side of the window
+ * because that is how far an arrival can sit from TMDB's printed date: an HBO
+ * Sunday is our Monday, and Dexter's printed Sunday is really the Friday.
+ * Anything that lands outside the window once dated is dropped, so the widened
+ * scan never widens the result.
  */
 async function upcomingEpisodes(
   tmdbId: number,
@@ -55,9 +56,10 @@ async function upcomingEpisodes(
   from: string,
   to: string,
   shifted: boolean,
+  american: boolean,
   known: ShowSchedule | null,
   catalogueServices: ReturnType<typeof catalogue>,
-  stamps: Map<string, string> | null = null,
+  history: () => Promise<ShowSchedule | null>,
 ) {
   /* The season's own watch providers come in the same request: which service
      has *these* episodes, which is not always the show's. */
@@ -69,33 +71,40 @@ async function upcomingEpisodes(
   // No region at all means TMDB has no answer for this season, which is not the
   // same as "on nothing": that season is left to the show's own listing.
   const services = Object.keys(regions).length ? includedOn(regions, catalogueServices, HOME) : null;
-  const scanFrom = addDaysISO(from, -1);
+  const scanFrom = addDaysISO(from, -MAX_PLATFORM_GAP);
+  const scanTo = addDaysISO(to, MAX_PLATFORM_GAP);
+
+  /* TMDB stays the list of which episodes exist — it is the source the rest of
+     the app is built on — and TVmaze is consulted only for when each one
+     arrives. The whole season goes in, because whether a big gap between the
+     two is believed depends on whether it is the season's pattern. */
+  const printed = (season.episodes ?? [])
+    .filter((e): e is Episode & { air_date: string } => Boolean(e.air_date))
+    .map((e) => ({ ...e, key: episodeKey(e.season_number, e.episode_number), airDate: e.air_date }));
+  /* A two- or three-day gap is believed only as the season's pattern, and the
+     schedule only shows the weeks still to come. Near a season's end that is
+     too few to tell, so the show's aired episodes are fetched to show it. */
+  let dates = known;
+  if (needsHistory(printed, known, american)) {
+    dates = (await history().catch(() => null)) ?? known;
+  }
+  const arrivals = seasonArrivals(printed, dates, shifted, american);
+
   const out: Airing[] = [];
   let timed = 0;
-
-  for (const e of season.episodes ?? []) {
-    if (!e.air_date || e.air_date < scanFrom || e.air_date > to) continue;
-
-    /* TMDB stays the list of which episodes exist — it is the source the rest
-       of the app is built on — and TVmaze is consulted only for when each one
-       arrives. Keeping the correction this narrow means a show TVmaze has never
-       heard of behaves exactly as it did before. */
-    const { airs, timed: fromStamp } = arrivalOf(
-      e.air_date,
-      known?.get(episodeKey(e.season_number, e.episode_number)),
-      shifted,
-    );
-    if (fromStamp) timed++;
-
-    if (airs < from || airs > to) continue;
-    // The exact instant only when the date came from it: a stamp TVmaze gives
-    // for a differently numbered episode is no answer for this one.
-    const stamp = fromStamp ? stamps?.get(episodeKey(e.season_number, e.episode_number)) : undefined;
-    const at = stamp ? Date.parse(stamp) : NaN;
+  for (const e of printed) {
+    if (e.airDate < scanFrom || e.airDate > scanTo) continue;
+    const a = arrivals.get(e.key)!;
+    if (a.airs < from || a.airs > to) continue;
+    if (a.fromTvmaze) timed++;
+    // The instant only when the date came from it — a timed broadcast or a
+    // service's set release hour, never TVmaze's placeholder or another
+    // episode's stamp. Notifications go out at this moment (push-plan.ts).
+    const at = a.stamp ? Date.parse(a.stamp) : NaN;
     out.push({
       season: e.season_number,
       episode: e.episode_number,
-      airs,
+      airs: a.airs,
       airsAt: Number.isNaN(at) ? null : Math.floor(at / 1000),
     });
   }
@@ -178,6 +187,7 @@ export async function refreshCalendar(today: string, extraSeries: number[] = [])
     if (!title) return null;
 
     const shifted = airsInLocalPrime(title.detail.networks, title.detail.origin_country);
+    const american = (title.detail.origin_country ?? []).includes("US");
     const next = title.detail.next_episode_to_air;
     const last = title.detail.last_episode_to_air;
 
@@ -195,7 +205,7 @@ export async function refreshCalendar(today: string, extraSeries: number[] = [])
       ...new Set(
         [
           next?.season_number,
-          last?.air_date && landsOn(last.air_date, shifted) >= today
+          last?.air_date && addDaysISO(last.air_date, MAX_PLATFORM_GAP) >= today
             ? last.season_number
             : undefined,
         ].filter((n): n is number => n !== undefined),
@@ -206,14 +216,15 @@ export async function refreshCalendar(today: string, extraSeries: number[] = [])
       title.detail.external_ids?.imdb_id ?? null,
       title.detail.external_ids?.tvdb_id ?? null,
     );
-
-    const stamps = schedule.stampsFor(
+    // Fetched at most once per show, and only if a season needs it.
+    let asked: Promise<ShowSchedule | null> | null = null;
+    const history = () => (asked ??= fetchShowEpisodes(
       title.detail.external_ids?.imdb_id ?? null,
       title.detail.external_ids?.tvdb_id ?? null,
-    );
+    ));
     const scanned = await Promise.all(
       seasons.map((n) =>
-        upcomingEpisodes(tmdbId, n, today, horizon, shifted, known, services, stamps).catch(() => null),
+        upcomingEpisodes(tmdbId, n, today, horizon, shifted, american, known, services, history).catch(() => null),
       ),
     );
     if (scanned.some((season) => season === null)) return null;
@@ -318,7 +329,7 @@ export async function refreshCalendar(today: string, extraSeries: number[] = [])
      says so out loud. */
   const timed = ok.reduce((n, r) => n + r.timed, 0);
   return `${episodes} episodes across ${airing} of ${ok.length} shows`
-    + `, ${timed} timed by TVmaze`
+    + `, ${timed} dated by TVmaze (${schedule.dated} timed, ${schedule.streamed} streaming in its schedule)`
     + (dropped ? `, ${dropped} out of scope removed` : "")
     + (missed ? `, ${missed} unreachable` : "");
 }

@@ -15,13 +15,15 @@ describe("indexing TVmaze's schedule", () => {
     // Lanterns: HBO 21:00 New York on the 20th is the 21st in Cairo.
     const s = indexSchedule([entry({})]);
     expect(s.dated).toBe(1);
-    expect(s.forShow("tt111", null)?.get(episodeKey(1, 6))).toBe("2026-09-21");
+    expect(s.forShow("tt111", null)?.get(episodeKey(1, 6))).toEqual({
+      airs: "2026-09-21", stamp: "2026-09-21T01:00:00+00:00", web: null,
+    });
   });
 
   it("finds the same show by either id", () => {
     const s = indexSchedule([entry({})]);
-    expect(s.forShow(null, 222)?.get("1x6")).toBe("2026-09-21");
-    expect(s.forShow("tt111", null)?.get("1x6")).toBe("2026-09-21");
+    expect(s.forShow(null, 222)?.get("1x6")?.airs).toBe("2026-09-21");
+    expect(s.forShow("tt111", null)?.get("1x6")?.airs).toBe("2026-09-21");
   });
 
   it("drops an episode with no air time rather than trusting the placeholder", () => {
@@ -34,6 +36,25 @@ describe("indexing TVmaze's schedule", () => {
     ]);
     expect(s.dated).toBe(0);
     expect(s.forShow("tt111", null)).toBeNull();
+  });
+
+  it("keeps a streaming release's official day, without its placeholder time", () => {
+    // Nocturne on Apple TV: no time, a noon UTC stand-in, and the Friday.
+    const s = indexSchedule([{
+      season: 1, number: 4, airdate: "2026-11-13", airtime: "", airstamp: "2026-11-13T12:00:00+00:00",
+      _embedded: { show: { externals: { imdb: "tt5" }, network: null, webChannel: { name: "Apple TV" } } },
+    }]);
+    expect(s.streamed).toBe(1);
+    expect(s.dated).toBe(0);
+    expect(s.forShow("tt5", null)?.get("1x4")).toEqual({ airs: "2026-11-13", stamp: null, web: "Apple TV" });
+  });
+
+  it("still drops a broadcast's blank time even when it also streams", () => {
+    const s = indexSchedule([{
+      season: 1, number: 1, airdate: "2026-11-13", airtime: "", airstamp: "2026-11-13T04:00:00+00:00",
+      _embedded: { show: { externals: { imdb: "tt6" }, network: { name: "HBO" }, webChannel: { name: "HBO Max" } } },
+    }]);
+    expect(s.forShow("tt6", null)).toBeNull();
   });
 
   it("ignores an entry with nothing to match it on", () => {
@@ -56,8 +77,8 @@ describe("indexing TVmaze's schedule", () => {
       entry({ imdb: "tt1", tvdb: 1, number: 6 }),
       entry({ imdb: "tt2", tvdb: 2, number: 3, airstamp: "2026-10-01T02:00:00+00:00" }),
     ]);
-    expect(s.forShow("tt1", null)?.get("1x6")).toBe("2026-09-21");
-    expect(s.forShow("tt2", null)?.get("1x3")).toBe("2026-10-01");
+    expect(s.forShow("tt1", null)?.get("1x6")?.airs).toBe("2026-09-21");
+    expect(s.forShow("tt2", null)?.get("1x3")?.airs).toBe("2026-10-01");
     expect(s.forShow("tt1", null)?.has("1x3")).toBe(false);
   });
 });
