@@ -3,7 +3,7 @@
 import type { Explore } from "@/lib/explore";
 import { MoxPulse } from "./Loading";
 import Link from "next/link";
-import { WEB_TABS } from "./GlassBar";
+import { HOME_EVENT, WEB_TABS } from "./GlassBar";
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
 import { AskBar, MOODS, MoodChips, type Mood } from "./AskBar";
@@ -74,6 +74,24 @@ export function Home({
   const [searched, setSearched] = useState("");
   const [open, setOpen] = useState<Ref | null>(null);
   const [person, setPerson] = useState<number | null>(null);
+
+  /* Pressing Home while already here means "take me back to Home": the
+     search, the mood and any open sheet are put away and the page goes back
+     to the top. A link to the page you are on changes nothing by itself, so
+     the bar says so with an event (GlassBar.tsx, HOME_EVENT). */
+  useEffect(() => {
+    const back = () => {
+      setQuery("");
+      setMood(null);
+      setShowMoods(false);
+      setOpen(null);
+      setPerson(null);
+      (document.activeElement as HTMLElement | null)?.blur?.();
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    };
+    window.addEventListener(HOME_EVENT, back);
+    return () => window.removeEventListener(HOME_EVENT, back);
+  }, []);
 
   // The biggest titles of the week lead, with their pictures; the rest of the
   // week's list follows as a rail.
@@ -757,6 +775,7 @@ function WideCard({ item, onOpen }: { item: CardTitle; onOpen: (r: Ref) => void 
 /** One line of what is in each screen, for Home's sections. */
 const SECTIONS: { id: string; line: string }[] = [
   { id: "today", line: "Out today" },
+  { id: "airing", line: "The month's episodes" },
   { id: "news", line: "Headlines" },
   { id: "library", line: "Following & watchlist" },
   { id: "studios", line: "By studio" },
@@ -772,6 +791,7 @@ const SECTIONS: { id: string; line: string }[] = [
 /** Each screen's own colour in "Explore"; F1's is the sport's red, Today's the mark's green. */
 const SECTION_TINT: Record<string, string> = {
   today: "#00d084",
+  airing: "#ff9f43",
   news: "#4a9eff",
   library: "#ffb020",
   studios: "#a78bfa",
@@ -784,13 +804,15 @@ function Sections({ explore }: { explore: Explore }) {
   return (
     <section>
       <Heading title="Explore" />
-      {/* Seven screens: the first is twice as wide, so the grid closes with
-          no hole at two columns (1 + 3 rows of 2) and at four (2 rows). */}
-      <div className="grid grid-cols-2 gap-2.5 lg:grid-cols-4 lg:gap-3">
+      {/* Eight screens. Today is twice as wide everywhere and the Calendar on a
+          phone too, so the grid closes with no hole: two columns make 5 rows,
+          three columns on a computer make 3. */}
+      <div className="grid grid-cols-2 gap-2.5 lg:grid-cols-3 lg:gap-3">
         {SECTIONS.map(({ id, line }, i) => {
           const t = WEB_TABS[id];
           const now = explore[id];
           const wide = i === 0;
+          const phoneWide = i === 1;
           const posters = now?.posters ?? [];
           return (
             <Link
@@ -802,6 +824,7 @@ function Sections({ explore }: { explore: Explore }) {
                 "bg-[linear-gradient(135deg,color-mix(in_srgb,var(--tint)_13%,var(--color-surface)),var(--color-surface)_62%)]",
                 "hover:ring-[color-mix(in_srgb,var(--tint)_55%,transparent)] focus-visible:ring-2 focus-visible:ring-[var(--tint)] active:scale-[0.99] lg:min-h-[128px] lg:p-4",
                 wide && "col-span-2",
+                phoneWide && "col-span-2 lg:col-span-1",
               )}
             >
               {id === "f1" ? (
@@ -832,7 +855,7 @@ function Sections({ explore }: { explore: Explore }) {
                 {/* A few posters from inside, overlapping like a hand of cards.
                     On a phone only the wide card has the room. */}
                 {posters.length ? (
-                  <span aria-hidden className={cn("shrink-0 items-end ps-3", wide ? "flex" : "hidden lg:flex")}>
+                  <span aria-hidden className={cn("shrink-0 items-end ps-3", wide || phoneWide ? "flex" : "hidden lg:flex")}>
                     {posters.map((src, n) => (
                       // eslint-disable-next-line @next/next/no-img-element -- a small poster, a logo or a newsroom's picture
                       <img

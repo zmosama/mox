@@ -609,12 +609,19 @@ export type CalendarEpisode = {
 
 export function calendar(userId: number | null, days = 14): CalendarEpisode[] {
   const today = todayISO();
-  const horizon = addDaysISO(today, days);
+  return calendarBetween(userId, today, addDaysISO(today, days));
+}
 
+/**
+ * The calendar between two days, both included. The past is there as well:
+ * what already aired stays in `episodes` as the record of what the calendar
+ * said, which is what lets the month view show what you missed.
+ */
+export function calendarBetween(userId: number | null, from: string, to: string): CalendarEpisode[] {
   const rows = db
     .select()
     .from(schema.episodes)
-    .where(and(gte(schema.episodes.airs, today), lte(schema.episodes.airs, horizon)))
+    .where(and(gte(schema.episodes.airs, from), lte(schema.episodes.airs, to)))
     .orderBy(schema.episodes.airs)
     .all();
 

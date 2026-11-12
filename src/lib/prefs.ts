@@ -32,6 +32,8 @@ export const TABS = [
   // What your friends on MOX rated lately.
   { id: "friends", label: "Friends", interest: false, appOnly: false },
   { id: "f1", label: "F1", interest: true, appOnly: false },
+  // The month's episodes, past days included (the website's /calendar).
+  { id: "airing", label: "TV Calendar", interest: false, appOnly: false },
   { id: "calendar", label: "Calendar", interest: false, appOnly: true },
   { id: "tasks", label: "Tasks", interest: false, appOnly: true },
 ] as const;

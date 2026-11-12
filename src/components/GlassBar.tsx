@@ -6,6 +6,12 @@ import { useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/cn";
 
 /** Where each tab goes on the website, and how it is drawn. Home's sections use it too. */
+/** Sent when Home is pressed on Home itself: Home puts its search away (Home.tsx). */
+export const HOME_EVENT = "mox:home";
+const backHome = (path: string) => () => {
+  if (path === "/") window.dispatchEvent(new Event(HOME_EVENT));
+};
+
 export const WEB_TABS: Record<string, { href: string; label: string; icon: string }> = {
   today: {
     href: "/new",
@@ -39,6 +45,12 @@ export const WEB_TABS: Record<string, { href: string; label: string; icon: strin
     label: "Universes",
     // A planet and its ring.
     icon: "M12 6a6 6 0 1 1 0 12 6 6 0 0 1 0-12zm7.6-1.9c1.6.4 2.6 1.1 2.8 2.1.4 1.9-2.6 4.4-7.2 6.2a26 26 0 0 1-8.7 1.9c-2.6 0-4.3-.6-4.7-1.7-.3-1 .4-2.1 1.8-3.2l.4 1.5c-.6.6-.8 1-.7 1.3.2.6 1.6.9 3.7.8a24 24 0 0 0 7.5-1.7c4-1.6 6.3-3.6 6.1-4.7-.1-.4-.6-.8-1.5-1l.5-1.5z",
+  },
+  airing: {
+    href: "/calendar",
+    label: "Calendar",
+    // A calendar page with its rings and one day marked.
+    icon: "M7 2h2v2h6V2h2v2h2a2 2 0 0 1 2 2v13a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2V2zM5 9v10h14V9H5zm9 3h3v3h-3v-3z",
   },
   f1: {
     href: "/f1",
@@ -75,7 +87,7 @@ export function GlassBar({ tabs, user }: { tabs: string[]; user: BarUser }) {
 
   /* A computer: the bar sits at the top, as on the iPad — names, no icons,
      and the screens that are not in your bar under "More". */
-  const more = Object.keys(WEB_TABS).filter((id) => !shown.includes(id));
+  const more = Object.keys(WEB_TABS).filter((id) => !shown.includes(id) && !PINNED.includes(id));
 
   return (
     <>
@@ -99,6 +111,7 @@ export function GlassBar({ tabs, user }: { tabs: string[]; user: BarUser }) {
           <Link
             href="/"
             aria-label="MOX"
+            onClick={backHome(path)}
             aria-current={home ? "page" : undefined}
             className={cn(
               "grid h-12 w-[68px] place-items-center rounded-full transition sm:w-[84px]",
@@ -116,6 +129,9 @@ export function GlassBar({ tabs, user }: { tabs: string[]; user: BarUser }) {
     </>
   );
 }
+
+/** Always in the bar on a computer, right after Home, whatever the account's tabs. */
+const PINNED = ["airing"];
 
 /** The bar on a computer: one pill at the top, centred. */
 function TopBar({ path, tabs, more, user }: { path: string; tabs: string[]; more: string[]; user: BarUser }) {
@@ -184,13 +200,13 @@ function TopBar({ path, tabs, more, user }: { path: string; tabs: string[]; more
       <nav aria-label="Sections" className="fixed inset-x-0 top-3 z-[46] hidden justify-center px-4 lg:flex">
         <ul className="flex items-center gap-0.5 rounded-full border border-white/10 bg-[#1c1f1e]/95 p-1.5 shadow-pop">
           <li>
-            <Link href="/" aria-current={on("/") ? "page" : undefined} className={cn(item, "gap-2 ps-2.5", state(on("/")))}>
+            <Link href="/" onClick={backHome(path)} aria-current={on("/") ? "page" : undefined} className={cn(item, "gap-2 ps-2.5", state(on("/")))}>
               {/* eslint-disable-next-line @next/next/no-img-element -- a fixed brand asset */}
               <img src="/ring-tab.png" alt="" className="size-6" draggable={false} />
               Home
             </Link>
           </li>
-          {tabs.map((id) => {
+          {[...PINNED, ...tabs.filter((id) => !PINNED.includes(id))].map((id) => {
             const t = WEB_TABS[id];
             return (
               <li key={id}>

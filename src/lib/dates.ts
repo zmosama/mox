@@ -39,3 +39,20 @@ export function dayLabel(iso: string, today: string): string {
 
 export const episodeCode = (season: number, episode: number) =>
   `S${String(season).padStart(2, "0")}E${String(episode).padStart(2, "0")}`;
+
+/** "2026-11" for a day in November 2026. */
+export const monthOf = (iso: string) => iso.slice(0, 7);
+
+/** The first and last day of a month given as "2026-11". */
+export function monthRange(month: string): { from: string; to: string } {
+  const [y, m] = month.split("-").map(Number);
+  const last = new Date(Date.UTC(y, m, 0)).getUTCDate();
+  return { from: `${month}-01`, to: `${month}-${String(last).padStart(2, "0")}` };
+}
+
+/** The month `n` months from "2026-11": -1 is "2026-10", 2 is "2027-01". */
+export function addMonths(month: string, n: number): string {
+  const [y, m] = month.split("-").map(Number);
+  const d = new Date(Date.UTC(y, m - 1 + n, 1));
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
+}

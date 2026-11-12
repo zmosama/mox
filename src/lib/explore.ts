@@ -7,7 +7,7 @@
  * reach the network is the race calendar (kept in memory for six hours), so
  * it gets a short time limit and the card falls back to its plain caption.
  */
-import { and, desc, eq, gt, inArray, isNotNull, sql } from "drizzle-orm";
+import { and, desc, eq, gt, gte, inArray, isNotNull, lte, sql } from "drizzle-orm";
 import { db, schema } from "@/db";
 import type { MediaKind } from "@/db/schema";
 import type { ageFilter } from "./age-filter";
@@ -87,6 +87,43 @@ async function gather(userId: number | null, today: string, aged: ReturnType<typ
     sub: arrivals[0]?.title ?? null,
     posters: arrivals.slice(0, 3).map((f) => f.poster!),
   };
+
+  // Calendar: this week's episodes — of the shows you follow, if you follow any.
+  {
+    const follows = userId === null ? [] : db
+      .select({ tmdbId: schema.follows.tmdbId })
+      .from(schema.follows)
+      .where(eq(schema.follows.userId, userId))
+      .all()
+      .map((f) => f.tmdbId);
+    const week = db
+      .select({ tmdbId: schema.episodes.tmdbId, show: schema.episodes.show, airs: schema.episodes.airs })
+      .from(schema.episodes)
+      .where(and(
+        gte(schema.episodes.airs, today),
+        lte(schema.episodes.airs, addDaysISO(today, 6)),
+        isNotNull(schema.episodes.tmdbId),
+        ...(follows.length ? [inArray(schema.episodes.tmdbId, follows)] : []),
+      ))
+      .orderBy(schema.episodes.airs)
+      .all();
+    const shows = await aged(
+      [...new Set(week.map((w) => w.tmdbId!))].map((tmdbId) => ({ tmdbId, kind: "tv" as MediaKind })),
+    );
+    const allowed = new Set(shows.map((x) => x.tmdbId));
+    const seen = week.filter((w) => allowed.has(w.tmdbId!));
+    const next = seen[0];
+    const day = next
+      ? next.airs === today
+        ? "today"
+        : new Date(`${next.airs}T12:00:00Z`).toLocaleDateString("en-GB", { weekday: "short", timeZone: "UTC" })
+      : null;
+    out.airing = {
+      line: seen.length ? `${count(seen.length, "episode")} this week` : null,
+      sub: next ? `${next.show} · ${day}` : follows.length ? "Nothing of yours this week" : null,
+      posters: postersOf(shows.map((x) => ({ tmdbId: x.tmdbId, kind: "tv" as MediaKind }))).posters,
+    };
+  }
 
   // News: the film and TV press in the last day.
   const stories = db
