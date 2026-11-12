@@ -33,8 +33,12 @@ const PICKS = 30;
 /** Fewer ratings than this and the model is guessing. */
 const MIN_RATINGS = 10;
 /** A title almost nobody has rated on TMDB is usually not one to recommend. */
-const MIN_VOTES = 20;
-/** Nor one most people who saw it thought poorly of. */
+const MIN_VOTES = 50;
+/**
+ * Nor one most people who saw it thought poorly of. Only a floor: a 6.5 that
+ * fits your ratings is still a pick, and TMDB's rating already moves titles up
+ * and down the list (qualityFactor).
+ */
 const MIN_RATING = 6;
 /**
  * A film shorter than this is not an evening: the first run's picks were full
@@ -52,18 +56,47 @@ const PER_REASON = 3;
  */
 const FAMILY_MAX = 3;
 /**
+ * Nor superheroes. Rate a lot of Marvel and every list TMDB has for you is
+ * more of it: ten of thirty were caped (Titans, Stargirl, The Gifted, Gen V…),
+ * crowding out everything else your ratings point at. They stay, a few.
+ */
+const CAPED_MAX = 6;
+const CAPED = new Set(["superhero", "superhero team", "based on comic", "marvel comics", "dc comics", "marvel cinematic universe (mcu)", "dc extended universe (dceu)"]);
+/** How many of the best candidates are checked for being superhero work. */
+const KEYWORD_CHECKS = 90;
+/**
  * Arabic work is rated by few people on TMDB, so the vote floor that keeps out
  * obscure filler would keep out almost all of it too.
  */
 const MIN_VOTES_BY_LANG: Record<string, number> = { ar: 3 };
-/** Newer first, gently: a 1961 cartoon should not outrank this year's film. */
+/**
+ * Newer first, gently. Old work stays very much in: an older series you never
+ * got to, or one worth going back to (Lost, Person of Interest), is as good a
+ * pick as this year's — it only gives way to a newer one that fits as well.
+ */
 function ageFactor(releaseDate: string | null) {
   const y = Number(releaseDate?.slice(0, 4) ?? 0);
   return y >= 2015 ? 1 : y >= 2005 ? 0.85 : y >= 1995 ? 0.7 : 0.5;
 }
-/** And better first: TMDB's rating, from 0.5 at 6.25 up to 1.25 at 8.1 and above. */
+/**
+ * The best-known titles turn up in nearly every "people also liked" list, so a
+ * plain sum ranks them first for anybody — that is how a Marvel fan got eight
+ * superhero shows. Each title's score is damped by how widely known it is, so
+ * agreement among your favourites counts for more than sheer popularity.
+ */
+function fameFactor(votes: number) {
+  return 1 / (1 + Math.log10(Math.max(1, votes / 300)));
+}
+/**
+ * And better first, by a curve rather than a cutoff: 6.0 counts 0.16, 7.0
+ * 0.64, 7.5 1, 8.3 and above 1.6. A plain straight line let Justice League
+ * (6.1) lead the list on the strength of how many superhero films point at
+ * it; squared, a weaker title needs far more of your favourites behind it,
+ * and still makes it when it truly fits.
+ */
 function qualityFactor(rating: number | null) {
-  return Math.min(1.25, Math.max(0.5, ((rating ?? 6.5) - 5) / 2.5));
+  const r = rating ?? 6.8;
+  return Math.min(1.6, Math.max(0.05, ((r - 5) / 2.5) ** 2));
 }
 
 /** Services anybody subscribes to; everything, if nobody has chosen yet. */
@@ -218,9 +251,13 @@ async function recommendations(kind: MediaKind, tmdbId: number): Promise<Rec[]> 
  * every screen can show them.
  */
 export async function refreshPicks(today: string) {
+  /* Only accounts that still exist: ratings left behind by a deleted account
+     have nobody to write picks for, and the foreign key refusing the write
+     stopped the whole run for everybody after them. */
   const people = db
     .select({ userId: s.verdicts.userId, n: sql<number>`count(*)` })
     .from(s.verdicts)
+    .innerJoin(s.users, eq(s.users.id, s.verdicts.userId))
     .groupBy(s.verdicts.userId)
     .all()
     .filter((p) => p.n >= MIN_RATINGS);
@@ -279,36 +316,56 @@ export async function refreshPicks(today: string) {
       const d = f.detail as TitleDetail & { genres?: { name: string }[] };
       if (!f.platforms.some((p) => !mine.size || mine.has(p))) return [];
       const genres = (d.genres ?? []).map((g) => g.name.toLowerCase());
-      // Children's television is not for this list, whatever recommends it.
-      if (genres.includes("kids")) return [];
+      // Children's television is not for this list, whatever recommends it,
+      // and nor are making-of documentaries ("Marvel Studios Legends") or
+      // reality and talk shows that share a cast with what you loved.
+      if (["kids", "documentary", "reality", "talk", "news"].some((g) => genres.includes(g))) return [];
       const lang = d.original_language ?? "";
       if ((d.vote_count ?? 0) < (MIN_VOTES_BY_LANG[lang] ?? MIN_VOTES)) return [];
       if (d.vote_average != null && d.vote_average < MIN_RATING) return [];
       const runtime = d.runtime ?? null;
       if (c.kind === "movie" && runtime != null && runtime < MIN_FILM_MINUTES) return [];
-      const because = [...c.because].sort((a, b) => b[1] - a[1])[0]?.[0];
+      const released = d.release_date || d.first_air_date || null;
+      // The two favourites that pull hardest, so the reason reads as the reason.
+      const because = [...c.because].sort((a, b) => b[1] - a[1]).slice(0, 2).map(([name]) => name);
       return [{
         f,
         collection: d.belongs_to_collection?.name ?? null,
         family: genres.includes("animation") || genres.includes("family"),
-        score: c.score * ageFactor(d.release_date || d.first_air_date || null) * qualityFactor(d.vote_average ?? null),
-        reason: because ? `Because you liked ${because}` : null,
+        score: c.score * ageFactor(released) * qualityFactor(d.vote_average ?? null) * fameFactor(d.vote_count ?? 0),
+        reason: because.length ? `Because you liked ${because.join(" and ")}` : null,
+        first: because[0] ?? null,
       }];
     }).sort((a, b) => b.score - a.score);
+
+    // Which of the front-runners are superhero work, from their keywords.
+    const caped = new Set<string>();
+    await mapPool(scored.slice(0, KEYWORD_CHECKS), 6, async (x) => {
+      try {
+        const k = await tmdb<{ keywords?: { name: string }[]; results?: { name: string }[] }>(`/${x.f.kind}/${x.f.tmdbId}/keywords`);
+        if ((k.keywords ?? k.results ?? []).some((w) => CAPED.has(w.name.toLowerCase()))) caped.add(key(x.f.tmdbId, x.f.kind));
+      } catch {
+        // Unknown counts as not caped: the cap is a balance, not a filter.
+      }
+    });
 
     const perCollection = new Map<string, number>();
     const perReason = new Map<string, number>();
     let families = 0;
+    let capes = 0;
     const chosen: typeof scored = [];
     for (const x of scored) {
       if (chosen.length >= PICKS) break;
       const c = x.collection;
       if (c && (perCollection.get(c) ?? 0) >= PER_COLLECTION) continue;
-      if (x.reason && (perReason.get(x.reason) ?? 0) >= PER_REASON) continue;
+      if (x.first && (perReason.get(x.first) ?? 0) >= PER_REASON) continue;
       if (x.family && families >= FAMILY_MAX) continue;
+      const isCaped = caped.has(key(x.f.tmdbId, x.f.kind));
+      if (isCaped && capes >= CAPED_MAX) continue;
+      if (isCaped) capes++;
       if (x.family) families++;
       if (c) perCollection.set(c, (perCollection.get(c) ?? 0) + 1);
-      if (x.reason) perReason.set(x.reason, (perReason.get(x.reason) ?? 0) + 1);
+      if (x.first) perReason.set(x.first, (perReason.get(x.first) ?? 0) + 1);
       chosen.push(x);
     }
     // An empty answer is never written: a bad night keeps yesterday's picks.

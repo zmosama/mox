@@ -35,6 +35,14 @@ import { tmdb } from "../../src/lib/tmdb";
 
 /** How far ahead to stock it. The page itself shows a fortnight. */
 const HORIZON_DAYS = 60;
+/**
+ * How far back a season's missing days are filled in. A show that joins the
+ * calendar after its premiere — Rings of Power arrived with episodes 1–4
+ * already out — would otherwise start at episode 5, and the month view would
+ * say nothing aired before it. Only missing rows are added: what the calendar
+ * already said about a past day is left as it was.
+ */
+const BACKFILL_DAYS = 30;
 
 type Episode = { season_number: number; episode_number: number; air_date: string | null };
 
@@ -71,7 +79,8 @@ async function upcomingEpisodes(
   // No region at all means TMDB has no answer for this season, which is not the
   // same as "on nothing": that season is left to the show's own listing.
   const services = Object.keys(regions).length ? includedOn(regions, catalogueServices, HOME) : null;
-  const scanFrom = addDaysISO(from, -MAX_PLATFORM_GAP);
+  const backTo = addDaysISO(from, -BACKFILL_DAYS);
+  const scanFrom = addDaysISO(backTo, -MAX_PLATFORM_GAP);
   const scanTo = addDaysISO(to, MAX_PLATFORM_GAP);
 
   /* TMDB stays the list of which episodes exist — it is the source the rest of
@@ -91,28 +100,29 @@ async function upcomingEpisodes(
   const arrivals = seasonArrivals(printed, dates, shifted, american);
 
   const out: Airing[] = [];
+  const missed: Airing[] = [];
   let timed = 0;
   for (const e of printed) {
     if (e.airDate < scanFrom || e.airDate > scanTo) continue;
     const a = arrivals.get(e.key)!;
-    if (a.airs < from || a.airs > to) continue;
-    if (a.fromTvmaze) timed++;
+    if (a.airs > to || a.airs < backTo) continue;
+    if (a.airs >= from && a.fromTvmaze) timed++;
     // The instant only when the date came from it — a timed broadcast or a
     // service's set release hour, never TVmaze's placeholder or another
     // episode's stamp. Notifications go out at this moment (push-plan.ts).
     const at = a.stamp ? Date.parse(a.stamp) : NaN;
-    out.push({
+    (a.airs < from ? missed : out).push({
       season: e.season_number,
       episode: e.episode_number,
       airs: a.airs,
       airsAt: Number.isNaN(at) ? null : Math.floor(at / 1000),
     });
   }
-  return { out, timed, season: seasonNumber, services };
+  return { out, missed, timed, season: seasonNumber, services };
 }
 
 type Refreshed = {
-  tmdbId: number; show: string; airings: Airing[]; title: Fetched; timed: number;
+  tmdbId: number; show: string; airings: Airing[]; missed: Airing[]; title: Fetched; timed: number;
   seasons: { season: number; services: string[] | null }[];
 };
 
@@ -228,12 +238,13 @@ export async function refreshCalendar(today: string, extraSeries: number[] = [])
       ),
     );
     if (scanned.some((season) => season === null)) return null;
-    const found = scanned as { out: Airing[]; timed: number; season: number; services: string[] | null }[];
+    const found = scanned as { out: Airing[]; missed: Airing[]; timed: number; season: number; services: string[] | null }[];
 
     return {
       tmdbId,
       show: named.get(tmdbId) ?? title.detail.name ?? title.detail.title ?? `#${tmdbId}`,
       airings: found.flatMap((f) => f.out),
+      missed: found.flatMap((f) => f.missed),
       timed: found.reduce((n, f) => n + f.timed, 0),
       seasons: found.map((f) => ({ season: f.season, services: f.services })),
       title,
@@ -269,6 +280,7 @@ export async function refreshCalendar(today: string, extraSeries: number[] = [])
         .run().changes
     : 0;
 
+  let filled = 0;
   db.transaction((tx) => {
     for (const show of ok) {
       /* Only the future is rebuilt. What already aired is a record of what this
@@ -293,6 +305,14 @@ export async function refreshCalendar(today: string, extraSeries: number[] = [])
             set: { airs: a.airs, airsAt: a.airsAt, tmdbId: show.tmdbId },
           })
           .run();
+      }
+
+      // Past days it never had, added; past days it had, left alone.
+      for (const a of show.missed) {
+        filled += tx.insert(s.episodes)
+          .values({ show: show.show, season: a.season, episode: a.episode, airs: a.airs, airsAt: a.airsAt, tmdbId: show.tmdbId })
+          .onConflictDoNothing()
+          .run().changes;
       }
 
       // Posters and service badges on the calendar come from `titles` and
@@ -330,6 +350,7 @@ export async function refreshCalendar(today: string, extraSeries: number[] = [])
   const timed = ok.reduce((n, r) => n + r.timed, 0);
   return `${episodes} episodes across ${airing} of ${ok.length} shows`
     + `, ${timed} dated by TVmaze (${schedule.dated} timed, ${schedule.streamed} streaming in its schedule)`
+    + (filled ? `, ${filled} missed days filled in` : "")
     + (dropped ? `, ${dropped} out of scope removed` : "")
     + (missed ? `, ${missed} unreachable` : "");
 }

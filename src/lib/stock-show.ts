@@ -18,8 +18,9 @@ import { addDaysISO, todayISO } from "./dates";
 import { tmdb } from "./tmdb";
 import { episodeKey, fetchShowEpisodes } from "./tvmaze";
 
-/** Same reach as the nightly job. */
+/** Same reach as the nightly job, both ways (calendar.mts BACKFILL_DAYS). */
 const HORIZON_DAYS = 60;
+const BACKFILL_DAYS = 30;
 
 type Detail = {
   name?: string;
@@ -32,7 +33,7 @@ type Detail = {
 
 type Episode = { season_number: number; episode_number: number; air_date: string | null };
 
-/** How many episodes it added; 0 when the show was already there or has nothing coming. */
+/** How many episodes it added, the last month's included; 0 when the show was already there or has nothing coming. */
 export async function stockShow(tmdbId: number, today = todayISO()): Promise<number> {
   const already = db
     .select({ show: schema.episodes.show })
@@ -68,6 +69,7 @@ export async function stockShow(tmdbId: number, today = todayISO()): Promise<num
     .get()?.show;
   const show = named ?? d.name ?? `#${tmdbId}`;
   const horizon = addDaysISO(today, HORIZON_DAYS);
+  const backTo = addDaysISO(today, -BACKFILL_DAYS);
 
   const rows: (typeof schema.episodes.$inferInsert)[] = [];
   for (const n of seasons) {
@@ -78,7 +80,7 @@ export async function stockShow(tmdbId: number, today = todayISO()): Promise<num
     const arrivals = seasonArrivals(printed, known, shifted, american);
     for (const e of printed) {
       const a = arrivals.get(e.key)!;
-      if (a.airs < today || a.airs > horizon) continue;
+      if (a.airs < backTo || a.airs > horizon) continue;
       const at = a.stamp ? Date.parse(a.stamp) : NaN;
       rows.push({
         show,
@@ -93,13 +95,15 @@ export async function stockShow(tmdbId: number, today = todayISO()): Promise<num
 
   db.transaction((tx) => {
     for (const r of rows) {
-      tx.insert(schema.episodes)
-        .values(r)
-        .onConflictDoUpdate({
-          target: [schema.episodes.show, schema.episodes.season, schema.episodes.episode],
-          set: { airs: r.airs, airsAt: r.airsAt, tmdbId },
-        })
-        .run();
+      const insert = tx.insert(schema.episodes).values(r);
+      // A past day already on the calendar keeps what it said.
+      (r.airs < today
+        ? insert.onConflictDoNothing()
+        : insert.onConflictDoUpdate({
+            target: [schema.episodes.show, schema.episodes.season, schema.episodes.episode],
+            set: { airs: r.airs, airsAt: r.airsAt, tmdbId },
+          })
+      ).run();
     }
   });
   return rows.length;

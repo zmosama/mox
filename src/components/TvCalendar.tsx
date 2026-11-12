@@ -176,7 +176,10 @@ export function TvCalendar({
   };
 
   return (
-    <section>
+    /* The full width of the screen, as Home has: every other page sits in the
+       layout's 1180px column, and a month of seven columns squeezed into it
+       left most of a computer's screen empty either side. */
+    <section className="mx-[calc(50%-50vw)] px-4 sm:px-6 lg:px-10">
       <header className="mb-5 flex flex-wrap items-end gap-x-4 gap-y-3">
         <div className="me-auto">
           <div className="text-[13px] font-medium text-love">{monthName(month, true)}</div>
