@@ -17,4 +17,18 @@ describe("authentication rate limiting", () => {
     });
     expect(clientAddress(req)).toBe("203.0.113.4");
   });
+
+  it("behind a Cloudflare Tunnel, believes Cloudflare and not a forged header", () => {
+    const req = new Request("http://localhost", {
+      headers: { "x-forwarded-for": "1.2.3.4, 198.51.100.7", "cf-connecting-ip": "198.51.100.7" },
+    });
+    process.env.MOX_TRUST_CF = "1";
+    try {
+      expect(clientAddress(req)).toBe("198.51.100.7");
+    } finally {
+      delete process.env.MOX_TRUST_CF;
+    }
+    // Without the setting the header means nothing: anyone could send it.
+    expect(clientAddress(req)).toBe("1.2.3.4");
+  });
 });
