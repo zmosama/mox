@@ -14,14 +14,14 @@ describe("parsePrefs", () => {
     expect(prefs.f1Shield).toBe(false);
   });
 
-  it("refuses an unknown tab rather than drawing a button to nowhere", () => {
-    expect(parsePrefs(JSON.stringify({ tabs: ["today", "casino"] })).tabs).toEqual(DEFAULT_PREFS.tabs);
+  it("drops an unknown tab rather than drawing a button to nowhere", () => {
+    expect(parsePrefs(JSON.stringify({ tabs: ["today", "casino"] })).tabs).toEqual(["today"]);
   });
 });
 
 describe("PrefsPatch", () => {
   it("allows at most four tabs, and at least one", () => {
-    expect(PrefsPatch.safeParse({ tabs: ["today", "news", "library", "f1", "tasks"] }).success).toBe(false);
+    expect(PrefsPatch.safeParse({ tabs: ["today", "news", "library", "f1", "studios"] }).success).toBe(false);
     expect(PrefsPatch.safeParse({ tabs: [] }).success).toBe(false);
     expect(PrefsPatch.safeParse({ tabs: ["f1"] }).success).toBe(true);
   });
@@ -29,6 +29,18 @@ describe("PrefsPatch", () => {
 
 describe("webTabs", () => {
   it("leaves out the tabs only the app can show", () => {
-    expect(webTabs({ ...DEFAULT_PREFS, tabs: ["today", "calendar", "f1", "tasks"] })).toEqual(["today", "f1"]);
+    expect(webTabs({ ...DEFAULT_PREFS, tabs: ["today", "picks", "f1", "airing"] })).toEqual(["today", "f1", "airing"]);
+  });
+});
+
+describe("parsePrefs and removed tabs", () => {
+  it("drops a tab that no longer exists and keeps the rest of the order", () => {
+    // The app's Calendar and Tasks were removed on 2026-11-18.
+    const p = parsePrefs(JSON.stringify({ tabs: ["today", "calendar", "f1", "tasks"] }));
+    expect(p.tabs).toEqual(["today", "f1"]);
+  });
+
+  it("falls back to the defaults when nothing known is left", () => {
+    expect(parsePrefs(JSON.stringify({ tabs: ["calendar", "tasks"] })).tabs).toEqual(DEFAULT_PREFS.tabs);
   });
 });

@@ -16,8 +16,6 @@ final class AppSettings {
     #endif
 
     var server: String { didSet { save("server", server) } }
-    /// Today's events from the phone's calendar, at the top of Today.
-    var showCalendarInToday: Bool { didSet { save("showCalendarInToday", showCalendarInToday) } }
     var aiProvider: String { didSet { save("aiProvider", aiProvider) } }
     /// Episodes of shows you follow, on the morning they reach you.
     var notifyEpisodes: Bool { didSet { save("notifyEpisodes", notifyEpisodes) } }
@@ -46,7 +44,6 @@ final class AppSettings {
 
     init() {
         server = defaults.string(forKey: "server") ?? Self.defaultServer
-        showCalendarInToday = defaults.bool(forKey: "showCalendarInToday")
         aiProvider = defaults.string(forKey: "aiProvider") ?? "Anthropic"
         notifyEpisodes = defaults.bool(forKey: "notifyEpisodes")
         notifyWatchlist = defaults.bool(forKey: "notifyWatchlist")

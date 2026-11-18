@@ -18,8 +18,8 @@ import { AGE_LEVELS, type AgeLevel } from "./ratings";
  * `interest` marks the tabs that are a passion rather than part of MOX itself —
  * F1 today, football or anime later. Adding one is a row here and a screen;
  * the bar, the settings and the stored order already cope with it.
- * `appOnly` tabs read the phone's own calendar and reminders, which a website
- * cannot, so the website leaves them out of its bar.
+ * `appOnly` tabs are ones only the app has a screen for (Picks, for now), so
+ * the website leaves them out of its bar.
  */
 export const TABS = [
   { id: "today", label: "Today", interest: false, appOnly: false },
@@ -34,8 +34,6 @@ export const TABS = [
   { id: "f1", label: "F1", interest: true, appOnly: false },
   // The month's episodes, past days included (the website's /calendar).
   { id: "airing", label: "TV Calendar", interest: false, appOnly: false },
-  { id: "calendar", label: "Calendar", interest: false, appOnly: true },
-  { id: "tasks", label: "Tasks", interest: false, appOnly: true },
 ] as const;
 
 export type TabId = (typeof TABS)[number]["id"];
@@ -121,6 +119,14 @@ export function parsePrefs(raw: string | null | undefined): Prefs {
     if (value && typeof value === "object") stored = value;
   } catch {
     // Unreadable: every field takes its default below.
+  }
+  /* A tab that has since been removed (the app's Calendar and Tasks, which
+     read the phone's own calendar) is dropped on its own, keeping the rest of
+     the order: left in, it failed the check and reset the whole bar. */
+  if (Array.isArray(stored.tabs)) {
+    const known = new Set<string>(TAB_IDS);
+    stored = { ...stored, tabs: stored.tabs.filter((t) => typeof t === "string" && known.has(t)) };
+    if (!(stored.tabs as string[]).length) delete stored.tabs;
   }
   const field = <K extends keyof Prefs>(key: K): Prefs[K] => {
     const checked = PrefsPatch.shape[key].safeParse(stored[key]);

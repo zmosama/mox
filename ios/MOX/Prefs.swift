@@ -4,40 +4,35 @@ import Foundation
 /// The same list as src/lib/prefs.ts on the server; the account's choice and
 /// order are stored there, so the website and the app agree.
 enum TabID: String, CaseIterable, Codable, Sendable, Identifiable {
-    case today, news, library, picks, studios, friends, f1, calendar, tasks
+    case today, airing, news, library, picks, studios, friends, f1
 
     var id: String { rawValue }
 
     var label: String {
         switch self {
         case .today: "Today"
+        case .airing: "Calendar"
         case .news: "News"
         case .library: "My List"
         case .picks: "Picks"
         case .studios: "Studios"
         case .friends: "Friends"
         case .f1: "F1"
-        case .calendar: "Calendar"
-        case .tasks: "Tasks"
         }
     }
 
     var icon: String {
         switch self {
         case .today: "sparkles.tv"
+        case .airing: "calendar"
         case .news: "newspaper"
         case .library: "bookmark"
         case .picks: "wand.and.stars"
         case .studios: "movieclapper"
         case .friends: "person.2"
         case .f1: "flag.checkered"
-        case .calendar: "calendar"
-        case .tasks: "checklist"
         }
     }
-
-    /// Reads the phone's own calendar or reminders, so it needs iOS's permission first.
-    var needsDevice: Bool { self == .calendar || self == .tasks }
 
     /// The payload the tab opens with, for loading it ahead of time.
     var screenPath: String? {
@@ -48,7 +43,7 @@ enum TabID: String, CaseIterable, Codable, Sendable, Identifiable {
         case .picks: "/api/app/picks"
         case .studios: "/api/studios"
         case .f1: "/api/f1"
-        case .friends, .calendar, .tasks: nil
+        case .friends, .airing: nil
         }
     }
 

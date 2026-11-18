@@ -159,9 +159,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = MOX;
-				INFOPLIST_KEY_NSCalendarsFullAccessUsageDescription = "MOX shows today's events next to what's worth watching.";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Ask MOX listens while the mic button is on.";
-				INFOPLIST_KEY_NSRemindersFullAccessUsageDescription = "MOX shows your reminders as tasks when you turn Tasks on.";
 				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Ask MOX turns what you say into a search.";
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = UIInterfaceOrientationPortrait;
@@ -193,9 +191,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = MOX;
-				INFOPLIST_KEY_NSCalendarsFullAccessUsageDescription = "MOX shows today's events next to what's worth watching.";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Ask MOX listens while the mic button is on.";
-				INFOPLIST_KEY_NSRemindersFullAccessUsageDescription = "MOX shows your reminders as tasks when you turn Tasks on.";
 				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Ask MOX turns what you say into a search.";
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = UIInterfaceOrientationPortrait;

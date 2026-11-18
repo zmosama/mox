@@ -1,11 +1,8 @@
-import EventKit
 import SwiftUI
 
-/// The website's /new page, with your day on top when the calendar is connected.
+/// The website's /new page.
 struct TodayView: View {
     @Environment(API.self) private var api
-    @Environment(AppSettings.self) private var settings
-    @Environment(CalendarStore.self) private var calendar
     @Environment(Router.self) private var router
 
     enum When: String, CaseIterable { case out = "Out now", soon = "Coming" }
@@ -18,13 +15,11 @@ struct TodayView: View {
     @State private var loadError: String?
     @State private var when: When = .out
     @State private var kind: Kind = .all
-    @State private var events: [EKEvent] = []
 
     var body: some View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 28) {
                 header
-                if settings.showCalendarInToday && calendar.canReadEvents { yourDay }
                 filters
                 timeline
             }
@@ -33,8 +28,6 @@ struct TodayView: View {
         .background(Theme.ink)
         .refreshable { api.touch(); await load() }
         .task(id: api.revision) { await load() }
-        .task(id: calendar.revision) { events = calendar.todaysEvents() }
-        .onChange(of: settings.showCalendarInToday) { events = calendar.todaysEvents() }
     }
 
     private var header: some View {
@@ -48,43 +41,6 @@ struct TodayView: View {
         }
         .padding(.horizontal, 20)
         .padding(.top, 12)
-    }
-
-    // MARK: - Your day
-
-    private var yourDay: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            SectionTitle(text: "Your day")
-            if events.isEmpty {
-                Text("Nothing on your calendar today — the evening is yours.")
-                    .font(.sora(14))
-                    .foregroundStyle(Theme.muted)
-                    .padding(.horizontal, 20)
-            }
-            ForEach(events, id: \.eventIdentifier) { event in
-                HStack(alignment: .top, spacing: 14) {
-                    Text(event.isAllDay ? "All day" : event.startDate.formatted(date: .omitted, time: .shortened))
-                        .font(.sora(12, .medium, relativeTo: .caption))
-                        .foregroundStyle(Theme.muted)
-                        .frame(width: 64, alignment: .leading)
-                    RoundedRectangle(cornerRadius: 2)
-                        .fill(Color(cgColor: event.calendar.cgColor))
-                        .frame(width: 3)
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(event.title ?? "Event")
-                            .font(.sora(15, .medium, relativeTo: .subheadline))
-                            .foregroundStyle(Theme.paper)
-                        if let place = event.location, !place.isEmpty {
-                            Text(place).font(.sora(12)).foregroundStyle(Theme.muted).lineLimit(1)
-                        }
-                    }
-                    Spacer()
-                }
-                .padding(12)
-                .background(Theme.raised, in: .rect(cornerRadius: 16))
-                .padding(.horizontal, 20)
-            }
-        }
     }
 
     // MARK: - Timeline

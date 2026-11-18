@@ -5,7 +5,6 @@ import SwiftUI
 struct SettingsView: View {
     @Environment(AppSettings.self) private var settings
     @Environment(API.self) private var api
-    @Environment(CalendarStore.self) private var calendar
     @Environment(Notifier.self) private var notifier
     @Environment(\.openURL) private var openURL
     @Environment(Router.self) private var router
@@ -25,17 +24,6 @@ struct SettingsView: View {
         NavigationStack {
             Form {
                 account
-
-                Section {
-                    Toggle("Show my calendar in Today", isOn: Binding(
-                        get: { settings.showCalendarInToday && calendar.canReadEvents },
-                        set: { on in Task { settings.showCalendarInToday = on ? await calendar.requestEvents() : false } }
-                    ))
-                } header: {
-                    Text("Your day")
-                } footer: {
-                    Text(accessNote)
-                }
 
                 Section {
                     NavigationLink {
@@ -347,10 +335,6 @@ struct SettingsView: View {
         } else {
             SignInSection()
         }
-    }
-
-    private var accessNote: String {
-        "Reads and writes the calendars and reminders already on this iPhone — iCloud, Google, Outlook — so what you add in MOX shows up there too, and the other way round."
     }
 
     private func uploadPhoto() {

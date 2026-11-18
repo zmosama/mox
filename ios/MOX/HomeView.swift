@@ -801,11 +801,22 @@ struct ScreenStrip: View {
         let all = TabID.allCases
         VStack(alignment: .leading, spacing: 12) {
             SectionTitle(text: "Explore")
+            // Eight screens, Today first and the Calendar second. A phone puts
+            // each of those across the width, leaving six for three rows of
+            // two; an iPad sets Today across two of its three columns with the
+            // Calendar beside it, leaving six for two rows of three.
             Grid(horizontalSpacing: 10, verticalSpacing: 10) {
-                if columns == 2, let first = all.first {
-                    // Nine screens: Today across the top leaves eight, four full rows.
-                    GridRow { card(first, wide: true).gridCellColumns(2) }
-                    rows(Array(all.dropFirst()))
+                if all.count > 2 {
+                    if columns == 2 {
+                        GridRow { card(all[0], wide: true).gridCellColumns(2) }
+                        GridRow { card(all[1], wide: true).gridCellColumns(2) }
+                    } else {
+                        GridRow {
+                            card(all[0], wide: true).gridCellColumns(columns - 1)
+                            card(all[1], wide: false)
+                        }
+                    }
+                    rows(Array(all.dropFirst(2)))
                 } else {
                     rows(all)
                 }
@@ -834,9 +845,8 @@ struct ScreenStrip: View {
         // A phone's half-width card has no room for posters beside the words.
         let posters = (wide || sizeClass == .regular) ? (tile?.posters ?? []) : []
         return Button {
-            // The iPad's sidebar holds every screen but Calendar and Tasks
-            // until they are chosen; the phone's dock only your four.
-            let inSidebar = sizeClass == .regular && !id.needsDevice
+            // The iPad's sidebar holds every screen; the phone's dock only your four.
+            let inSidebar = sizeClass == .regular
             if settings.tabs.contains(id) || inSidebar { router.tab = .tab(id) } else { router.screen = id }
         } label: {
             VStack(alignment: .leading, spacing: 10) {
@@ -905,14 +915,13 @@ struct ScreenStrip: View {
     private static func tint(_ id: TabID) -> Color {
         switch id {
         case .today: Theme.green
+        case .airing: Color(hex: 0xFF9F43)
         case .news: Color(hex: 0x4A9EFF)
         case .library: Color(hex: 0xFFB020)
         case .picks: Color(hex: 0x22D3EE)
         case .studios: Color(hex: 0xA78BFA)
         case .friends: Color(hex: 0xFF6B9D)
         case .f1: Color(hex: 0xFF3B30)
-        case .calendar: Color(hex: 0xFF8A3D)
-        case .tasks: Color(hex: 0x9BE15D)
         }
     }
 
@@ -921,13 +930,12 @@ struct ScreenStrip: View {
         switch id {
         case .f1: return f1Next ?? "Races & standings"
         case .today: return "Out today"
+        case .airing: return "The month's episodes"
         case .news: return "Headlines"
         case .library: return "Following & watchlist"
         case .picks: return "From your ratings"
         case .studios: return "By studio"
         case .friends: return "What friends watch"
-        case .calendar: return "Your calendar"
-        case .tasks: return "Your reminders"
         }
     }
 }

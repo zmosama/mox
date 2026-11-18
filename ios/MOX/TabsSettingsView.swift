@@ -5,7 +5,6 @@ import SwiftUI
 struct TabsSettingsView: View {
     @Environment(AppSettings.self) private var settings
     @Environment(API.self) private var api
-    @Environment(CalendarStore.self) private var calendar
     @State private var saveError: String?
 
     var body: some View {
@@ -66,11 +65,6 @@ struct TabsSettingsView: View {
 
     private func add(_ id: TabID) async {
         guard settings.tabs.count < TabID.slots else { return }
-        switch id {
-        case .calendar: guard await calendar.requestEvents() else { return }
-        case .tasks: guard await calendar.requestReminders() else { return }
-        default: break
-        }
         update(settings.tabs + [id])
     }
 

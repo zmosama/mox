@@ -5,7 +5,6 @@ import UserNotifications
 struct MOXApp: App {
     @State private var settings: AppSettings
     @State private var api: API
-    @State private var calendar = CalendarStore()
     @State private var router: Router
     @State private var notifier = Notifier()
     @Environment(\.scenePhase) private var phase
@@ -41,7 +40,6 @@ struct MOXApp: App {
             RootView()
                 .environment(settings)
                 .environment(api)
-                .environment(calendar)
                 .environment(router)
                 .environment(notifier)
                 .preferredColorScheme(.dark)
@@ -112,7 +110,7 @@ struct RootView: View {
                     Tab(id.label, systemImage: id.icon, value: AppTab.tab(id)) { screen(id) }
                 }
                 TabSection("More") {
-                    ForEach(TabID.allCases.filter { !tabs.contains($0) && !$0.needsDevice }) { id in
+                    ForEach(TabID.allCases.filter { !tabs.contains($0) }) { id in
                         Tab(id.label, systemImage: id.icon, value: AppTab.tab(id)) { screen(id) }
                     }
                 }
@@ -213,8 +211,7 @@ struct RootView: View {
         case .studios: StudiosView()
         case .friends: FriendsView()
         case .f1: F1View()
-        case .calendar: CalendarTabView()
-        case .tasks: TasksView()
+        case .airing: TvCalendarView()
         }
     }
 }
