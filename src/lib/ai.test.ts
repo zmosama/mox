@@ -132,6 +132,10 @@ describe("what Claude Code reports as it starts", () => {
     expect(() => checkStart({ tools: ["mcp__mox__forget"], apiKeySource: "none" }, ours)).toThrow();
   });
 
+  it("stops the run when one of ours did not make it in", () => {
+    expect(() => checkStart({ tools: ["mcp__mox__search_titles"], apiKeySource: "none" }, ours)).toThrow("remember");
+  });
+
   it("stops the run when it signed in with an API key instead of the subscription", () => {
     expect(() => checkStart({ tools: [], apiKeySource: "ANTHROPIC_API_KEY" }, [])).toThrow("ANTHROPIC_API_KEY");
     expect(() => checkStart({ tools: [], apiKeySource: "apiKeyHelper" }, [])).toThrow();

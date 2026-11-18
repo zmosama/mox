@@ -67,7 +67,9 @@ const NOT_SEEN = "(He has not seen any reply yet — only the posters. Write you
  * turns, so the earlier lines go in as a transcript above his new message.
  */
 export function promptWith(history: { role: "user" | "assistant"; content: string }[], message: string): string {
-  if (!history.length) return message;
+  /* Never his raw words first: Claude Code reads a prompt that opens with "/"
+     as one of its own commands. */
+  if (!history.length) return `His message to you:\n\n${message}`;
   const lines = history.map((l) => `${l.role === "user" ? "Him" : "You (MOX)"}: ${l.content}`).join("\n\n");
   return `<conversation_so_far>\n${lines}\n</conversation_so_far>\n\nThat was your conversation with him so far, oldest first. His new message, the one to answer now:\n\n${message}`;
 }
@@ -167,9 +169,16 @@ export async function* moxTurn(userId: number, name: string, message: string, si
         },
       );
       let step = await turn.next();
-      for (; !step.done; step = await turn.next()) {
-        if (step.value.t === "text") reply += step.value.v;
-        yield step.value;
+      try {
+        for (; !step.done; step = await turn.next()) {
+          if (step.value.t === "text") reply += step.value.v;
+          yield step.value;
+        }
+      } finally {
+        /* He closed the app mid-answer: this generator is ended at the yield
+           above, and the run inside it must be ended too, or its Claude Code
+           process would be left running. */
+        if (!step.done) await turn.return({ reply, refused: false }).catch(() => {});
       }
       if (step.value.refused) yield { t: "error", v: "MOX can't help with that one." };
       // Posters may come from the last tool call, after the last words.

@@ -129,13 +129,16 @@ export function lockedOptions(spec: RunSpec, env: Env = process.env): Options {
 
 /**
  * What Claude Code says about itself as it starts, held against what was
- * asked for. Throws on any tool that is not one of ours, and on any sign-in
- * other than the subscription.
+ * asked for. Throws on any tool that is not one of ours, on one of ours that
+ * is missing (the SDK leaves out a tool it cannot describe, with only a
+ * warning), and on any sign-in other than the subscription.
  */
 export function checkStart(start: { tools: string[]; apiKeySource: string }, allowed: string[]) {
   const ours = new Set(allowed.map(toolId));
   const extra = start.tools.filter((t) => !ours.has(t));
   if (extra.length) throw new Error(`Claude Code started with tools MOX did not give it: ${extra.join(", ")}`);
+  const missing = allowed.filter((t) => !start.tools.includes(toolId(t)));
+  if (missing.length) throw new Error(`Claude Code started without some of MOX's tools: ${missing.join(", ")}`);
   // "none" is how it reports a subscription sign-in: no API key of any kind in use.
   if (start.apiKeySource !== "none") throw new Error(`Claude Code signed in with "${start.apiKeySource}", not the subscription`);
 }
@@ -200,7 +203,8 @@ export async function* subscriptionRun(spec: RunSpec): AsyncGenerator<RunEvent> 
         return;
       }
     }
-    if (!spec.signal?.aborted) throw new Error("Claude Code stopped without a result");
+    // Cut short by the caller, or died: either way there was no answer, and that is never passed off as one.
+    throw new Error(spec.signal?.aborted ? "the run was cut short" : "Claude Code stopped without a result");
   } catch (e) {
     const tail = said.trim().split("\n").at(-1);
     if (tail && !spec.signal?.aborted && e instanceof Error) e.message += ` — ${tail}`;
@@ -234,7 +238,14 @@ export function subscriptionJson(q: { model: string; system: string; user: strin
     let out: unknown | null = null;
     // The answer in a shape is itself a tool call inside Claude Code, so one round is not enough.
     const run = subscriptionRun({ model: q.model, system: [q.system], prompt: q.user, schema: q.schema, maxTurns: 4, signal: AbortSignal.timeout(120_000) });
-    for await (const e of run) if (e.t === "end") out = e.refused ? null : (e.structured ?? null);
+    let ended = false;
+    for await (const e of run) {
+      if (e.t !== "end") continue;
+      ended = true;
+      out = e.refused ? null : (e.structured ?? null);
+    }
+    // No ending is no answer (it was not reached), which is not the same as a bad one.
+    if (!ended) throw new Error("the model gave no answer");
     return out;
   });
 }
