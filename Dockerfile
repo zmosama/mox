@@ -34,6 +34,12 @@ RUN npm run build && rm -rf .next/cache
 
 FROM node:24-bookworm-slim
 
+# The weekly IMDb build (scripts/imdb/build.mts) downloads IMDb's files with
+# curl, which the slim image does not carry.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends curl ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /app
 
 # The database and the TMDB cache live on a volume mounted at /data, so they
