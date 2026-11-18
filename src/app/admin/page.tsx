@@ -2,6 +2,8 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { avatarUrl, currentUser, isOwner } from "@/lib/auth";
 import { SpeedReport } from "@/components/SpeedReport";
+import { AirCheckReport } from "@/components/AirCheckReport";
+import { latestAirCheck } from "@/lib/air-check-store";
 import { vitalsSummary } from "@/lib/vitals";
 import { aiAvailable, aiStatus } from "@/lib/ai";
 import { ProfilePhoto } from "@/components/ProfilePhoto";
@@ -89,6 +91,8 @@ export default async function AdminHome() {
           </Link>
         </section>
       ) : null}
+
+      {owner ? <AirCheckReport check={latestAirCheck()} /> : null}
 
       {owner ? <SpeedReport rows={vitalsSummary()} /> : null}
 

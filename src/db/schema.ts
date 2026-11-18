@@ -731,3 +731,24 @@ export const moxMessages = sqliteTable(
   },
   (t) => [index("mox_messages_user").on(t.userId, t.id)],
 );
+
+/**
+ * The nightly second opinion on episode dates (src/lib/air-check.ts): MOX's
+ * calendar for the shows the owner follows, held against pogdesign's. One row
+ * a night, the owner's; a month is kept. Nothing here changes a date — it is
+ * what he is shown, and told about when an episode looks announced too early.
+ */
+export const airChecks = sqliteTable("air_checks", {
+  /** The Cairo date it was run for. */
+  day: text("day").primaryKey(),
+  ranAt: integer("ran_at").notNull().default(sql`(unixepoch())`),
+  /** "unchecked": pogdesign could not be read that night, so nothing is known — which is not "all clear". */
+  status: text("status", { enum: ["ok", "unchecked"] }).notNull(),
+  /** Episodes pogdesign had an answer for, and how many of those matched. */
+  checked: integer("checked").notNull().default(0),
+  agreed: integer("agreed").notNull().default(0),
+  /** The report in Arabic: written by the small model, or one plain line when it is not there. */
+  summaryAr: text("summary_ar").notNull(),
+  /** The Finding[] of air-check.ts, each with the model's note if it wrote one, as JSON. */
+  findings: text("findings").notNull().default("[]"),
+});

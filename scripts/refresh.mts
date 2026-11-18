@@ -20,6 +20,7 @@ import { pruneCache } from "../src/lib/tmdb";
 import { refreshWatchLinks } from "../src/lib/watch-links";
 import { catalogSize, enrichCatalog, mapImdb, packOldDetails, seedCatalog, withBackdrops } from "../src/lib/catalog";
 import { refreshCalendar } from "./refresh/calendar.mjs";
+import { refreshAirCheck } from "./refresh/air-check.mjs";
 import { refreshFeeds } from "./refresh/feeds.mjs";
 import { refreshServices } from "./refresh/services.mjs";
 import { refreshPrices } from "./refresh/prices.mjs";
@@ -73,6 +74,10 @@ await step("calendar", async () => ({
 }));
 
 // What people are waiting for, so the app can say when it arrives.
+// After the calendar, on the dates it just wrote: the owner's shows held
+// against pogdesign's calendar. It reports and changes nothing (air-check.ts).
+await step("air check", async () => ({ summary: await refreshAirCheck(TODAY), value: null }));
+
 await step("watchlist", async () => ({ summary: await refreshWatchlist(), value: null }));
 
 // After every step that brings certificates along, so this only sweeps the rest.
@@ -160,7 +165,7 @@ await step("cache", async () => {
 });
 
 if (failed.length) {
-  console.error(`\n${failed.length} of 15 steps failed: ${failed.join(", ")}`);
+  console.error(`\n${failed.length} of 16 steps failed: ${failed.join(", ")}`);
   process.exit(1);
 }
 console.log("\nall steps current");
