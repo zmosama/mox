@@ -6,7 +6,8 @@ import numpy as np
 # The full-size wordmark from the brand board (2000px), cut out of its black:
 # how bright a pixel is becomes how solid it is, and its colour is restored,
 # so the ring's glow fades into whatever is behind it.
-wsrc = Image.open(os.path.join(root, "brand/wordmark-4k.jpg")).convert("RGB").crop((440, 360, 3424, 1780))
+wsrc = Image.open(os.path.join(root, "brand/wordmark-3k.png")).convert("RGB").crop((20, 780, 2990, 2200))
+wall = Image.open(os.path.join(root, "brand/wordmark-4k.jpg")).convert("RGB")
 class Word:
     """The wordmark at a size: scaled while still on its black, THEN cut out.
     Scaling a cut-out mixes its transparent pixels' colour into the edges and
@@ -70,9 +71,10 @@ def shelf(name, wd, ht):
     for s in (1, 2):
         W, H = wd * s, ht * s
         im = Image.new("RGBA", (W, H), BLACK)
-        ww = int(W * 0.44)
-        wm = word.resize((ww, int(word.height * ww / word.width)), Image.LANCZOS)
-        im.alpha_composite(wm, ((W - ww) // 2, (H - wm.height) // 2))
+        # His wallpaper as he made it (3840x2160): the middle band of it, at
+        # the shelf's height, on black where the wide shelf is wider than it.
+        band = wall.crop((0, 360, 3840, 1800)).resize((3840 * H // 1440, H), Image.HAMMING)
+        im.paste(band, ((W - band.width) // 2, 0))
         fn = f"shelf@{s}x.png"
         os.makedirs(base, exist_ok=True)
         im.convert("RGB").save(os.path.join(base, fn))
