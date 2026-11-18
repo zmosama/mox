@@ -11,7 +11,8 @@
  *  - no built-in tools at all (`tools: []`); the only tools are the ones MOX
  *    hands over, which run inside this server, not in Claude Code;
  *  - nothing is read from disk: no settings, no CLAUDE.md, no other MCP
- *    servers, no saved sessions; it starts in an empty folder;
+ *    servers, no saved sessions; it starts in an empty folder, and a file
+ *    path written in a prompt ("@/etc/passwd") is text, not a file to attach;
  *  - anything not on the list is refused without asking (there is nobody to ask);
  *  - Claude Code gets a small environment of its own — the token, and none of
  *    the server's other secrets. Above all not ANTHROPIC_API_KEY, which it
@@ -120,6 +121,11 @@ export function lockedOptions(spec: RunSpec, env: Env = process.env): Options {
     skills: [],
     persistSession: false,
     cwd: EMPTY_DIR,
+    /* The prompt goes to the model as written. Left to itself Claude Code
+       reads "@/some/path" in a prompt as "attach this file" and a leading "/"
+       as one of its commands — and what goes into our prompts is his message,
+       or a news story from the internet. Neither may make it open a file. */
+    verbatimPrompts: true,
     env: subscriptionEnv(env),
     includePartialMessages: true,
     effort: "medium",

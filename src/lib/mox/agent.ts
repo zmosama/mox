@@ -129,7 +129,13 @@ async function* subscriptionTurn(
   if (refused) return { reply, refused };
   // The same rule as the API's turn: out of steps, or posters and not a word — one more answer, no tools.
   if ((outOfTurns || !stepText.trim()) && !spec.signal.aborted) {
-    const prompt = [spec.prompt, looked.length ? `What you looked up for this answer:\n${looked.join("\n")}` : "", NOT_SEEN].filter(Boolean).join("\n\n");
+    const prompt = [
+      spec.prompt,
+      looked.length ? `What you looked up for this answer:\n${looked.join("\n")}` : "",
+      NOT_SEEN,
+      // No tool_choice to say it with here, so it is said in words: it has been seen to write a tool call out as text.
+      "(You have no tools left for this answer and must not write a tool call. Plain words only, from what you already looked up.)",
+    ].filter(Boolean).join("\n\n");
     for await (const e of subscriptionRun({ model: spec.model, system: spec.system, prompt, signal: spec.signal })) {
       if (e.t === "end") refused = e.refused;
       else yield* pass(e);

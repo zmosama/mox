@@ -100,6 +100,10 @@ describe("the lock on Claude Code", () => {
     expect(opts.additionalDirectories).toBeUndefined();
   });
 
+  it("sends prompts as written: an @path in his message or in a news story attaches no file", () => {
+    expect(opts.verbatimPrompts).toBe(true);
+  });
+
   it("runs in the small environment, not the server's own", () => {
     expect(opts.env).not.toHaveProperty("ANTHROPIC_API_KEY");
     expect(opts.env!.CLAUDE_CODE_OAUTH_TOKEN).toBe("sk-ant-oat-test");
