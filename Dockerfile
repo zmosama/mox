@@ -29,8 +29,15 @@ RUN npm ci
 
 COPY . .
 
-ENV NODE_ENV=production
-RUN npm run build && rm -rf .next/cache
+# The build loads every route once, in several processes at the same moment,
+# and each opens the database. With no database yet they raced to create it
+# and to switch it to WAL, and now and then one lost: "Failed to collect page
+# data". An empty one, made once and already in WAL, has nothing to race for.
+ENV NODE_ENV=production \
+    MOX_DB=/tmp/build/mox.db
+RUN mkdir -p /tmp/build \
+    && node -e "const d=require('better-sqlite3')('/tmp/build/mox.db');d.pragma('journal_mode = WAL');d.close()" \
+    && npm run build && rm -rf .next/cache
 
 FROM node:24-bookworm-slim
 
