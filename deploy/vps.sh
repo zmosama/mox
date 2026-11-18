@@ -20,6 +20,15 @@
 # production since the site moved here.
 set -euo pipefail
 
+# mox moved to the TrueNAS on 2026-11-18 (deploy/nas.sh). The copy on the VPS
+# is a stopped standby: this script would build here, upload 1.1GB and start
+# it — with its nightly jobs and notifications — beside the real one.
+if [ "${MOX_DEPLOY_STANDBY:-}" != "yes" ]; then
+  echo "!! mox runs on the TrueNAS now — use ./deploy/nas.sh" >&2
+  echo "   (to refresh the stopped standby on the VPS on purpose: MOX_DEPLOY_STANDBY=yes $0)" >&2
+  exit 1
+fi
+
 HOST=${MOX_VPS:-mox}
 APPS=${MOX_APPS_DIR:-/srv/apps}
 URL=${MOX_URL:-https://mox.mosama.me}
