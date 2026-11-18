@@ -40,6 +40,7 @@ type Env = Record<string, string | undefined>;
 const SERVER = "mox";
 const PREFIX = `mcp__${SERVER}__`;
 export const toolId = (name: string) => `${PREFIX}${name}`;
+const ANSWER_TOOL = "StructuredOutput";
 export const bareToolName = (id: string) => (id.startsWith(PREFIX) ? id.slice(PREFIX.length) : id);
 
 /** Claude Code's own folder: in the container's /tmp, never on /data, which is backed up to Drive. */
@@ -133,8 +134,12 @@ export function lockedOptions(spec: RunSpec, env: Env = process.env): Options {
  * is missing (the SDK leaves out a tool it cannot describe, with only a
  * warning), and on any sign-in other than the subscription.
  */
-export function checkStart(start: { tools: string[]; apiKeySource: string }, allowed: string[]) {
+export function checkStart(start: { tools: string[]; apiKeySource: string }, allowed: string[], shaped = false) {
   const ours = new Set(allowed.map(toolId));
+  /* Asked for an answer in a JSON shape, Claude Code adds one tool of its own
+     to hand that answer back in. It reads and changes nothing; it is expected
+     then, and only then. */
+  if (shaped) ours.add(ANSWER_TOOL);
   const extra = start.tools.filter((t) => !ours.has(t));
   if (extra.length) throw new Error(`Claude Code started with tools MOX did not give it: ${extra.join(", ")}`);
   const missing = allowed.filter((t) => !start.tools.includes(toolId(t)));
@@ -177,7 +182,7 @@ export async function* subscriptionRun(spec: RunSpec): AsyncGenerator<RunEvent> 
   try {
     for await (const m of run) {
       if (m.type === "system" && m.subtype === "init") {
-        checkStart(m, (spec.tools ?? []).map((t) => t.name));
+        checkStart(m, (spec.tools ?? []).map((t) => t.name), Boolean(spec.schema));
         started = true;
       } else if (m.type === "system" && m.subtype === "model_refusal_no_fallback") {
         refused = true;

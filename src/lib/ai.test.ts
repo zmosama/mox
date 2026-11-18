@@ -132,6 +132,12 @@ describe("what Claude Code reports as it starts", () => {
     expect(() => checkStart({ tools: ["mcp__mox__forget"], apiKeySource: "none" }, ours)).toThrow();
   });
 
+  it("lets through the tool Claude Code hands a shaped answer back in — only when a shape was asked for", () => {
+    expect(() => checkStart({ tools: ["StructuredOutput"], apiKeySource: "none" }, [], true)).not.toThrow();
+    expect(() => checkStart({ tools: ["StructuredOutput"], apiKeySource: "none" }, [])).toThrow("StructuredOutput");
+    expect(() => checkStart({ tools: ["StructuredOutput", "Bash"], apiKeySource: "none" }, [], true)).toThrow("Bash");
+  });
+
   it("stops the run when one of ours did not make it in", () => {
     expect(() => checkStart({ tools: ["mcp__mox__search_titles"], apiKeySource: "none" }, ours)).toThrow("remember");
   });
