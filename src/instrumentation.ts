@@ -5,7 +5,7 @@
  *    who turned notifications on in a browser. MOX_PUSH=off switches it off.
  *  - Formula 1 news for the Sports tab, read and translated every quarter
  *    hour (src/lib/sports-news.ts), so a story is in Arabic before anyone
- *    opens it. MOX_SPORTS=off switches it off; without a model key the feeds
+ *    opens it. MOX_SPORTS=off switches it off; without a model connected the feeds
  *    are still read but nothing is translated, so nothing shows.
  *
  * In-process rather than separate scheduled jobs so they need nothing from

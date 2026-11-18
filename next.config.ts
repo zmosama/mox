@@ -1,6 +1,10 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  /* The Agent SDK starts Claude Code, a program it finds beside itself in
+     node_modules (ai-subscription.ts). Bundled into a route it would look in
+     the wrong place, so it is left as it is and loaded at run time. */
+  serverExternalPackages: ["@anthropic-ai/claude-agent-sdk"],
   experimental: {
     /* Every page here is rendered per account, so by default none is kept
        between navigations. Keeping one for 30 seconds makes going back to a

@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { avatarUrl, currentUser, isOwner } from "@/lib/auth";
 import { SpeedReport } from "@/components/SpeedReport";
 import { vitalsSummary } from "@/lib/vitals";
-import { aiAvailable } from "@/lib/ai";
+import { aiAvailable, aiStatus } from "@/lib/ai";
 import { ProfilePhoto } from "@/components/ProfilePhoto";
 import { stats, tasteFor } from "@/lib/queries";
 import { Preferences } from "@/components/Preferences";
@@ -81,8 +81,8 @@ export default async function AdminHome() {
           <h2 className="mb-1 text-base font-semibold">MOX</h2>
           <p className="mb-3 text-[13px] text-ink-faint">
             {aiAvailable()
-              ? "Connected. Its memory, its soul and the model it thinks with are on its own page."
-              : "Not connected: the server has no ANTHROPIC_API_KEY. The key lives on the server, never in the database, which is backed up to Drive."}
+              ? `${aiStatus()} Its memory, its soul and the model it thinks with are on its own page.`
+              : `${aiStatus()} That secret lives on the server, never in the database, which is backed up to Drive.`}
           </p>
           <Link href="/mox" className="inline-block rounded-lg bg-ink px-4 py-2 text-[13px] font-semibold text-bg transition hover:opacity-90">
             Open MOX

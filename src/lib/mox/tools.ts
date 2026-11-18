@@ -5,6 +5,10 @@
  *
  * Search and title lookups go through the app's own API handlers, so MOX sees
  * exactly what the screens show: the same ranking, the same services.
+ *
+ * These are the only tools MOX has, whichever way the model is reached: the
+ * API is handed them directly, and on the subscription Claude Code's own
+ * tools are switched off and these are all it is given (ai-subscription.ts).
  */
 import { betaZodTool } from "@anthropic-ai/sdk/helpers/beta/zod";
 import { and, desc, eq } from "drizzle-orm";
@@ -14,6 +18,7 @@ import { MEDIA_KINDS, type MediaKind } from "@/db/schema";
 import { comingSoon, forYou, newOnServices, tasteFor, titlesByIds } from "../queries";
 import { sportsBoard } from "../sports-news";
 import type { CardTitle } from "@/components/TitleCard";
+import type { ModelTool } from "../ai-subscription";
 import { addMemory, deleteMemory } from "./store";
 
 type Card = { tmdbId: number; kind: MediaKind; title: string; year: number | null; rating?: number | null; verdict?: string | null; platforms?: { name: string }[]; overview?: string | null };
@@ -33,6 +38,9 @@ async function appGet(handler: (req: Request, ctx: never) => Promise<Response>, 
   if (!res.ok) throw new Error(`${path} answered ${res.status}`);
   return res.json();
 }
+
+/** One tool, written once; either way in to the model (ai.ts) is given the same ones. */
+const def = <S extends z.ZodObject>(t: ModelTool<S>) => t;
 
 const Kind = z.enum(MEDIA_KINDS).describe('"movie" or "tv"');
 
@@ -65,10 +73,10 @@ const ASKS_LIST = /watch ?list|my list|\bsave\b|\badd\b|ضيف|ضيفه|ضيفه
  * `message` is what he wrote this turn (for the guard above); `onShow`
  * receives the posters MOX puts under its reply (show_titles).
  */
-export function moxTools(userId: number, message: string, onShow: (cards: CardTitle[]) => void = () => {}) {
+export function moxToolDefs(userId: number, message: string, onShow: (cards: CardTitle[]) => void = () => {}): ModelTool[] {
   let readOutside = false;
   const guarded = (asks: RegExp) => readOutside && !asks.test(message);
-  const search = betaZodTool({
+  const search = def({
     name: "search_titles",
     description: "Search films and series by name (English or Arabic). Returns ids, years, where each streams for him, and his own rating if any.",
     inputSchema: z.object({ query: z.string().min(2).max(100) }),
@@ -80,7 +88,7 @@ export function moxTools(userId: number, message: string, onShow: (cards: CardTi
     },
   });
 
-  const details = betaZodTool({
+  const details = def({
     name: "title_details",
     description: "One film or series in full: story, genres, cast, ratings, age, where it streams for him, his rating, whether he follows it and how far he is in it, and similar titles.",
     inputSchema: z.object({ kind: Kind, id: z.number().int().positive() }),
@@ -100,7 +108,7 @@ export function moxTools(userId: number, message: string, onShow: (cards: CardTi
     },
   });
 
-  const ratings = betaZodTool({
+  const ratings = def({
     name: "my_ratings",
     description: "What he has rated, most recent first. Filter by verdict: love, like, dislike, seen, hidden, or watchlist (wants to watch).",
     inputSchema: z.object({
@@ -128,7 +136,7 @@ export function moxTools(userId: number, message: string, onShow: (cards: CardTi
     },
   });
 
-  const following = betaZodTool({
+  const following = def({
     name: "my_shows",
     description: "The series he follows, and new episodes of them out in the last week that he has not marked watched.",
     inputSchema: z.object({}),
@@ -142,7 +150,7 @@ export function moxTools(userId: number, message: string, onShow: (cards: CardTi
     },
   });
 
-  const taste = betaZodTool({
+  const taste = def({
     name: "my_taste",
     description: "His taste model: the genres, themes and people that pull his ratings above his own average, strongest first, and the ones that pull them down.",
     inputSchema: z.object({}),
@@ -156,7 +164,7 @@ export function moxTools(userId: number, message: string, onShow: (cards: CardTi
     },
   });
 
-  const picks = betaZodTool({
+  const picks = def({
     name: "my_picks",
     description: "The titles the app's taste model picked for him (his Picks), best first — a strong starting point for recommendations.",
     inputSchema: z.object({ limit: z.number().int().min(1).max(30).default(15) }),
@@ -170,14 +178,14 @@ export function moxTools(userId: number, message: string, onShow: (cards: CardTi
     },
   });
 
-  const whatsNew = betaZodTool({
+  const whatsNew = def({
     name: "whats_new",
     description: "What just arrived on his streaming services, and what is coming soon.",
     inputSchema: z.object({}),
     run: async () => JSON.stringify({ just_arrived: newOnServices(userId).slice(0, 15).map(brief), coming_soon: comingSoon(userId).slice(0, 10).map(brief) }),
   });
 
-  const f1News = betaZodTool({
+  const f1News = def({
     name: "f1_news",
     description: "The latest Formula 1 headlines, in Arabic, newest first.",
     inputSchema: z.object({}),
@@ -189,7 +197,7 @@ export function moxTools(userId: number, message: string, onShow: (cards: CardTi
     },
   });
 
-  const save = betaZodTool({
+  const save = def({
     name: "add_to_watchlist",
     description: "Put a title on his watchlist. Only when he asked for it or plainly agreed. Never replaces a rating he already gave.",
     inputSchema: z.object({ kind: Kind, id: z.number().int().positive() }),
@@ -203,7 +211,7 @@ export function moxTools(userId: number, message: string, onShow: (cards: CardTi
     },
   });
 
-  const remember = betaZodTool({
+  const remember = def({
     name: "remember",
     description: "Save one lasting fact about him — a taste, a dislike, a habit, who he watches with. One short sentence in English, written about him in the third person.",
     inputSchema: z.object({ fact: z.string().min(3).max(300) }),
@@ -216,7 +224,7 @@ export function moxTools(userId: number, message: string, onShow: (cards: CardTi
     },
   });
 
-  const forget = betaZodTool({
+  const forget = def({
     name: "forget",
     description: "Delete a saved memory by its number, when he says it is wrong or no longer true.",
     inputSchema: z.object({ id: z.number().int().positive() }),
@@ -226,7 +234,7 @@ export function moxTools(userId: number, message: string, onShow: (cards: CardTi
     },
   });
 
-  const show = betaZodTool({
+  const show = def({
     name: "show_titles",
     description: "Show posters of the titles you are recommending or talking about, under your reply, so he can tap one to open it. Use it whenever your reply names specific films or series — once, with all of them, in the order you name them. Only ids you got from your other tools.",
     inputSchema: z.object({
@@ -241,8 +249,11 @@ export function moxTools(userId: number, message: string, onShow: (cards: CardTi
     },
   });
 
-  return [search, details, ratings, following, taste, picks, whatsNew, f1News, save, remember, forget, show];
+  return [search, details, ratings, following, taste, picks, whatsNew, f1News, save, remember, forget, show] as ModelTool[];
 }
+
+/** The same tools, in the shape the API's tool runner takes. */
+export const apiTools = (defs: ModelTool[]) => defs.map((t) => betaZodTool(t));
 
 /** What the ring says while a tool runs, in the language of the screen. */
 export const TOOL_STATUS: Record<string, string> = {

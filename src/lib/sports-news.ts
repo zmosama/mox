@@ -16,7 +16,7 @@
  */
 import { and, desc, eq, gt, isNull, lt } from "drizzle-orm";
 import { db, schema } from "@/db";
-import { ai, aiAvailable, BACKGROUND_MODEL, textOf } from "./ai";
+import { aiAvailable, askJson, BACKGROUND_MODEL } from "./ai";
 import { glossaryText } from "./f1-names-ar";
 import { keepNewsImage } from "./news-images";
 import { parseFeed } from "./news-rules";
@@ -164,21 +164,9 @@ export function acceptable(t: { title_ar?: unknown; summary_ar?: unknown }): t i
 }
 
 async function translateOne(title: string, summary: string | null) {
-  const res = await ai().messages.create({
-    model: BACKGROUND_MODEL,
-    // Room for its thinking as well as the answer: only what it writes is billed.
-    max_tokens: 16000,
-    // Medium, not low: at low it read "two and a half tenths" as "a tenth and a quarter".
-    output_config: { effort: "medium", format: { type: "json_schema", schema: SCHEMA } },
-    system: SYSTEM,
-    messages: [{ role: "user", content: `Headline: ${title}\n\nSummary: ${summary || "(none)"}` }],
-  });
-  if (res.stop_reason === "refusal" || res.stop_reason === "max_tokens") return null;
-  try {
-    return JSON.parse(textOf(res.content)) as { title_ar?: unknown; summary_ar?: unknown };
-  } catch {
-    return null;
-  }
+  // Whichever way the model is reached (ai.ts); a story it could not be reached for throws, and stays waiting.
+  const out = await askJson({ model: BACKGROUND_MODEL, system: SYSTEM, user: `Headline: ${title}\n\nSummary: ${summary || "(none)"}`, schema: SCHEMA });
+  return out && typeof out === "object" ? (out as { title_ar?: unknown; summary_ar?: unknown }) : null;
 }
 
 /**

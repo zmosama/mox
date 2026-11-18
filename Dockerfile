@@ -49,6 +49,15 @@ RUN apt-get update \
 
 WORKDIR /app
 
+# MOX can think with the owner's Claude subscription (MOX_AI=subscription,
+# src/lib/ai-subscription.ts). That runs Claude Code, which needs no install
+# of its own here: it is a single program that `npm ci` puts in node_modules
+# beside the Agent SDK (@anthropic-ai/claude-agent-sdk-linux-x64), built for
+# this image's glibc, and it comes across with node_modules below. It keeps
+# its few files in /tmp/mox-claude, which user node can write and which is
+# gone with the container — never on /data. `scripts/ai-check.mts`, run in
+# the container, says whether it starts, signs in and is locked down.
+
 # The database and the TMDB cache live on a volume mounted at /data, so they
 # survive the container being replaced. `src/db/index.ts` creates the directory
 # if it is missing, which is what lets a fresh volume work.

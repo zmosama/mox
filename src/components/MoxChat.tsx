@@ -174,7 +174,7 @@ export function MoxChat({
 
       {!connected ? (
         <p className="mx-auto mt-6 max-w-md rounded-[16px] bg-surface p-4 text-center text-[14px] text-ink-dim">
-          No model is connected yet: the server needs its <code>ANTHROPIC_API_KEY</code>.
+          No model is connected yet: the server needs its Claude subscription token or its API key. The admin page says which.
         </p>
       ) : null}
 
