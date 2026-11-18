@@ -5,15 +5,19 @@ import SwiftUI
 struct TVMain: View {
     @Environment(API.self) private var api
 
+    /// `-tvTab calendar` opens on a tab: for checking one on a television
+    /// nobody is holding the remote of.
+    @State private var tab = UserDefaults.standard.string(forKey: "tvTab") ?? "home"
+
     var body: some View {
-        TabView {
-            Tab("Home", systemImage: "house") { TVHome() }
-            Tab("Calendar", systemImage: "calendar") { TVCalendar() }
+        TabView(selection: $tab) {
+            Tab("Home", systemImage: "house", value: "home") { TVHome() }
+            Tab("Calendar", systemImage: "calendar", value: "calendar") { TVCalendar() }
             // The Sports tab is the owner's alone, as on the phone and the site.
             if api.user?.mox == true {
-                Tab("F1", systemImage: "flag.checkered") { TVF1() }
+                Tab("F1", systemImage: "flag.checkered", value: "f1") { TVF1() }
             }
-            Tab("Search", systemImage: "magnifyingglass", role: .search) { TVSearch() }
+            Tab("Search", systemImage: "magnifyingglass", value: "search", role: .search) { TVSearch() }
         }
     }
 }
