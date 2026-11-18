@@ -54,11 +54,12 @@ export function News({
   updates: UpdateData[];
   forYou: StoryData[];
   headlines: StoryData[];
-  sports: StoryData[];
+  /** Formula 1 in Arabic — the owner's alone; absent for everyone else, and then there are no tabs. */
+  sports?: StoryData[];
   langs: ("en" | "ar")[];
   initialTab?: "screen" | "sports";
 }) {
-  const [tab, setTab] = useState(initialTab);
+  const [tab, setTab] = useState(sports ? initialTab : "screen");
   const pick = (next: "screen" | "sports") => {
     setTab(next);
     // In the address, so a refresh or a shared link opens the same tab.
@@ -75,6 +76,7 @@ export function News({
     <>
       <div className="mb-7 flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-[28px] font-bold tracking-tight">News</h1>
+        {sports ? (
         <div role="tablist" aria-label="News" className="flex gap-1 rounded-full bg-surface p-1 text-[13.5px] font-medium">
           {(["screen", "sports"] as const).map((t) => (
             <button
@@ -89,9 +91,10 @@ export function News({
             </button>
           ))}
         </div>
+        ) : null}
       </div>
 
-      {tab === "sports" ? (
+      {tab === "sports" && sports ? (
         <section>
           <h2 className="mb-1 text-[20px] font-semibold tracking-tight">Formula 1</h2>
           <p className="mb-4 text-[13px] text-ink-dim">

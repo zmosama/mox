@@ -234,6 +234,12 @@ export type Story = {
 
 const PER_SOURCE = 8;
 
+/** Whether this viewer is the owner (users.is_owner). */
+function ownerId(userId: number | null): boolean {
+  if (userId === null) return false;
+  return Boolean(db.select({ o: schema.users.isOwner }).from(schema.users).where(eq(schema.users.id, userId)).get()?.o);
+}
+
 export async function newsBoard(userId: number | null, langs: NewsLang[]) {
   await ensureFresh();
   const now = Math.floor(Date.now() / 1000);
@@ -296,7 +302,11 @@ export async function newsBoard(userId: number | null, langs: NewsLang[]) {
     forYou: forYou.slice(0, 20).map((s) => s.story),
     headlines: headlines.slice(0, 40),
     // The Sports tab, in Arabic whatever the news languages (sports-news.ts).
-    sports: sportsBoard(),
+    // For the owner alone, and absent — not empty — for everybody else, so
+    // the site and the app do not draw the tab at all. The Arabic is written
+    // by a model on the owner's own account, and what that account makes is
+    // for him, not a service to other people.
+    sports: ownerId(userId) ? sportsBoard() : undefined,
     langs,
   };
 }
