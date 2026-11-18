@@ -6,7 +6,7 @@ import numpy as np
 # The full-size wordmark from the brand board (2000px), cut out of its black:
 # how bright a pixel is becomes how solid it is, and its colour is restored,
 # so the ring's glow fades into whatever is behind it.
-wsrc = Image.open(os.path.join(root, "brand/wordmark-source.webp")).convert("RGB").crop((20, 520, 1990, 1460))
+wsrc = Image.open(os.path.join(root, "brand/wordmark-4k.jpg")).convert("RGB").crop((440, 360, 3424, 1780))
 class Word:
     """The wordmark at a size: scaled while still on its black, THEN cut out.
     Scaling a cut-out mixes its transparent pixels' colour into the edges and
@@ -42,7 +42,7 @@ w(os.path.join(brand, "Contents.json"), {"assets": [
 def ring_layer(wd, ht, transparent):
     # The whole wordmark, as in the Settings credits: a television's icon is wide.
     im = Image.new("RGBA", (wd, ht), (0, 0, 0, 0) if transparent else BLACK)
-    ww = int(wd * 0.80)
+    ww = int(wd * 0.84)
     wm = word.resize((ww, int(word.height * ww / word.width)), Image.LANCZOS)
     im.alpha_composite(wm, ((wd - ww) // 2, (ht - wm.height) // 2))
     return im
@@ -70,7 +70,7 @@ def shelf(name, wd, ht):
     for s in (1, 2):
         W, H = wd * s, ht * s
         im = Image.new("RGBA", (W, H), BLACK)
-        ww = int(W * 0.30)
+        ww = int(W * 0.44)
         wm = word.resize((ww, int(word.height * ww / word.width)), Image.LANCZOS)
         im.alpha_composite(wm, ((W - ww) // 2, (H - wm.height) // 2))
         fn = f"shelf@{s}x.png"
