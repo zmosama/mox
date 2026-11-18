@@ -1,5 +1,7 @@
+import { LoginForm } from "@/components/LoginForm";
 import { TvApprove } from "@/components/TvApprove";
 import { currentUser } from "@/lib/auth";
+import { googleClientIds } from "@/lib/google";
 import { normalizeCode, tvLoginWaiting } from "@/lib/tv-login";
 
 export const dynamic = "force-dynamic";
@@ -21,14 +23,13 @@ export default async function TvPage({ searchParams }: { searchParams: Promise<{
       {!user ? (
         <>
           <p className="mt-1.5 text-[13.5px] text-ink-faint">
-            Sign in on this phone first, then scan the code on your TV again.
+            Sign in here first — with Google or your password — and the next step is one button.
           </p>
-          <a
-            href="/admin/login"
-            className="mt-5 flex min-h-11 items-center justify-center rounded-lg bg-ink px-4 text-[14px] font-semibold text-bg transition hover:opacity-90"
-          >
-            Sign in
-          </a>
+          {/* Signed in, it comes straight back here with the TV's code still in hand. */}
+          <LoginForm
+            googleClientId={googleClientIds()[0] ?? null}
+            next={code ? `/tv?code=${code}` : "/tv"}
+          />
         </>
       ) : (
         <TvApprove

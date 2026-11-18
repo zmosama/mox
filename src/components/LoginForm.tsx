@@ -15,7 +15,14 @@ type Mode = "in" | "up";
  * a second route would be a second place for the styling to drift. A new
  * account is always a plain user — the server decides that, not this form.
  */
-export function LoginForm({ googleClientId }: { googleClientId?: string | null }) {
+export function LoginForm({
+  googleClientId,
+  next,
+}: {
+  googleClientId?: string | null;
+  /** Where to land once signed in, instead of the account page: /tv, to approve a television. */
+  next?: string;
+}) {
   const router = useRouter();
   const [mode, setMode] = useState<Mode>("in");
   const [error, setError] = useState<string | null>(null);
@@ -73,7 +80,7 @@ export function LoginForm({ googleClientId }: { googleClientId?: string | null }
     // Titles kept from before were someone else's view of them.
     forgetTitles();
     // A server component reads the session, so the tree has to be refetched.
-    router.replace(created ? "/admin/services?welcome=1" : "/admin");
+    router.replace(next ?? (created ? "/admin/services?welcome=1" : "/admin"));
     router.refresh();
   }
 
