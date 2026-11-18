@@ -3,14 +3,20 @@ import UIKit
 /// What pressing Play can do for a title on one service, on an Apple TV.
 ///
 /// There is no browser here: a link either belongs to an installed app or
-/// goes nowhere. Each rule below is what that service's app did with the link
-/// on a real Apple TV 4K on 2026-11-18 — the simulator has none of these apps.
+/// goes nowhere. The rules for Netflix, Prime Video, Apple TV, Disney+, Shahid,
+/// OSN+ and STARZPLAY are what each app did with the link on a real Apple TV
+/// 4K on 2026-11-18 — the simulator has none of these apps. Shahid's /player/
+/// link was only seen as far as its profile picker. TOD took its link and what
+/// it showed could not be captured; it and any service not named here are
+/// `.untried`, and the button says no more than that.
 struct TVLink {
     enum Landing {
         /// The app opens on this title's page.
         case title
         /// The app opens and starts playing.
         case plays
+        /// The app takes the link; where it lands has not been seen.
+        case untried
         /// The app opens, but not on the title: it has to be searched for there.
         case appOnly
         /// Nothing MOX can open; the app has to be opened by hand.
@@ -64,11 +70,15 @@ struct TVLink {
             }
             return TVLink(url: parts.url, landing: .title)
 
+        case host.hasSuffix("starzplay.com"):
+            // Its title link opened the app on its own home, not on the title.
+            return TVLink(url: parts.url, landing: .appOnly)
+
         default:
-            // A service nobody has tried on a television. Its own title link
-            // is worth one attempt; a web search page is not.
+            // TOD, and any service nobody has tried on a television. Its own
+            // title link is worth the attempt; a web search page is not.
             let search = path.contains("search") || host.contains("duckduckgo") || host.contains("google")
-            return search ? home(of: platform.name) : TVLink(url: parts.url, landing: .title)
+            return search ? home(of: platform.name) : TVLink(url: parts.url, landing: .untried)
         }
     }
 

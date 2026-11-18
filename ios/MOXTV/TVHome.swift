@@ -107,7 +107,7 @@ struct TVHome: View {
             return
         }
         let link = TVLink.target(for: platform)
-        guard link.landing == .title || link.landing == .plays, await link.open() else {
+        guard link.landing != .appOnly, link.landing != .none, await link.open() else {
             path.append(card.ref)
             return
         }

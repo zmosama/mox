@@ -88,6 +88,8 @@ function onDisneyHere(kind: MediaKind, tmdbId: number): boolean {
 async function ask(kind: MediaKind, tmdbId: number, title: string, opts: { throwOn429?: boolean } = {}): Promise<Map<number, string> | null> {
   const links = await askIn(region(), kind, tmdbId, title, opts);
   if (!links || links.has(DISNEY) || region() === DISNEY_CATALOGUE || !onDisneyHere(kind, tmdbId)) return links;
+  // The nightly run paces itself between titles; a second question is a second title.
+  if (opts.throwOn429) await new Promise((done) => setTimeout(done, 700));
   // Could not be asked: the rest is still worth keeping, and tomorrow asks again.
   const disney = (await askIn(DISNEY_CATALOGUE, kind, tmdbId, title, opts))?.get(DISNEY);
   if (disney) links.set(DISNEY, disney);

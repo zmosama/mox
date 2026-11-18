@@ -127,7 +127,7 @@ struct TVTitle: View {
 
     private func label(_ link: TVLink, _ platform: Platform) -> String {
         switch link.landing {
-        case .title, .plays: "Play on \(platform.name)"
+        case .title, .plays, .untried: "Play on \(platform.name)"
         case .appOnly: "Open \(platform.name)"
         case .none: "On \(platform.name)"
         }
@@ -137,6 +137,7 @@ struct TVTitle: View {
         switch link.landing {
         case .title: "Opens \(platform.name) on this title."
         case .plays: "Opens \(platform.name) and starts playing."
+        case .untried: "Opens \(platform.name); it should land on this title."
         case .appOnly: "Opens \(platform.name) — search for “\(d.title)” there."
         case .none: "\(platform.name) can't be opened from here. Open it from the Home Screen and search for “\(d.title)”."
         }
