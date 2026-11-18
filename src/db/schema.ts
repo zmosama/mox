@@ -72,6 +72,19 @@ export const users = sqliteTable("users", {
   uniqueIndex("users_single_owner").on(t.isOwner).where(sql`${t.isOwner} = 1`),
 ]);
 
+/**
+ * An Apple TV asking to be signed in. The TV shows `code`; whoever opens
+ * /tv?code=… signed in and approves puts their id in `userId`; the TV, which
+ * alone holds the secret behind `secretHash`, then collects a session. Rows
+ * live ten minutes and are removed when collected.
+ */
+export const tvLogins = sqliteTable("tv_logins", {
+  code: text("code").primaryKey(),
+  secretHash: text("secret_hash").notNull().unique(),
+  userId: integer("user_id").references(() => users.id, { onDelete: "cascade" }),
+  expiresAt: integer("expires_at").notNull(),
+});
+
 export const sessions = sqliteTable(
   "sessions",
   {

@@ -1,6 +1,8 @@
 import Foundation
 import Observation
+#if !os(tvOS)
 import UIKit
+#endif
 
 enum APIError: LocalizedError {
     case status(Int, String?)
@@ -133,7 +135,7 @@ final class API {
     }
 
     /// Another account, or none: nothing kept may show through.
-    private func forget() {
+    func forget() {
         kept = [:]
         try? FileManager.default.removeItem(at: Self.shelf)
         try? FileManager.default.createDirectory(at: Self.shelf, withIntermediateDirectories: true)
@@ -159,6 +161,8 @@ final class API {
     func today() async throws -> TodayPayload { try await screen("/api/app/today") }
     func library() async throws -> LibraryPayload { try await screen("/api/app/library") }
     func picks() async throws -> PicksPayload { try await screen("/api/app/picks") }
+    // The phone's screens; their payloads live beside those views.
+    #if !os(tvOS)
     func alerts() async throws -> AlertsPayload { try await get("/api/app/alerts") }
     func news() async throws -> NewsPayload { try await screen("/api/news") }
     func f1() async throws -> F1Board { try await screen("/api/f1") }
@@ -169,6 +173,7 @@ final class API {
     func setF1Watched(season: Int, round: Int, _ watched: Bool) async throws {
         try await post("/api/f1/watched", ["season": season, "round": round, "watched": watched])
     }
+    #endif
 
     /// Something changed that the open screens should reload for.
     func touch() { revision += 1 }
@@ -303,6 +308,7 @@ final class API {
         return URL(string: path, relativeTo: base)?.absoluteURL
     }
 
+    #if !os(tvOS)
     /// Crop to a centred square, shrink to 320px and upload as the profile photo.
     func setAvatar(_ imageData: Data) async throws {
         guard let jpeg = squareJPEG(imageData, side: 320) else { throw APIError.status(400, "That photo couldn't be read.") }
@@ -313,6 +319,7 @@ final class API {
         let _: [String: AnyCodable] = try await send(request)
         await refreshUser()
     }
+    #endif
 
     func removeAvatar() async throws {
         var request = URLRequest(url: try url("/api/account/avatar"))
@@ -342,6 +349,7 @@ final class API {
         welcoming = true
     }
 
+    #if !os(tvOS)
     /// Sign in, or make an account, with Google: the server decides which.
     func signInWithGoogle() async throws {
         let token = try await GoogleSignIn().idToken()
@@ -356,6 +364,7 @@ final class API {
         revision += 1
         welcoming = result.created == true
     }
+    #endif
 
     func account() async throws -> Account {
         let payload: AccountPayload = try await get("/api/account/me")
@@ -433,6 +442,7 @@ nonisolated struct AnyCodable: Decodable, Sendable {
     init(from decoder: Decoder) throws {}
 }
 
+#if !os(tvOS)
 /// A centred square of the image, `side` pixels across, as JPEG.
 private func squareJPEG(_ data: Data, side: CGFloat) -> Data? {
     guard let image = UIImage(data: data) else { return nil }
@@ -447,3 +457,4 @@ private func squareJPEG(_ data: Data, side: CGFloat) -> Data? {
     }
     return rendered.jpegData(compressionQuality: 0.86)
 }
+#endif

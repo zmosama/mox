@@ -239,6 +239,13 @@
       "when": 1795040000000,
       "tag": "0033_air_checks",
       "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "6",
+      "when": 1795050000000,
+      "tag": "0034_tv_logins",
+      "breakpoints": true
     }
   ]
 }

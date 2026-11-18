@@ -18,7 +18,7 @@
  * For some series a service's link is its first episode rather than the
  * series (TOD, OSN+): it still opens the right show in the right app.
  */
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, like, sql } from "drizzle-orm";
 import { db, schema } from "@/db";
 import type { MediaKind } from "@/db/schema";
 import { region } from "./tmdb";
@@ -65,15 +65,43 @@ function clean(url: string): string {
 /** JustWatch saying "too many requests": the night's asking stops there. */
 class Throttled extends Error {}
 
+/**
+ * Disney+ is in Egypt and JustWatch's Egyptian catalogue does not list it at
+ * all, so no Disney+ title ever had a link — and its Play button fell back to
+ * a web search, which an Apple TV cannot open. A Disney+ title page is the
+ * same address in every country (Andor's is entity-faba988a… in Britain and
+ * in Egypt), so for a title MOX knows is on Disney+ here, the link is read
+ * from the British catalogue instead.
+ */
+const DISNEY = 337;
+const DISNEY_CATALOGUE = "GB";
+
+function onDisneyHere(kind: MediaKind, tmdbId: number): boolean {
+  return !!db
+    .select({ p: schema.availability.provider })
+    .from(schema.availability)
+    .where(and(eq(schema.availability.tmdbId, tmdbId), eq(schema.availability.kind, kind), like(schema.availability.provider, "Disney%")))
+    .get();
+}
+
 /** JustWatch's answer, or null when it could not be asked — which is not the same as "none". */
 async function ask(kind: MediaKind, tmdbId: number, title: string, opts: { throwOn429?: boolean } = {}): Promise<Map<number, string> | null> {
+  const links = await askIn(region(), kind, tmdbId, title, opts);
+  if (!links || links.has(DISNEY) || region() === DISNEY_CATALOGUE || !onDisneyHere(kind, tmdbId)) return links;
+  // Could not be asked: the rest is still worth keeping, and tomorrow asks again.
+  const disney = (await askIn(DISNEY_CATALOGUE, kind, tmdbId, title, opts))?.get(DISNEY);
+  if (disney) links.set(DISNEY, disney);
+  return links;
+}
+
+async function askIn(country: string, kind: MediaKind, tmdbId: number, title: string, opts: { throwOn429?: boolean }): Promise<Map<number, string> | null> {
   try {
     const res = await fetch(ENDPOINT, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
         query: QUERY,
-        variables: { country: region(), language: "en", first: 5, filter: { searchQuery: title } },
+        variables: { country, language: "en", first: 5, filter: { searchQuery: title } },
       }),
       signal: AbortSignal.timeout(2000),
       cache: "no-store",
