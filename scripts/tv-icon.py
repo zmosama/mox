@@ -27,6 +27,20 @@ r, g, b = icon.split()
 alpha = Image.merge("RGB", (r, g, b)).convert("L").point(lambda v: min(255, int(v * 2.2)))
 ring = Image.merge("RGBA", (r, g, b, alpha)).crop((112, 112, 912, 912))
 BLACK = (0, 0, 0, 255)
+def soften(im):
+    """Let the glow die away to nothing instead of stopping.
+
+    A television shows the darkest tones brighter than a desk screen does, and
+    the glow's outer edge — where the file simply runs out of levels, in steps
+    a JPEG has made coarser — shows as a hard ring. The faintest tones are
+    eased towards black, and a little noise breaks up what steps remain."""
+    a = np.asarray(im.convert("RGB")).astype(np.float32)
+    v = a.max(axis=2, keepdims=True)
+    t = np.clip(v / 56.0, 0, 1)
+    a = a * (t * t * (3 - 2 * t))
+    rng = np.random.default_rng(7)
+    a = a + rng.uniform(-0.5, 0.5, a.shape) * (v > 0) * (v < 120)
+    return Image.fromarray(np.clip(a, 0, 255).round().astype(np.uint8), "RGB")
 out = os.path.join(root, "ios/MOXTV/Assets.xcassets")
 def w(path, data):
     os.makedirs(os.path.dirname(path), exist_ok=True)
@@ -60,7 +74,7 @@ def stack(name, wd, ht, scales):
             # transparent, which outlined every letter.
             im = ring_layer(wd * s, ht * s, False) if layer == "Front" else Image.new("RGBA", (wd * s, ht * s), BLACK)
             os.makedirs(os.path.join(ldir, "Content.imageset"), exist_ok=True)
-            im.convert("RGB").save(os.path.join(ldir, "Content.imageset", fn))
+            soften(im).save(os.path.join(ldir, "Content.imageset", fn))
             images.append({"filename": fn, "idiom": "tv", "scale": f"{s}x"})
         w(os.path.join(ldir, "Content.imageset", "Contents.json"), {"images": images, "info": INFO})
 stack("App Icon.imagestack", 400, 240, (1, 2))
@@ -77,7 +91,7 @@ def shelf(name, wd, ht):
         im.paste(band, ((W - band.width) // 2, 0))
         fn = f"shelf@{s}x.png"
         os.makedirs(base, exist_ok=True)
-        im.convert("RGB").save(os.path.join(base, fn))
+        soften(im).save(os.path.join(base, fn))
         images.append({"filename": fn, "idiom": "tv", "scale": f"{s}x"})
     w(os.path.join(base, "Contents.json"), {"images": images, "info": INFO})
 shelf("Top Shelf Image.imageset", 1920, 720)
