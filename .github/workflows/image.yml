@@ -1,0 +1,48 @@
+name: image
+
+# Builds the image the servers run, on GitHub, at every push to main, and
+# keeps it in GitHub's registry: ghcr.io/zmosama/mox.
+#
+# It used to be built on a Mac and uploaded whole to the server — 1.1GB over a
+# home connection for a one-line change. A registry knows which layers a server
+# already has, so a deploy is now the server pulling the layers that changed,
+# and nothing is uploaded from anyone's desk.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: image
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          # The servers are x86_64; so are GitHub's runners, so no emulation.
+          platforms: linux/amd64
+          push: true
+          # `latest` is what a server pulls; the commit's own tag is the way
+          # back to any earlier build.
+          tags: |
+            ghcr.io/zmosama/mox:latest
+            ghcr.io/zmosama/mox:${{ github.sha }}
+          # Layers kept between runs: an unchanged package-lock.json means the
+          # dependencies are not installed again.
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

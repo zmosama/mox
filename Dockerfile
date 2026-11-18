@@ -8,9 +8,16 @@
 #
 #   node 24.21 on bookworm, /app, user node, next start on 8782
 #
-# Not `node:24-slim`: better-sqlite3 compiles from source and needs python3,
-# make and a C++ toolchain, which the full image already carries.
-FROM node:24-bookworm
+# Two stages. The first has the compiler: better-sqlite3 builds from source
+# and needs python3, make and a C++ toolchain, which the full image carries.
+# The second is the slim image with only what was built — the toolchain is a
+# gigabyte the running site never uses.
+#
+# The image was 2.9GB, and every deploy shipped all of it. A third of that was
+# one line: `RUN chown -R node:node /app` after the build wrote a second copy
+# of every file into a new layer. The files are now copied in already owned by
+# node, and the build's own cache (.next/cache) is left behind.
+FROM node:24-bookworm AS build
 
 WORKDIR /app
 
@@ -22,6 +29,13 @@ RUN npm ci
 
 COPY . .
 
+ENV NODE_ENV=production
+RUN npm run build && rm -rf .next/cache
+
+FROM node:24-bookworm-slim
+
+WORKDIR /app
+
 # The database and the TMDB cache live on a volume mounted at /data, so they
 # survive the container being replaced. `src/db/index.ts` creates the directory
 # if it is missing, which is what lets a fresh volume work.
@@ -30,11 +44,14 @@ ENV NODE_ENV=production \
     MOX_DB=/data/mox.db \
     MOX_TMDB_CACHE=/data/tmdb-cache
 
-RUN npm run build
+# Dependencies and the app as separate layers, owned by node from the start:
+# a change to the source replaces the small layer, and a server that already
+# has the big one downloads only the small one.
+COPY --from=build --chown=node:node /app/node_modules ./node_modules
+COPY --from=build --chown=node:node /app/.next ./.next
+COPY --chown=node:node . .
 
-# The build wrote into /app as root; the app runs as node and the nightly
-# refresh writes to /data through the volume.
-RUN chown -R node:node /app
+# The app runs as node; the nightly refresh writes to /data through the volume.
 USER node
 
 EXPOSE 8782
