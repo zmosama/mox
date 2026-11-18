@@ -62,7 +62,7 @@ before=$(ssh "$HOST" "sudo -n docker inspect $CONTAINER --format '{{.Image}}' 2>
 echo "    ${before:0:19}"
 
 say "pulling the new image and restarting on it"
-ssh "$HOST" "sudo -n docker pull $IMAGE:latest | tail -1 | sed 's/^/    /' && sudo -n midclt call -j app.redeploy $APP >/dev/null && echo '    restarted'"
+ssh "$HOST" "sudo -n docker pull $IMAGE:latest | tail -1 | sed 's/^/    /' && sudo -n midclt call -j app.redeploy $APP >/dev/null 2>&1 && echo '    restarted'"
 
 # After the restart, never before: the old container is still reading the old
 # schema while it serves. Migrations are written to be safe for the new code
