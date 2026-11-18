@@ -7,7 +7,7 @@ struct TVHome: View {
     @State private var home: HomePayload?
     @State private var library: LibraryPayload?
     @State private var focused: Card?
-    @State private var path: [TitleRef] = []
+    @State private var path = NavigationPath()
     @State private var problem: String?
     @State private var notice: String?
     @State private var opened = false
@@ -22,8 +22,7 @@ struct TVHome: View {
                             .frame(height: 430, alignment: .bottomLeading)
                             .padding(.horizontal, TV.edge)
                         ForEach(rows, id: \.title) { row in
-                            TVRow(title: row.title, cards: row.cards, focused: $focused,
-                                  open: { path.append($0.ref) },
+                            TVRow(title: row.title, detail: row.detail, cards: row.cards, focused: $focused,
                                   play: { card in Task { await play(card) } })
                         }
                         if let problem, rows.isEmpty {
@@ -37,7 +36,7 @@ struct TVHome: View {
                 .scrollClipDisabled()
             }
             .ignoresSafeArea(edges: .horizontal)
-            .navigationDestination(for: TitleRef.self) { TVTitle(ref: $0) }
+            .tvDestinations()
         }
         .task(id: api.revision) { await load() }
         .alert("MOX", isPresented: .init(get: { notice != nil }, set: { if !$0 { notice = nil } })) {
@@ -47,16 +46,19 @@ struct TVHome: View {
         }
     }
 
-    private struct Row { let title: String; let cards: [Card] }
+    private struct Row { let title: String; var detail: String? = nil; let cards: [Card] }
 
-    /// What he opens the television for, first: tonight's episodes, then what
-    /// he saved, then what MOX would pick for him.
+    /// What he opens the television for, first — tonight's episodes and what
+    /// he saved — then the phone's Home, in the phone's words.
     private var rows: [Row] {
         [
-            Row(title: "New episodes", cards: home?.forYou ?? []),
+            Row(title: "New for you", cards: home?.forYou ?? []),
             Row(title: "Watchlist", cards: library?.watchlist ?? []),
-            Row(title: "Picks for you", cards: home?.picks ?? []),
-            Row(title: "New on your services", cards: home?.fresh ?? []),
+            Row(title: "Picked for you", detail: "from your ratings", cards: home?.picks ?? []),
+            Row(title: "Just landed", detail: "on your services", cards: home?.fresh ?? []),
+            Row(title: "Everyone's watching", detail: "this week", cards: home?.trending ?? []),
+            Row(title: "Coming soon", detail: "most anticipated", cards: home?.coming ?? []),
+            Row(title: "From people you follow", cards: (home?.fromPeople ?? []).map(\.title)),
             Row(title: "Shows you follow", cards: library?.following ?? []),
         ].filter { !$0.cards.isEmpty }
     }
@@ -110,120 +112,6 @@ struct TVHome: View {
         guard link.landing != .appOnly, link.landing != .none, await link.open() else {
             path.append(card.ref)
             return
-        }
-    }
-}
-
-/// The picture behind everything: the focused title's, dimmed towards the rows.
-private struct TVBackdrop: View {
-    let card: Card?
-
-    var body: some View {
-        GeometryReader { geo in
-            ZStack {
-                TV.ink
-                if let card {
-                    TVImage(path: wide(card.backdrop) ?? card.poster)
-                        .frame(width: geo.size.width, height: geo.size.height * 0.78)
-                        .clipped()
-                        .frame(maxHeight: .infinity, alignment: .top)
-                        .id(card.id)
-                        .transition(.opacity)
-                }
-                LinearGradient(stops: [
-                    .init(color: TV.ink.opacity(0.92), location: 0),
-                    .init(color: TV.ink.opacity(0.35), location: 0.55),
-                    .init(color: .clear, location: 1),
-                ], startPoint: .leading, endPoint: .trailing)
-                LinearGradient(stops: [
-                    .init(color: .clear, location: 0.25),
-                    .init(color: TV.ink, location: 0.74),
-                ], startPoint: .top, endPoint: .bottom)
-            }
-            .animation(.easeInOut(duration: 0.35), value: card?.id)
-        }
-        .ignoresSafeArea()
-    }
-
-    /// TMDB's larger file for a screen this size.
-    private func wide(_ url: String?) -> String? {
-        url?.replacingOccurrences(of: "/t/p/w780/", with: "/t/p/w1280/")
-    }
-}
-
-/// The focused title in words: name, what is new about it, where it plays.
-private struct TVSpotlight: View {
-    let card: Card?
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            if let card {
-                Text(card.title)
-                    .font(.system(size: 66, weight: .bold))
-                    .foregroundStyle(TV.paper)
-                    .lineLimit(2)
-                    .minimumScaleFactor(0.7)
-                HStack(spacing: 16) {
-                    if let label = card.episodeLabel ?? card.releaseLabel {
-                        Text(label).foregroundStyle(TV.green).fontWeight(.semibold)
-                    }
-                    if let year = card.year { Text(String(year)) }
-                    if let rating = card.rating, rating > 0 { Text("★ " + String(format: "%.1f", rating)) }
-                    if !card.platforms.isEmpty { Text(card.platforms.map(\.name).joined(separator: " · ")) }
-                }
-                .font(.system(size: 28))
-                .foregroundStyle(TV.muted)
-                if let text = card.reason ?? card.overview {
-                    Text(text)
-                        .font(.system(size: 27))
-                        .foregroundStyle(TV.paper.opacity(0.82))
-                        .lineLimit(3)
-                        .frame(maxWidth: 900, alignment: .leading)
-                }
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .animation(.easeOut(duration: 0.2), value: card?.id)
-    }
-}
-
-/// One shelf. Posters are buttons, so the focus engine lifts the one in
-/// focus and the remote's swipe moves along the row.
-private struct TVRow: View {
-    let title: String
-    let cards: [Card]
-    @Binding var focused: Card?
-    let open: (Card) -> Void
-    let play: (Card) -> Void
-    @FocusState private var focus: String?
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 18) {
-            Text(title)
-                .font(.system(size: 34, weight: .semibold))
-                .foregroundStyle(TV.paper)
-                .padding(.horizontal, TV.edge)
-            ScrollView(.horizontal) {
-                LazyHStack(spacing: 36) {
-                    ForEach(cards) { card in
-                        Button { open(card) } label: {
-                            TVImage(path: card.poster)
-                                .frame(width: 220, height: 330)
-                        }
-                        .buttonStyle(.card)
-                        .focused($focus, equals: card.id)
-                        .onPlayPauseCommand { play(card) }
-                        .accessibilityLabel(card.title)
-                    }
-                }
-                .padding(.horizontal, TV.edge)
-                .padding(.vertical, 30)
-            }
-            .scrollClipDisabled()
-        }
-        .focusSection()
-        .onChange(of: focus) { _, id in
-            if let card = cards.first(where: { $0.id == id }) { focused = card }
         }
     }
 }

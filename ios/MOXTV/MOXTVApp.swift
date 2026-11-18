@@ -33,7 +33,7 @@ struct RootView: View {
         ZStack {
             TV.ink.ignoresSafeArea()
             if api.user != nil {
-                TVHome()
+                TVMain()
             } else if asked {
                 TVSignIn(serverProblem: problem)
             } else {

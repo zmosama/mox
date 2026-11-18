@@ -165,6 +165,7 @@ final class API {
     #if !os(tvOS)
     func alerts() async throws -> AlertsPayload { try await get("/api/app/alerts") }
     func news() async throws -> NewsPayload { try await screen("/api/news") }
+    #endif
     func f1() async throws -> F1Board { try await screen("/api/f1") }
     func f1Round(_ round: Int) async throws -> F1RoundDetail { try await screen("/api/f1/round/\(round)") }
     func f1Driver(_ id: String) async throws -> F1Driver { try await screen("/api/f1/driver/\(id)", maxAge: 600) }
@@ -173,7 +174,6 @@ final class API {
     func setF1Watched(season: Int, round: Int, _ watched: Bool) async throws {
         try await post("/api/f1/watched", ["season": season, "round": round, "watched": watched])
     }
-    #endif
 
     /// Something changed that the open screens should reload for.
     func touch() { revision += 1 }

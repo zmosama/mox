@@ -74,7 +74,14 @@ class Throttled extends Error {}
  * from the British catalogue instead.
  */
 const DISNEY = 337;
-const DISNEY_CATALOGUE = "GB";
+/** Britain first; America has a few titles Britain's catalogue does not. */
+const DISNEY_CATALOGUES = ["GB", "US"];
+/**
+ * When Disney+ links began to be read from another catalogue (2026-11-19).
+ * An answer kept from before then has no Disney+ link because nobody asked for
+ * one, not because there is none: it is asked again, once.
+ */
+const DISNEY_SINCE = 1795046400;
 
 function onDisneyHere(kind: MediaKind, tmdbId: number): boolean {
   return !!db
@@ -87,12 +94,18 @@ function onDisneyHere(kind: MediaKind, tmdbId: number): boolean {
 /** JustWatch's answer, or null when it could not be asked — which is not the same as "none". */
 async function ask(kind: MediaKind, tmdbId: number, title: string, opts: { throwOn429?: boolean } = {}): Promise<Map<number, string> | null> {
   const links = await askIn(region(), kind, tmdbId, title, opts);
-  if (!links || links.has(DISNEY) || region() === DISNEY_CATALOGUE || !onDisneyHere(kind, tmdbId)) return links;
-  // The nightly run paces itself between titles; a second question is a second title.
-  if (opts.throwOn429) await new Promise((done) => setTimeout(done, 700));
-  // Could not be asked: the rest is still worth keeping, and tomorrow asks again.
-  const disney = (await askIn(DISNEY_CATALOGUE, kind, tmdbId, title, opts))?.get(DISNEY);
-  if (disney) links.set(DISNEY, disney);
+  if (!links || links.has(DISNEY) || !onDisneyHere(kind, tmdbId)) return links;
+  for (const country of DISNEY_CATALOGUES) {
+    if (country === region()) continue;
+    // The nightly run paces itself between titles; another question is another title.
+    if (opts.throwOn429) await new Promise((done) => setTimeout(done, 700));
+    // Could not be asked: the rest is still worth keeping, and tomorrow asks again.
+    const disney = (await askIn(country, kind, tmdbId, title, opts))?.get(DISNEY);
+    if (disney) {
+      links.set(DISNEY, disney);
+      break;
+    }
+  }
   return links;
 }
 
@@ -152,7 +165,11 @@ export async function watchLinks(kind: MediaKind, tmdbId: number, title: string)
     .from(schema.watchLinks)
     .where(and(eq(schema.watchLinks.tmdbId, tmdbId), eq(schema.watchLinks.kind, kind)))
     .get();
-  if (row && now() - row.checkedAt < FRESH) return parse(row.links);
+  if (row && now() - row.checkedAt < FRESH) {
+    const kept = parse(row.links);
+    const beforeDisney = row.checkedAt < DISNEY_SINCE && !kept.has(DISNEY) && onDisneyHere(kind, tmdbId);
+    if (!beforeDisney) return kept;
+  }
   const asked = await ask(kind, tmdbId, title);
   if (asked) save(kind, tmdbId, asked);
   // JustWatch unreachable: an older answer beats none.

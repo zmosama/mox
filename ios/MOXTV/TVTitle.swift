@@ -12,29 +12,55 @@ struct TVTitle: View {
     @FocusState private var focus: String?
 
     var body: some View {
-        ZStack(alignment: .bottomLeading) {
+        ZStack {
             TV.ink.ignoresSafeArea()
             if let detail {
-                TVImage(path: detail.backdrop?.replacingOccurrences(of: "/t/p/w780/", with: "/t/p/w1280/") ?? detail.poster)
-                    .ignoresSafeArea()
-                LinearGradient(stops: [
-                    .init(color: TV.ink.opacity(0.95), location: 0),
-                    .init(color: TV.ink.opacity(0.55), location: 0.5),
-                    .init(color: .clear, location: 1),
-                ], startPoint: .leading, endPoint: .trailing).ignoresSafeArea()
-                LinearGradient(colors: [.clear, TV.ink.opacity(0.9)], startPoint: .center, endPoint: .bottom).ignoresSafeArea()
-                content(detail)
+                GeometryReader { geo in
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: 44) {
+                            // The first screen is the picture and the button; the
+                            // rest is a swipe down.
+                            ZStack(alignment: .bottomLeading) {
+                                TVImage(path: detail.backdrop?.replacingOccurrences(of: "/t/p/w780/", with: "/t/p/w1280/") ?? detail.poster)
+                                    .frame(width: geo.size.width, height: geo.size.height)
+                                    .clipped()
+                                LinearGradient(stops: [
+                                    .init(color: TV.ink.opacity(0.95), location: 0),
+                                    .init(color: TV.ink.opacity(0.55), location: 0.5),
+                                    .init(color: .clear, location: 1),
+                                ], startPoint: .leading, endPoint: .trailing)
+                                LinearGradient(colors: [.clear, TV.ink], startPoint: .center, endPoint: .bottom)
+                                content(detail)
+                            }
+                            .frame(width: geo.size.width, height: geo.size.height)
+                            if let people = detail.people, !people.isEmpty {
+                                TVPeopleRow(title: "Cast and crew", people: people)
+                            }
+                            if let parts = detail.parts, !parts.isEmpty {
+                                TVRow(title: "The collection", cards: parts)
+                            }
+                            if let similar = detail.similar, !similar.isEmpty {
+                                TVRow(title: "More like this", cards: similar)
+                            }
+                        }
+                        .padding(.bottom, 80)
+                    }
+                    .scrollClipDisabled()
+                    // The page opens on its Play button, not on whichever row the
+                    // focus engine finds nearest the middle of the screen.
+                    .defaultFocus($focus, detail.platforms.first?.name)
+                }
+                .ignoresSafeArea()
             } else if let problem {
                 Text(problem).font(.system(size: 30)).foregroundStyle(.orange).padding(TV.edge)
             } else {
-                ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
+                ProgressView()
             }
         }
         .task {
             do {
                 let loaded = try await api.title(ref)
                 detail = loaded
-                focus = loaded.platforms.first?.name
                 // `-tvPlay YES` with `-tvOpen`: press the first button, for
                 // checking a link on a television nobody is holding the remote of.
                 if UserDefaults.standard.bool(forKey: "tvPlay"), let platform = loaded.platforms.first {
@@ -44,6 +70,8 @@ struct TVTitle: View {
                 problem = "Can't load this title: \(error.localizedDescription)"
             }
         }
+        // A title fills the screen; the tabs come back with Back.
+        .toolbar(.hidden, for: .tabBar)
         .alert("MOX", isPresented: .init(get: { notice != nil }, set: { if !$0 { notice = nil } })) {
             Button("OK") {}
         } message: {
