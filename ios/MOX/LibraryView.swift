@@ -10,9 +10,9 @@ struct LibraryView: View {
 
     @Environment(\.horizontalSizeClass) private var size
     private var columns: [GridItem] {
-        // Wide pictures on an iPad, as the TV app shows its library; posters on a phone.
+        // Larger posters on an iPad; posters on a phone.
         size == .regular
-            ? [GridItem(.adaptive(minimum: 280), spacing: 20, alignment: .top)]
+            ? [GridItem(.adaptive(minimum: WideCard.poster(280)), spacing: 20, alignment: .top)]
             : [GridItem(.adaptive(minimum: PosterSize.grid(size)), spacing: 12, alignment: .top)]
     }
 

@@ -300,7 +300,9 @@ export function TitleSheet({
           setRating(null);
         }}
         className={cn(
-          "relative flex w-full max-w-[560px] flex-col overflow-hidden bg-bg shadow-[0_-10px_60px_rgba(0,0,0,.7)]",
+          // A computer or an iPad has the room: a wide page with the picture
+          // across it and the poster on it, not the phone's column in a box.
+          "relative flex w-full max-w-[560px] flex-col overflow-hidden bg-bg shadow-[0_-10px_60px_rgba(0,0,0,.7)] md:max-w-[1040px]",
           // Full height on a phone: a half sheet wastes the screen and leaves
           // the actions crowded against the bottom edge.
           "h-[96dvh] rounded-t-[28px] border-x border-t border-white/10",
@@ -327,18 +329,29 @@ export function TitleSheet({
         <div ref={scrollRef} className="min-h-0 flex-1 overflow-auto overscroll-contain" onScroll={() => rating && setRating(null)}>
           {/* The picture, with the title set on it as it fades into the sheet. */}
           <div
-            className="relative h-[260px] w-full bg-surface bg-cover bg-center"
+            className="relative h-[260px] w-full bg-surface bg-cover bg-center md:h-[460px] md:bg-top"
             style={
               data?.backdrop || data?.poster
                 ? { backgroundImage: `url('${localImage(backdropUrl(data.backdrop ?? data.poster!))}')` }
                 : undefined
             }
           >
-            <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-bg" />
+            <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-bg md:via-bg/35" />
             {data ? (
-              <div className="absolute inset-x-5 bottom-0">
-                <h2 className="text-[28px] font-bold leading-tight tracking-tight">{data.title}</h2>
-                <p className="numeric mt-1 text-[13px] text-ink-dim">{facts.join(" · ")}</p>
+              <div className="absolute inset-x-5 bottom-0 md:inset-x-10 md:flex md:items-end md:gap-7">
+                {/* The poster on the picture, where there is room for both. */}
+                {data.poster ? (
+                  // eslint-disable-next-line @next/next/no-img-element -- a sized TMDB poster
+                  <img
+                    src={localImage(data.poster)}
+                    alt=""
+                    className="hidden aspect-[2/3] w-[200px] shrink-0 rounded-[18px] border border-white/10 object-cover shadow-[0_20px_50px_rgba(0,0,0,.6)] md:block"
+                  />
+                ) : null}
+                <div className="min-w-0 md:pb-2">
+                  <h2 className="text-[28px] font-bold leading-tight tracking-tight md:text-[46px] md:leading-[1.05]">{data.title}</h2>
+                  <p className="numeric mt-1 text-[13px] text-ink-dim md:mt-3 md:text-[15px]">{facts.join(" · ")}</p>
+                </div>
               </div>
             ) : null}
           </div>
@@ -348,7 +361,7 @@ export function TitleSheet({
           ) : !data ? (
             <SheetSkeleton />
           ) : (
-            <div className="flex flex-col gap-5 px-5 pb-10 pt-5">
+            <div className="flex flex-col gap-5 px-5 pb-10 pt-5 md:gap-7 md:px-10 md:pb-12 md:pt-8">
               <section className="flex flex-col gap-2.5">
                 <h3 className="text-[13px] font-semibold text-ink-dim">
                   {data.platforms.length

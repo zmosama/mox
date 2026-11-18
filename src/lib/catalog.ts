@@ -526,19 +526,6 @@ export async function mapImdb(limit = 25_000): Promise<{ found: number; missing:
 }
 
 /** Which TMDB title one IMDb id is, asked once and kept — "none" included. */
-/** Titles being linked right now, so a burst of keystrokes asks TMDB once each. */
-const linking = new Set<string>();
-
-function linkLater(titles: { tconst: string; type: string }[]) {
-  for (const t of titles) {
-    if (linking.has(t.tconst)) continue;
-    linking.add(t.tconst);
-    mapOne(t)
-      .catch(() => null)
-      .finally(() => linking.delete(t.tconst));
-  }
-}
-
 async function mapOne(t: { tconst: string; type: string }): Promise<{ tmdbId: number | null; kind: MediaKind | null }> {
   const res = await tmdb<{ movie_results?: ListedTitle[]; tv_results?: ListedTitle[] }>(
     `/find/${t.tconst}`,
@@ -587,17 +574,17 @@ export function peopleFromRecords(): number {
 }
 
 /**
- * Titles matching what was typed, answered here rather than by TMDB: IMDb's
- * index finds them (English, original and Arabic names, most-voted first) and
- * the catalogue knows which TMDB title each one is.
+ * Titles matching what was typed, answered here and never by TMDB: IMDb's
+ * index finds them (English, original and Arabic names, most-voted first), the
+ * catalogue knows which TMDB title each one is, and the catalogue's own index
+ * adds what IMDb's files lack.
  *
- * Matches near the top not mapped to TMDB yet are mapped in the background,
- * a few per search (the nightly job reaches them all within days); this
- * answer skips them. Null only when none of the matches is mapped at all:
- * search then asks TMDB.
+ * A match not linked to a TMDB title yet is left out; the nightly job links
+ * them (mapImdb). Search itself asks TMDB for nothing — its allowance is kept
+ * for the things only it can answer.
  */
-const MUST_COVER = 40;
-const MAP_NOW = 8;
+/** Up to this many names matching, each is fetched (about half a millisecond a row from a cold disk on the server); past it, only recent ones, from their index. */
+const FETCH_UP_TO = 400;
 /** The columns a search result is drawn from — never the full record beside them. */
 const LIGHT = {
   tmdbId: schema.catalogTitles.tmdbId,
@@ -613,37 +600,25 @@ const LIGHT = {
 type LightTitle = { tmdbId: number; kind: MediaKind; title: string | null; originalTitle: string | null; year: number | null; posterPath: string | null; rating: number | null; votes: number | null; imdbId: string | null };
 export type CatalogHit = { tmdbId: number; kind: MediaKind; title: string; originalTitle: string | null; year: number | null; poster: string | null; rating: number | null; votes: number | null };
 
-export async function searchCatalog(typed: string, limit: number): Promise<CatalogHit[] | null> {
-  // IMDb barely knows Egyptian and Arab work by its Arabic name — "الاختيار"
-  // found an Indian series whose Arabic title is the same — and the
-  // catalogue holds too little of it yet. TMDB answers Arabic for now.
-  if (/\p{Script=Arabic}/u.test(typed)) return null;
+export async function searchCatalog(typed: string, limit: number): Promise<CatalogHit[]> {
   // A wide net, then the names that answer what was typed best: IMDb's own
   // order is most-voted, which buried a new film under every classic that
   // merely shares its words.
   const found = rankResults(searchImdb(typed, limit * 3), typed).slice(0, limit);
-  if (!found.length) return null;
   const ids = found.map((f) => f.tconst);
   const settled = new Map<string, { tmdbId: number | null; kind: MediaKind | null }>();
-  for (const r of db.select().from(schema.imdbMap).where(inArray(schema.imdbMap.imdbId, ids)).all()) {
-    settled.set(r.imdbId, { tmdbId: r.tmdbId, kind: r.kind });
+  if (ids.length) {
+    for (const r of db.select().from(schema.imdbMap).where(inArray(schema.imdbMap.imdbId, ids)).all()) {
+      settled.set(r.imdbId, { tmdbId: r.tmdbId, kind: r.kind });
+    }
+    for (const r of db
+      .select({ imdbId: schema.catalogTitles.imdbId, tmdbId: schema.catalogTitles.tmdbId, kind: schema.catalogTitles.kind })
+      .from(schema.catalogTitles)
+      .where(inArray(schema.catalogTitles.imdbId, ids))
+      .all()) {
+      settled.set(r.imdbId!, { tmdbId: r.tmdbId, kind: r.kind });
+    }
   }
-  for (const r of db
-    .select({ imdbId: schema.catalogTitles.imdbId, tmdbId: schema.catalogTitles.tmdbId, kind: schema.catalogTitles.kind })
-    .from(schema.catalogTitles)
-    .where(inArray(schema.catalogTitles.imdbId, ids))
-    .all()) {
-    settled.set(r.imdbId!, { tmdbId: r.tmdbId, kind: r.kind });
-  }
-  // Titles IMDb knows that are not linked to TMDB yet are linked in the
-  // background, never waited for: the answer comes from what is linked now,
-  // and the next letter typed already finds the rest. Waiting here — or
-  // handing the whole search to TMDB, which only matches whole words — was
-  // what made search slow and stopped half-typed words finding anything.
-  const gaps = found.slice(0, MUST_COVER).filter((f) => !settled.has(f.tconst));
-  linkLater(gaps.slice(0, MAP_NOW));
-  if (!found.some((f) => settled.get(f.tconst)?.tmdbId)) return null;
-
   const refs = ids.flatMap((id) => {
     const s = settled.get(id);
     return s?.tmdbId && s.kind ? [{ tmdbId: s.tmdbId, kind: s.kind }] : [];
@@ -677,25 +652,42 @@ export async function searchCatalog(typed: string, limit: number): Promise<Catal
   });
 
   /* IMDb's files are a week old and keep only titles with 100 votes, so what
-     came out this month — the thing most often searched for — is not in them.
-     The catalogue has it: the nightly feeds keep everything new on a service. */
+     came out this month — the thing most often searched for — is not in them,
+     nor is the small or local film. The catalogue has both. */
   const phrase = normalise(typed);
   if (phrase.length >= 2) {
     const words = phrase.match(/[\p{L}\p{N}]+/gu) ?? [];
+    // Every word as the start of a word of the title, from the index (0028).
+    const match = words.map((w) => `"${w}"*`).join(" ");
     const since = new Date().getFullYear() - 1;
     let recent: LightTitle[];
     try {
-      // Every word as the start of a word of the title (the index of 0028),
-      // checked against this year's and last year's titles only — read from
-      // their own small index (0031), never from the rows. The other way
-      // round, "th" fetched each of its 58,786 matches to ask its year.
-      recent = db.all<LightTitle>(sql`
-        select tmdb_id as tmdbId, kind, title, original_title as originalTitle, year,
-               poster_path as posterPath, rating, votes, null as imdbId
-        from catalog_titles indexed by catalog_titles_recent
-        where year >= ${since} and poster_path is not null
-          and rowid in (select rowid from catalog_title_search where catalog_title_search match ${words.map((w) => `"${w}"*`).join(" ")})
-        order by popularity desc limit 300`);
+      const few = db
+        .all<{ id: number }>(sql`select rowid as id from catalog_title_search where catalog_title_search match ${match} limit ${FETCH_UP_TO + 1}`)
+        .map((r) => r.id);
+      if (few.length <= FETCH_UP_TO) {
+        // A name nearly typed out: few enough to fetch, whatever their year.
+        recent = few.length
+          ? db
+              .select(LIGHT)
+              .from(schema.catalogTitles)
+              .where(and(sql`${schema.catalogTitles}.rowid in ${few}`, sql`${schema.catalogTitles.posterPath} is not null`))
+              .orderBy(desc(schema.catalogTitles.popularity))
+              .limit(300)
+              .all()
+          : [];
+      } else {
+        // Two letters match tens of thousands: only this year's and last
+        // year's, read from their own small index (0031), never from the
+        // rows — fetching each of 58,786 "th…" to ask its year took 20s.
+        recent = db.all<LightTitle>(sql`
+          select tmdb_id as tmdbId, kind, title, original_title as originalTitle, year,
+                 poster_path as posterPath, rating, votes, null as imdbId
+          from catalog_titles indexed by catalog_titles_recent
+          where year >= ${since} and poster_path is not null
+            and rowid in (select rowid from catalog_title_search where catalog_title_search match ${match})
+          order by popularity desc limit 300`);
+      }
     } catch {
       // No index yet — the moment between a deploy's swap and its migration.
       const first = `%${phrase.split(" ")[0]}%`;

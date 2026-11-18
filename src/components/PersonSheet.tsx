@@ -163,7 +163,8 @@ export function PersonSheet({
         ref={panelRef}
         onClick={(e) => e.stopPropagation()}
         className={cn(
-          "relative flex w-full max-w-[720px] flex-col overflow-hidden bg-bg shadow-[0_-10px_60px_rgba(0,0,0,.7)]",
+          // Wide on a computer or an iPad, as a title's page is.
+          "relative flex w-full max-w-[720px] flex-col overflow-hidden bg-bg shadow-[0_-10px_60px_rgba(0,0,0,.7)] md:max-w-[1040px]",
           "h-[96dvh] rounded-t-[28px] border-x border-t border-white/10",
           "sm:h-auto sm:max-h-[90dvh] sm:rounded-[28px] sm:border",
         )}
@@ -183,18 +184,31 @@ export function PersonSheet({
           </svg>
         </button>
 
-        <div ref={scrollRef} className="min-h-0 flex-1 overflow-auto overscroll-contain px-5 pb-10 pt-8">
+        <div ref={scrollRef} className="min-h-0 flex-1 overflow-auto overscroll-contain px-5 pb-10 pt-8 md:px-10 md:pb-12 md:pt-10">
           {error ? (
             <p className="p-6 text-center text-ink-faint">Couldn’t load this person — {error}</p>
           ) : !data ? (
             <SheetSkeleton />
           ) : (
             <div className="flex flex-col gap-7">
-              <header className="flex flex-col items-center gap-3 text-center">
-                <Face src={data.profile} name={data.name} size={128} className="ring-2 ring-love/50" />
+              {/* On a phone, a face over a name. With room, the portrait whole
+                  on one side and the name large beside it. */}
+              <header className="flex flex-col items-center gap-3 text-center md:flex-row md:items-end md:gap-8 md:text-start">
+                <span className="md:hidden">
+                  <Face src={data.profile} name={data.name} size={128} className="ring-2 ring-love/50" />
+                </span>
+                {data.profile ? (
+                  // eslint-disable-next-line @next/next/no-img-element -- a sized TMDB portrait
+                  <img
+                    src={data.profile}
+                    alt=""
+                    className="hidden aspect-[2/3] w-[220px] shrink-0 rounded-[18px] border border-white/10 object-cover shadow-[0_20px_50px_rgba(0,0,0,.6)] md:block"
+                  />
+                ) : null}
+                <div className="flex flex-col items-center gap-3 md:items-start md:gap-4 md:pb-2">
                 <div>
-                  <h2 className="text-[28px] font-bold leading-tight tracking-tight">{data.name}</h2>
-                  <p className="mt-1 text-[13px] text-ink-dim">{facts.join(" · ")}</p>
+                  <h2 className="text-[28px] font-bold leading-tight tracking-tight md:text-[46px] md:leading-[1.05]">{data.name}</h2>
+                  <p className="mt-1 text-[13px] text-ink-dim md:mt-3 md:text-[15px]">{facts.join(" · ")}</p>
                 </div>
                 <button
                   type="button"
@@ -221,6 +235,7 @@ export function PersonSheet({
                     New work from {data.name.split(" ")[0]} shows up on Home when it reaches your services.
                   </p>
                 ) : null}
+                </div>
               </header>
 
               {data.bio ? (

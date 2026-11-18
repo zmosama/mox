@@ -45,8 +45,8 @@ struct TitleSheet: View {
         }
         .presentationDragIndicator(.visible)
         .sheet(isPresented: $signingIn) { SettingsView() }
-        .sheet(item: $person) { PersonSheet(id: $0.id) }
-        .sheet(item: $other) { TitleSheet(ref: $0) }
+        .sheet(item: $person) { PersonSheet(id: $0.id).presentationSizing(.page) }
+        .sheet(item: $other) { TitleSheet(ref: $0).presentationSizing(.page) }
         .task { await load() }
     }
 
@@ -58,7 +58,7 @@ struct TitleSheet: View {
                    widened the whole column and pushed every line of text to
                    the screen's edges. */
                 Color.clear
-                    .frame(height: wide ? 440 : 260)
+                    .frame(height: wide ? 500 : 260)
                     .frame(maxWidth: .infinity)
                     .overlay { RemoteImage(url: d.backdrop ?? d.poster) }
                     .clipped()
@@ -66,13 +66,25 @@ struct TitleSheet: View {
                 if wide {
                     LinearGradient(colors: [.black.opacity(0.7), .clear], startPoint: .leading, endPoint: .center)
                 }
-                VStack(alignment: .leading, spacing: wide ? 10 : 6) {
-                    Text(d.title)
-                        .font(.sora(wide ? 40 : 28, .bold, relativeTo: .largeTitle))
-                        .foregroundStyle(Theme.paper)
-                    Text(meta(d))
-                        .font(.sora(wide ? 16 : 13, relativeTo: .footnote))
-                        .foregroundStyle(Theme.muted)
+                HStack(alignment: .bottom, spacing: 24) {
+                    // The poster on the picture, where there is room for both.
+                    if wide, d.poster != nil {
+                        Color.clear
+                            .frame(width: 180, height: 270)
+                            .overlay { RemoteImage(url: d.poster) }
+                            .clipShape(.rect(cornerRadius: 16))
+                            .overlay(RoundedRectangle(cornerRadius: 16).stroke(.white.opacity(0.1), lineWidth: 1))
+                            .shadow(color: .black.opacity(0.6), radius: 24, y: 12)
+                    }
+                    VStack(alignment: .leading, spacing: wide ? 10 : 6) {
+                        Text(d.title)
+                            .font(.sora(wide ? 44 : 28, .bold, relativeTo: .largeTitle))
+                            .foregroundStyle(Theme.paper)
+                        Text(meta(d))
+                            .font(.sora(wide ? 16 : 13, relativeTo: .footnote))
+                            .foregroundStyle(Theme.muted)
+                    }
+                    .padding(.bottom, wide ? 6 : 0)
                 }
                 .padding(.horizontal, pad)
             }

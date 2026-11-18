@@ -248,7 +248,7 @@ struct PosterRail: View {
     @Environment(\.horizontalSizeClass) private var size
 
     var body: some View {
-        // On an iPad, wide pictures, as the TV app shows them.
+        // On an iPad, the larger poster cards of its shelves.
         if size == .regular {
             WideShelf(title: title, detail: detail, cards: cards, caption: caption, open: open)
         } else {

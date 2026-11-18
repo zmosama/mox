@@ -751,27 +751,6 @@ export function SaveButton({ item, large }: { item: CardTitle; large?: boolean }
   );
 }
 
-/** The iPad's card: a wide picture, its name and where it streams under it.
- * The whole card opens the title; nothing else is on it. */
-function WideCard({ item, onOpen }: { item: CardTitle; onOpen: (r: Ref) => void }) {
-  const tag = item.releaseLabel ?? item.episodeLabel;
-  const caption = item.reason ?? item.platforms[0]?.name ?? (item.year ? String(item.year) : "");
-  return (
-    <button type="button" onClick={() => onOpen(item)} aria-label={`Open ${item.title}`} className="group block w-[300px] shrink-0 snap-start text-start xl:w-[340px]">
-      <span className="relative block aspect-video w-full overflow-hidden rounded-[14px] bg-surface">
-        <Thumb src={item.backdrop ?? item.poster} className="absolute inset-0 size-full transition-transform duration-300 group-hover:scale-[1.04]" />
-        {tag ? (
-          <span className="numeric absolute start-2.5 top-2.5 rounded-full bg-black/65 px-2 py-1 text-[11px] font-semibold text-love-soft">
-            {tag}
-          </span>
-        ) : null}
-      </span>
-      <span className="mt-2 block truncate text-[15px] font-semibold">{item.title}</span>
-      <span className={cn("numeric block truncate text-[12.5px]", item.reason ? "text-love-soft" : "text-ink-dim")}>{caption || "\u00a0"}</span>
-    </button>
-  );
-}
-
 /** One line of what is in each screen, for Home's sections. */
 const SECTIONS: { id: string; line: string }[] = [
   { id: "today", line: "Out today" },
@@ -914,7 +893,9 @@ function Shelf({
   return (
     <section>
       <Heading title={title} detail={detail} more={more} />
-      {/* Posters on a phone, as in the app; wide pictures on a computer, as on the iPad. */}
+      {/* Posters everywhere. A computer drew a wide still from the work here,
+          and a still says nothing: a field of statues, a man with a dog. The
+          poster is the picture made to say what the work is — its name is on it. */}
       <div className="lg:hidden">
         <Rail>
           {cards.map((c) => (
@@ -929,7 +910,9 @@ function Shelf({
       <div className="hidden lg:block">
         <div className="strip -mx-10 snap-x scroll-px-10 gap-5 px-10 pb-1">
           {cards.map((c) => (
-            <WideCard key={`${c.kind}-${c.tmdbId}`} item={c} onOpen={onOpen} />
+            <div key={`${c.kind}-${c.tmdbId}`} className="w-[176px] shrink-0 snap-start xl:w-[196px]">
+              <TitleCard item={c} onOpen={onOpen} />
+            </div>
           ))}
         </div>
       </div>

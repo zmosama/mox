@@ -167,6 +167,13 @@ describe("search", () => {
     add.run(9002, "Thunderbolts*", thisYear, "/bolts.jpg", 90, null, Buffer.alloc(20_000, 1));
     add.run(9003, "Thunder Without A Poster", thisYear, null, 50, null, null);
     add.run(9004, "Thunder Long Ago", 1950, "/old.jpg", 99, null, null);
+    // Arabic work, old, unknown to IMDb's file: only the catalogue has it.
+    raw.prepare(
+      "INSERT INTO catalog_titles (tmdb_id, kind, title, original_title, year, poster_path, popularity) VALUES (9005, 'movie', 'The Blue Elephant', 'الفيل الأزرق', 2014, '/fil.jpg', 20)",
+    ).run();
+    raw.prepare(
+      "INSERT INTO catalog_titles (tmdb_id, kind, title, original_title, year, poster_path, popularity) VALUES (9006, 'tv', 'Al Hayba', 'الهيبة', 2017, '/hayba.jpg', 10)",
+    ).run();
 
     const person = raw.prepare("INSERT INTO catalog_people (id, name, profile_path, department, popularity) VALUES (?, ?, ?, 'Acting', ?)");
     person.run(90001, "Zendaya", "/z.jpg", 80);
@@ -177,9 +184,35 @@ describe("search", () => {
 
   it("answers from IMDb's index and adds this year's titles, which IMDb lacks", async () => {
     const found = await catalog.searchCatalog("thunder", 200);
-    expect(found?.map((f) => f.title).sort()).toEqual(["Thunder Road", "Thunderbolts*"]);
+    expect(found.map((f) => f.title).sort()).toEqual(["Thunder Long Ago", "Thunder Road", "Thunderbolts*"]);
     expect(found?.find((f) => f.tmdbId === 9001)).toMatchObject({ year: 2018, votes: 30000, poster: expect.stringContaining("/road.jpg") });
     expect(found?.find((f) => f.tmdbId === 9002)).toMatchObject({ year: thisYear, poster: expect.stringContaining("/bolts.jpg") });
+  });
+
+  it("asks TMDB for nothing", async () => {
+    await catalog.searchCatalog("thunder", 200);
+    await catalog.searchCatalog("no such title anywhere", 200);
+    expect(tmdb).not.toHaveBeenCalled();
+  });
+
+  it("answers an empty list, not a hand-off, when nothing matches", async () => {
+    expect(await catalog.searchCatalog("zzzqqq", 200)).toEqual([]);
+  });
+
+  it("finds an old title IMDb's file lacks when its name is nearly typed out", async () => {
+    const found = await catalog.searchCatalog("thunder long", 200);
+    expect(found.map((f) => f.tmdbId)).toEqual([9004]);
+  });
+
+  it("finds Arabic as it is typed: without the hamza, with a plain haa", async () => {
+    expect((await catalog.searchCatalog("الفيل الازرق", 200)).map((f) => f.tmdbId)).toEqual([9005]);
+    expect((await catalog.searchCatalog("الفيل الأزرق", 200)).map((f) => f.tmdbId)).toEqual([9005]);
+    expect((await catalog.searchCatalog("الهيبه", 200)).map((f) => f.tmdbId)).toEqual([9006]);
+    // And the index follows a title that is renamed or removed.
+    raw.prepare("UPDATE catalog_titles SET original_title = 'الهيبة: العودة' WHERE tmdb_id = 9006").run();
+    expect((await catalog.searchCatalog("العوده", 200)).map((f) => f.tmdbId)).toEqual([9006]);
+    raw.prepare("DELETE FROM catalog_titles WHERE tmdb_id = 9006").run();
+    expect(await catalog.searchCatalog("الهيبة", 200)).toEqual([]);
   });
 
   it("reads this year's titles from their own index, never from the rows", () => {

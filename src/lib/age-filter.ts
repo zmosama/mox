@@ -66,16 +66,17 @@ function exemptions(userId: number | null) {
 
 /**
  * A filter for one viewer. `lookUp` fetches the certificate of titles never
- * checked — for search, whose results come straight from TMDB and may not be
- * stored at all; anything else unchecked counts as unrated until the nightly
- * sweep reaches it.
+ * checked, from TMDB, for lists that come straight from it. Search does not:
+ * it passes `unchecked: "hide"`, which leaves a never-checked title out for a
+ * viewer who filters, until the nightly sweep reaches it. Anything else
+ * unchecked counts as unrated.
  */
 export function ageFilter(userId: number | null) {
   const prefs = readPrefs(userId);
   const off = filterOff(prefs.ages, prefs.hideUnrated);
   const exempt = off ? new Set<string>() : exemptions(userId);
 
-  return async function apply<T extends Ref>(items: T[], opts: { lookUp?: boolean } = {}): Promise<(T & AgeTagged)[]> {
+  return async function apply<T extends Ref>(items: T[], opts: { lookUp?: boolean; unchecked?: "hide" } = {}): Promise<(T & AgeTagged)[]> {
     const levels = storedLevels(items);
     // Then the catalogue's: every certificate ever looked up is kept there.
     for (const [k, level] of knownAgeLevels(items.filter((i) => !levels.has(`${i.tmdbId}:${i.kind}`)))) levels.set(k, level);
@@ -99,7 +100,10 @@ export function ageFilter(userId: number | null) {
     for (const item of items) {
       const level = levels.get(k(item)) ?? null;
       const age = level ? AGE_LABEL[level] : null;
-      if (off || allows(prefs.ages, prefs.hideUnrated, level)) {
+      // Never checked is not the same as unrated: with a filter on, and
+      // nobody asked to look it up, it waits for the nightly sweep.
+      const unknown = opts.unchecked === "hide" && !off && !levels.has(k(item));
+      if (off || (!unknown && allows(prefs.ages, prefs.hideUnrated, level))) {
         out.push({ ...item, age, ageWarn: false });
       } else if (exempt.has(k(item))) {
         out.push({ ...item, age: age ?? "Unrated", ageWarn: true });

@@ -33,8 +33,8 @@ struct PicksView: View {
                             .font(.sora(14)).foregroundStyle(Theme.muted).padding(.horizontal, 20)
                     }
                     if size == .regular {
-                        // Wide pictures with why each was chosen, as the TV app's shelves.
-                        LazyVGrid(columns: [GridItem(.adaptive(minimum: 280), spacing: 20, alignment: .top)], alignment: .leading, spacing: 28) {
+                        // Posters with why each was chosen under them.
+                        LazyVGrid(columns: [GridItem(.adaptive(minimum: WideCard.poster(280)), spacing: 20, alignment: .top)], alignment: .leading, spacing: 28) {
                             ForEach(picks) { card in
                                 Button { router.title = card.ref } label: { WideCard(card: card, width: 280) }.buttonStyle(.plain)
                             }

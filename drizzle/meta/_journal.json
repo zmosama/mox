@@ -225,6 +225,13 @@
       "when": 1795025892736,
       "tag": "0031_search_indexes",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "6",
+      "when": 1795029492736,
+      "tag": "0032_folded_title_search",
+      "breakpoints": true
     }
   ]
 }

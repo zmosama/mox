@@ -101,7 +101,7 @@ struct StudioView: View {
     @Environment(\.horizontalSizeClass) private var size
     private var columns: [GridItem] {
         size == .regular
-            ? [GridItem(.adaptive(minimum: 280), spacing: 20, alignment: .top)]
+            ? [GridItem(.adaptive(minimum: WideCard.poster(280)), spacing: 20, alignment: .top)]
             : [GridItem(.adaptive(minimum: PosterSize.grid(size)), spacing: 12)]
     }
 

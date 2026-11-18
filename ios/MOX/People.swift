@@ -84,7 +84,11 @@ struct PersonSheet: View {
     enum Role: String { case acting, crew }
     enum Kind: String, CaseIterable { case all = "All", movie = "Films", tv = "TV" }
 
-    private let columns = [GridItem(.adaptive(minimum: 104), spacing: 12, alignment: .top)]
+    @Environment(\.horizontalSizeClass) private var sizeClass
+    /// On an iPad: the portrait whole on one side, the name large beside it.
+    private var wide: Bool { sizeClass == .regular }
+    private var pad: CGFloat { wide ? IPad.margin : 20 }
+    private var columns: [GridItem] { [GridItem(.adaptive(minimum: wide ? 150 : 104), spacing: wide ? 18 : 12, alignment: .top)] }
 
     var body: some View {
         ScrollView {
@@ -109,7 +113,7 @@ struct PersonSheet: View {
             .accessibilityLabel("Close")
         }
         .presentationDragIndicator(.visible)
-        .sheet(item: $title) { TitleSheet(ref: $0) }
+        .sheet(item: $title) { TitleSheet(ref: $0).presentationSizing(.page) }
         .sheet(isPresented: $signingIn) { SettingsView() }
         .task { await load() }
     }
@@ -137,6 +141,24 @@ struct PersonSheet: View {
 
     // MARK: - Content
 
+    private func followButton(_ p: PersonDetail) -> some View {
+        Button { toggleFollow(p) } label: {
+            Label(p.following ? "Following" : "Follow", systemImage: p.following ? "bookmark.fill" : "bookmark")
+                .font(.sora(15, .semibold))
+                .padding(.horizontal, 20)
+                .frame(height: 44)
+                .background(p.following ? Theme.green.opacity(0.2) : Theme.green, in: .capsule)
+                .foregroundStyle(p.following ? Theme.green : Theme.ink)
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func followNote(_ p: PersonDetail) -> some View {
+        Text("New work from \(p.name.split(separator: " ").first.map(String.init) ?? p.name) shows up on Home when it reaches your services.")
+            .font(.sora(12.5))
+            .foregroundStyle(Theme.muted)
+    }
+
     private func content(_ p: PersonDetail) -> some View {
         let s = sections(p)
         let today = Day.todayISO
@@ -144,36 +166,50 @@ struct PersonSheet: View {
         let coming = s.shown.filter { ($0.date ?? "").isEmpty || ($0.date ?? "") > today }.reversed()
 
         return VStack(alignment: .leading, spacing: 26) {
-            VStack(spacing: 12) {
-                PersonFace(url: p.profile, name: p.name, size: 128)
-                    .overlay(Circle().stroke(Theme.green.opacity(0.5), lineWidth: 2))
-                Text(p.name)
-                    .font(.sora(28, .bold, relativeTo: .largeTitle))
-                    .foregroundStyle(Theme.paper)
-                    .multilineTextAlignment(.center)
-                Text(facts(p))
-                    .font(.sora(13, relativeTo: .footnote))
-                    .foregroundStyle(Theme.muted)
-                    .multilineTextAlignment(.center)
-                Button { toggleFollow(p) } label: {
-                    Label(p.following ? "Following" : "Follow", systemImage: p.following ? "bookmark.fill" : "bookmark")
-                        .font(.sora(15, .semibold))
-                        .padding(.horizontal, 20)
-                        .frame(height: 44)
-                        .background(p.following ? Theme.green.opacity(0.2) : Theme.green, in: .capsule)
-                        .foregroundStyle(p.following ? Theme.green : Theme.ink)
+            if wide {
+                HStack(alignment: .bottom, spacing: 28) {
+                    if p.profile != nil {
+                        Color.clear
+                            .frame(width: 200, height: 300)
+                            .overlay { RemoteImage(url: p.profile) }
+                            .clipShape(.rect(cornerRadius: 16))
+                            .overlay(RoundedRectangle(cornerRadius: 16).stroke(.white.opacity(0.1), lineWidth: 1))
+                            .shadow(color: .black.opacity(0.6), radius: 24, y: 12)
+                    }
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text(p.name)
+                            .font(.sora(44, .bold, relativeTo: .largeTitle))
+                            .foregroundStyle(Theme.paper)
+                        Text(facts(p))
+                            .font(.sora(16, relativeTo: .footnote))
+                            .foregroundStyle(Theme.muted)
+                        followButton(p)
+                        if p.following { followNote(p) }
+                    }
+                    .padding(.bottom, 6)
+                    Spacer(minLength: 0)
                 }
-                .buttonStyle(.plain)
-                if p.following {
-                    Text("New work from \(p.name.split(separator: " ").first.map(String.init) ?? p.name) shows up on Home when it reaches your services.")
-                        .font(.sora(12.5))
+                .padding(.top, 44)
+                .padding(.horizontal, pad)
+            } else {
+                VStack(spacing: 12) {
+                    PersonFace(url: p.profile, name: p.name, size: 128)
+                        .overlay(Circle().stroke(Theme.green.opacity(0.5), lineWidth: 2))
+                    Text(p.name)
+                        .font(.sora(28, .bold, relativeTo: .largeTitle))
+                        .foregroundStyle(Theme.paper)
+                        .multilineTextAlignment(.center)
+                    Text(facts(p))
+                        .font(.sora(13, relativeTo: .footnote))
                         .foregroundStyle(Theme.muted)
                         .multilineTextAlignment(.center)
+                    followButton(p)
+                    if p.following { followNote(p).multilineTextAlignment(.center) }
                 }
+                .frame(maxWidth: .infinity)
+                .padding(.top, 36)
+                .padding(.horizontal, 20)
             }
-            .frame(maxWidth: .infinity)
-            .padding(.top, 36)
-            .padding(.horizontal, 20)
 
             if let bio = p.bio {
                 Button { withAnimation { bioOpen.toggle() } } label: {
@@ -188,7 +224,7 @@ struct PersonSheet: View {
                     }
                 }
                 .buttonStyle(.plain)
-                .padding(.horizontal, 20)
+                .padding(.horizontal, pad)
             }
 
             VStack(spacing: 10) {
@@ -204,7 +240,7 @@ struct PersonSheet: View {
             }
             .pickerStyle(.segmented)
             .pickerWidth()
-            .padding(.horizontal, 20)
+            .padding(.horizontal, pad)
 
             if !now.isEmpty {
                 PosterRail(title: "On your services", detail: "\(now.count)", cards: now, caption: { $0.role }) { title = $0 }
@@ -222,7 +258,7 @@ struct PersonSheet: View {
                             .buttonStyle(.plain)
                     }
                 }
-                .padding(.horizontal, 20)
+                .padding(.horizontal, pad)
             }
         }
         .padding(.bottom, 40)

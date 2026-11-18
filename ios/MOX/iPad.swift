@@ -1,23 +1,33 @@
 import SwiftUI
 
 // The iPad's own screens, after the Apple TV app: a featured title across the
-// top of Home, shelves of wide pictures rather than posters, Search as a place
+// top of Home, shelves of large posters, Search as a place
 // of its own in the sidebar, and titles that grow out of their card. On an iPhone
 // none of this is used — every screen here is chosen by the regular size class.
 
 // MARK: - Cards
 
-/// A title as a wide picture with its name under it — the iPad's card.
+/// The iPad's card: the title's poster with its name under it.
+///
+/// It was a wide still from the work, after the Apple TV app — and a still says
+/// nothing: a field of statues, a man with a dog. The poster is the picture
+/// made to say what the work is, with its name on it. `width` is still the
+/// width a wide card was given; the poster is three fifths of it, so a shelf
+/// keeps its height and shows more titles.
 struct WideCard: View {
     let card: Card
     var width: CGFloat = 300
     var caption: String? = nil
 
+    /// The poster's width for a card asked for at `width`.
+    static func poster(_ width: CGFloat) -> CGFloat { (width * 0.6).rounded() }
+
     var body: some View {
+        let poster = Self.poster(width)
         VStack(alignment: .leading, spacing: 8) {
             Color.clear
-                .frame(width: width, height: width * 9 / 16)
-                .overlay { RemoteImage(url: card.backdrop ?? card.poster) }
+                .frame(width: poster, height: poster * 1.5)
+                .overlay { RemoteImage(url: card.poster ?? card.backdrop) }
                 .overlay(alignment: .topLeading) {
                     if let tag = card.episodeLabel ?? card.releaseLabel {
                         Text(tag)
@@ -37,17 +47,19 @@ struct WideCard: View {
                 .font(.sora(15, .semibold, relativeTo: .subheadline))
                 .foregroundStyle(Theme.paper)
                 .lineLimit(1)
+            // Two lines: "Because you liked Lucky and Money Heist" under a poster.
             Text(caption ?? card.reason ?? card.platforms.first?.name ?? card.year.map(String.init) ?? " ")
                 .font(.sora(12.5, relativeTo: .caption))
                 .foregroundStyle(caption == nil && card.reason != nil ? Theme.mint : Theme.muted)
-                .lineLimit(1)
+                .lineLimit(2)
+                .multilineTextAlignment(.leading)
         }
-        .frame(width: width, alignment: .leading)
+        .frame(width: poster, alignment: .leading)
         .contentShape(.rect)
     }
 }
 
-/// A titled row of wide cards that scrolls sideways.
+/// A titled row of the iPad's cards that scrolls sideways.
 struct WideShelf: View {
     let title: String
     var detail: String? = nil
@@ -439,7 +451,7 @@ struct IPadSearch: View {
 
     private var trimmed: String { query.trimmingCharacters(in: .whitespaces) }
     private var searching: Bool { trimmed.count >= 2 }
-    private let columns = [GridItem(.adaptive(minimum: 280), spacing: 20, alignment: .top)]
+    private let columns = [GridItem(.adaptive(minimum: WideCard.poster(280)), spacing: 20, alignment: .top)]
 
     var body: some View {
         NavigationStack {
