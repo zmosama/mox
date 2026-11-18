@@ -15,7 +15,10 @@ const dir = mkdtempSync(join(tmpdir(), "mox-catalog-"));
 process.env.MOX_DB = join(dir, "test.db");
 
 const tmdb = vi.fn();
-vi.mock("./tmdb", () => ({ tmdb: (...args: unknown[]) => tmdb(...args) }));
+vi.mock("./tmdb", () => ({
+  tmdb: (...args: unknown[]) => tmdb(...args),
+  posterPath: (path: string | null | undefined) => (path ? `https://image.tmdb.org/t/p/w342${path}` : null),
+}));
 
 let catalog: typeof import("./catalog");
 let raw: Database.Database;
@@ -138,5 +141,67 @@ describe("seedCatalog", () => {
     const { filled } = await catalog.enrichCatalog(1);
     expect(filled).toBe(1);
     expect(tmdb.mock.calls[0][0]).toBe("/tv/77");
+  });
+});
+
+describe("search", () => {
+  const thisYear = new Date().getFullYear();
+
+  beforeAll(() => {
+    // IMDb's file, as scripts/imdb/build.mts lays it out, with one old film in it.
+    const imdb = new Database(join(dir, "imdb.db"));
+    imdb.exec(`
+      create table titles (tconst text primary key, type text not null, title text not null, original text,
+        year integer, end_year integer, runtime integer, genres text, rating real, votes integer) without rowid;
+      create virtual table title_search using fts5 (tconst unindexed, name, tokenize = 'unicode61 remove_diacritics 2');
+      create table meta (key text primary key, value text);
+      insert into titles (tconst, type, title, year, rating, votes) values ('tt9000001', 'movie', 'Thunder Road', 2018, 7.1, 30000);
+      insert into title_search (tconst, name) values ('tt9000001', 'Thunder Road');
+    `);
+    imdb.close();
+    const add = raw.prepare(
+      "INSERT INTO catalog_titles (tmdb_id, kind, title, year, poster_path, popularity, imdb_id, detail_z) VALUES (?, 'movie', ?, ?, ?, ?, ?, ?)",
+    );
+    add.run(9001, "Thunder Road", 2018, "/road.jpg", 3, "tt9000001", Buffer.alloc(20_000, 1));
+    // Out this year: not in IMDb's file yet, known only to the catalogue.
+    add.run(9002, "Thunderbolts*", thisYear, "/bolts.jpg", 90, null, Buffer.alloc(20_000, 1));
+    add.run(9003, "Thunder Without A Poster", thisYear, null, 50, null, null);
+    add.run(9004, "Thunder Long Ago", 1950, "/old.jpg", 99, null, null);
+
+    const person = raw.prepare("INSERT INTO catalog_people (id, name, profile_path, department, popularity) VALUES (?, ?, ?, 'Acting', ?)");
+    person.run(90001, "Zendaya", "/z.jpg", 80);
+    person.run(90002, "Zendaya Nobody", null, 99);
+    // More names starting "qu" than are worth fetching one by one.
+    for (let i = 0; i < 450; i++) person.run(91000 + i, `Quentin Number${i}`, i % 2 ? `/q${i}.jpg` : null, i);
+  });
+
+  it("answers from IMDb's index and adds this year's titles, which IMDb lacks", async () => {
+    const found = await catalog.searchCatalog("thunder", 200);
+    expect(found?.map((f) => f.title).sort()).toEqual(["Thunder Road", "Thunderbolts*"]);
+    expect(found?.find((f) => f.tmdbId === 9001)).toMatchObject({ year: 2018, votes: 30000, poster: expect.stringContaining("/road.jpg") });
+    expect(found?.find((f) => f.tmdbId === 9002)).toMatchObject({ year: thisYear, poster: expect.stringContaining("/bolts.jpg") });
+  });
+
+  it("reads this year's titles from their own index, never from the rows", () => {
+    const plan = raw
+      .prepare(
+        `explain query plan select tmdb_id, kind, title, original_title, year, poster_path, rating, votes
+         from catalog_titles indexed by catalog_titles_recent
+         where year >= 2025 and poster_path is not null
+           and rowid in (select rowid from catalog_title_search where catalog_title_search match '"th"*')
+         order by popularity desc limit 300`,
+      )
+      .all() as { detail: string }[];
+    expect(plan.map((p) => p.detail).join("\n")).toContain("USING COVERING INDEX catalog_titles_recent");
+  });
+
+  it("finds a person by name, only with a face", () => {
+    expect(catalog.searchPeople("zend")).toEqual([{ id: 90001, name: "Zendaya", profilePath: "/z.jpg", department: "Acting" }]);
+  });
+
+  it("gives the best known first when hundreds of names match", () => {
+    const found = catalog.searchPeople("qu");
+    expect(found.map((p) => p.id)).toEqual([91449, 91447, 91445, 91443, 91441, 91439, 91437, 91435]);
+    expect(found.every((p) => p.profilePath)).toBe(true);
   });
 });

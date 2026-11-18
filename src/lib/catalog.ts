@@ -17,7 +17,7 @@
  * studios, certificates, IMDb ids — and not just names and posters.
  */
 import { deflateRawSync, inflateRawSync } from "node:zlib";
-import { and, desc, eq, inArray, isNull, type SQL, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import { db, schema } from "@/db";
 import type { MediaKind } from "@/db/schema";
 import { ageLevel, certAppend, type AgeLevel, type CertSource } from "./ratings";
@@ -598,6 +598,19 @@ export function peopleFromRecords(): number {
  */
 const MUST_COVER = 40;
 const MAP_NOW = 8;
+/** The columns a search result is drawn from — never the full record beside them. */
+const LIGHT = {
+  tmdbId: schema.catalogTitles.tmdbId,
+  kind: schema.catalogTitles.kind,
+  title: schema.catalogTitles.title,
+  originalTitle: schema.catalogTitles.originalTitle,
+  year: schema.catalogTitles.year,
+  posterPath: schema.catalogTitles.posterPath,
+  rating: schema.catalogTitles.rating,
+  votes: schema.catalogTitles.votes,
+  imdbId: schema.catalogTitles.imdbId,
+};
+type LightTitle = { tmdbId: number; kind: MediaKind; title: string | null; originalTitle: string | null; year: number | null; posterPath: string | null; rating: number | null; votes: number | null; imdbId: string | null };
 export type CatalogHit = { tmdbId: number; kind: MediaKind; title: string; originalTitle: string | null; year: number | null; poster: string | null; rating: number | null; votes: number | null };
 
 export async function searchCatalog(typed: string, limit: number): Promise<CatalogHit[] | null> {
@@ -635,10 +648,18 @@ export async function searchCatalog(typed: string, limit: number): Promise<Catal
     const s = settled.get(id);
     return s?.tmdbId && s.kind ? [{ tmdbId: s.tmdbId, kind: s.kind }] : [];
   });
-  const rows = catalogued(refs);
+  // Only what a result shows: the rows also hold each title's whole record,
+  // and reading two hundred of those to draw ten posters was a megabyte a search.
+  const rows = new Map<string, LightTitle>();
+  const tmdbIds = [...new Set(refs.map((r) => r.tmdbId))];
+  if (tmdbIds.length) {
+    for (const row of db.select(LIGHT).from(schema.catalogTitles).where(inArray(schema.catalogTitles.tmdbId, tmdbIds)).all()) {
+      rows.set(key(row.tmdbId, row.kind), row);
+    }
+  }
   const votes = new Map(found.map((f) => [f.tconst, f.votes]));
   const seen = new Set<string>();
-  const hit = (row: typeof schema.catalogTitles.$inferSelect, imdbVotes?: number): CatalogHit => ({
+  const hit = (row: LightTitle, imdbVotes?: number): CatalogHit => ({
     tmdbId: row.tmdbId,
     kind: row.kind,
     title: row.title!,
@@ -660,31 +681,35 @@ export async function searchCatalog(typed: string, limit: number): Promise<Catal
      The catalogue has it: the nightly feeds keep everything new on a service. */
   const phrase = normalise(typed);
   if (phrase.length >= 2) {
-    const recentWhere = (matches: SQL) =>
-      db
-        .select()
+    const words = phrase.match(/[\p{L}\p{N}]+/gu) ?? [];
+    const since = new Date().getFullYear() - 1;
+    let recent: LightTitle[];
+    try {
+      // Every word as the start of a word of the title (the index of 0028),
+      // checked against this year's and last year's titles only — read from
+      // their own small index (0031), never from the rows. The other way
+      // round, "th" fetched each of its 58,786 matches to ask its year.
+      recent = db.all<LightTitle>(sql`
+        select tmdb_id as tmdbId, kind, title, original_title as originalTitle, year,
+               poster_path as posterPath, rating, votes, null as imdbId
+        from catalog_titles indexed by catalog_titles_recent
+        where year >= ${since} and poster_path is not null
+          and rowid in (select rowid from catalog_title_search where catalog_title_search match ${words.map((w) => `"${w}"*`).join(" ")})
+        order by popularity desc limit 300`);
+    } catch {
+      // No index yet — the moment between a deploy's swap and its migration.
+      const first = `%${phrase.split(" ")[0]}%`;
+      recent = db
+        .select(LIGHT)
         .from(schema.catalogTitles)
         .where(and(
-          sql`${schema.catalogTitles.year} >= ${new Date().getFullYear() - 1}`,
+          sql`${schema.catalogTitles.year} >= ${since}`,
           sql`${schema.catalogTitles.posterPath} is not null`,
-          matches,
+          sql`(lower(${schema.catalogTitles.title}) like ${first} or lower(${schema.catalogTitles.originalTitle}) like ${first})`,
         ))
         .orderBy(desc(schema.catalogTitles.popularity))
         .limit(300)
         .all();
-    const words = phrase.match(/[\p{L}\p{N}]+/gu) ?? [];
-    let recent: (typeof schema.catalogTitles.$inferSelect)[];
-    try {
-      // Every word as the start of a word of the title, from the index (0028).
-      recent = recentWhere(
-        sql`${schema.catalogTitles}.rowid in (select rowid from catalog_title_search where catalog_title_search match ${words.map((w) => `"${w}"*`).join(" ")})`,
-      );
-    } catch {
-      // No index yet — the moment between a deploy's swap and its migration.
-      const first = `%${phrase.split(" ")[0]}%`;
-      recent = recentWhere(
-        sql`(lower(${schema.catalogTitles.title}) like ${first} or lower(${schema.catalogTitles.originalTitle}) like ${first})`,
-      );
     }
     for (const row of recent) {
       if (!row.title || seen.has(key(row.tmdbId, row.kind))) continue;
@@ -696,20 +721,54 @@ export async function searchCatalog(typed: string, limit: number): Promise<Catal
   return out;
 }
 
-/** People in the catalogue whose name matches, with a face, best known first. */
-export function searchPeople(typed: string, limit = 8) {
+/**
+ * People in the catalogue whose name matches, with a face, best known first.
+ *
+ * Two ways to the same eight, by how many names match. A few (a name typed
+ * out): fetch those people. Thousands (two letters): walk the best-known faces
+ * in order (the index of 0031) and stop at the eighth that matches — fetching
+ * every "th…" to sort them took two seconds from a cold disk.
+ */
+const WALK_OVER = 400;
+export type PersonFound = { id: number; name: string; profilePath: string | null; department: string | null };
+
+export function searchPeople(typed: string, limit = 8): PersonFound[] {
   const words = typed.toLowerCase().match(/[\p{L}\p{N}]+/gu) ?? [];
   if (!words.length) return [];
   // Each word as the start of a word of the name, from the index (0027).
   const match = words.map((w) => `"${w}"*`).join(" ");
+  const light = {
+    id: schema.catalogPeople.id,
+    name: schema.catalogPeople.name,
+    profilePath: schema.catalogPeople.profilePath,
+    department: schema.catalogPeople.department,
+  };
   try {
+    const ids = db
+      .all<{ id: number }>(sql`select rowid as id from people_search where people_search match ${match} limit ${WALK_OVER + 1}`)
+      .map((r) => r.id);
+    if (!ids.length) return [];
+    if (ids.length > WALK_OVER) {
+      try {
+        return db.all<PersonFound>(sql`
+          select id, name, profile_path as profilePath, department
+          from catalog_people indexed by catalog_people_faces
+          where profile_path is not null
+            and id in (select rowid from people_search where people_search match ${match})
+          order by popularity desc limit ${limit}`);
+      } catch {
+        // No such index yet (a deploy's swap before its migration): the slow way below.
+      }
+    }
     return db
-      .select()
+      .select(light)
       .from(schema.catalogPeople)
       .where(
         and(
           sql`profile_path is not null`,
-          sql`id in (select rowid from people_search where people_search match ${match})`,
+          ids.length > WALK_OVER
+            ? sql`id in (select rowid from people_search where people_search match ${match})`
+            : inArray(schema.catalogPeople.id, ids),
         ),
       )
       .orderBy(sql`popularity desc nulls last`)
@@ -718,7 +777,7 @@ export function searchPeople(typed: string, limit = 8) {
   } catch {
     // No index yet — the moment between a deploy's swap and its migration.
     return db
-      .select()
+      .select(light)
       .from(schema.catalogPeople)
       .where(and(sql`profile_path is not null`, ...words.map((w) => sql`lower(name) like ${`%${w}%`}`)))
       .orderBy(sql`popularity desc nulls last`)

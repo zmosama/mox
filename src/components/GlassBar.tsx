@@ -197,8 +197,11 @@ function TopBar({ path, tabs, more, user }: { path: string; tabs: string[]; more
           </svg>
         )}
       </Link>
-      <nav aria-label="Sections" className="fixed inset-x-0 top-3 z-[46] hidden justify-center px-4 lg:flex">
-        <ul className="flex items-center gap-0.5 rounded-full border border-white/10 bg-[#1c1f1e]/95 p-1.5 shadow-pop">
+      {/* The strip spans the screen only to centre the pill: clicks beside the
+          pill pass through it. It lay over your photo in the corner, which
+          then opened nothing. */}
+      <nav aria-label="Sections" className="pointer-events-none fixed inset-x-0 top-3 z-[46] hidden justify-center px-4 lg:flex">
+        <ul className="pointer-events-auto flex items-center gap-0.5 rounded-full border border-white/10 bg-[#1c1f1e]/95 p-1.5 shadow-pop">
           <li>
             <Link href="/" onClick={backHome(path)} aria-current={on("/") ? "page" : undefined} className={cn(item, "gap-2 ps-2.5", state(on("/")))}>
               {/* eslint-disable-next-line @next/next/no-img-element -- a fixed brand asset */}

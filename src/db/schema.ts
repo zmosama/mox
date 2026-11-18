@@ -610,6 +610,10 @@ export const catalogTitles = sqliteTable(
     index("catalog_titles_popularity").on(t.popularity),
     index("catalog_titles_imdb").on(t.imdbId),
     index("catalog_titles_detail").on(t.detailAt),
+    /* What a search result shows, apart from the rows and their full records:
+       search asks "which of these matches are recent" here, not of the 800MB
+       table (0031). */
+    index("catalog_titles_recent").on(t.year, t.popularity, t.tmdbId, t.kind, t.title, t.originalTitle, t.posterPath, t.rating, t.votes),
   ],
 );
 
@@ -629,7 +633,11 @@ export const catalogPeople = sqliteTable(
     seenAt: integer("seen_at").notNull().default(sql`(unixepoch())`),
     createdAt: integer("created_at").notNull().default(sql`(unixepoch())`),
   },
-  (t) => [index("catalog_people_popularity").on(t.popularity)],
+  (t) => [
+    index("catalog_people_popularity").on(t.popularity),
+    /* People with a face, best known first — all a search result shows (0031). */
+    index("catalog_people_faces").on(t.popularity, t.name, t.profilePath, t.department).where(sql`profile_path is not null`),
+  ],
 );
 
 /**
