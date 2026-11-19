@@ -20,8 +20,8 @@ struct TVF1: View {
                         if let next = board.next { nextRace(next, board) }
                         HStack(alignment: .top, spacing: 60) {
                             if let standings = board.standings {
-                                table("Drivers", standings.drivers.prefix(10).map { ($0.position, $0.name, $0.team ?? "", $0.color, $0.points) })
-                                table("Constructors", standings.teams.prefix(10).map { ($0.position, $0.name, "", $0.color, $0.points) })
+                                table("Drivers", Array(standings.drivers.prefix(10)), faces: true)
+                                table("Constructors", Array(standings.teams.prefix(10)), faces: false)
                             } else if board.shield {
                                 Text("Standings are hidden while the spoiler shield is on.")
                                     .font(.system(size: 26)).foregroundStyle(TV.muted)
@@ -52,6 +52,19 @@ struct TVF1: View {
     }
 
     private func nextRace(_ race: F1Race, _ board: F1Board) -> some View {
+        HStack(alignment: .center, spacing: 60) {
+            nextRaceWords(race, board)
+            Spacer(minLength: 0)
+            if let track = race.track {
+                TVTrack(track: track, line: 5)
+                    .frame(width: 520, height: 400)
+            }
+        }
+        .padding(.horizontal, TV.edge)
+        .focusSection()
+    }
+
+    private func nextRaceWords(_ race: F1Race, _ board: F1Board) -> some View {
         VStack(alignment: .leading, spacing: 18) {
             Text("NEXT · ROUND \(race.round)")
                 .font(.system(size: 24, weight: .bold))
@@ -96,32 +109,40 @@ struct TVF1: View {
             }
             .padding(.top, 10)
         }
-        .padding(.horizontal, TV.edge)
-        .focusSection()
     }
 
-    private func table(_ title: String, _ rows: [(Int, String, String, String, Double)]) -> some View {
+    private func table(_ title: String, _ rows: [F1Standing], faces: Bool) -> some View {
         VStack(alignment: .leading, spacing: 14) {
             Text(title)
                 .font(.system(size: 34, weight: .semibold))
                 .foregroundStyle(TV.paper)
-            ForEach(rows, id: \.1) { row in
+            ForEach(rows, id: \.id) { row in
                 HStack(spacing: 16) {
-                    Text("\(row.0)")
+                    Text("\(row.position)")
                         .font(.system(size: 25, weight: .bold, design: .monospaced))
                         .foregroundStyle(TV.muted)
                         .frame(width: 44, alignment: .trailing)
+                    if faces {
+                        // The driver's face on their team's colour, as on the phone.
+                        TVImage(path: row.photo)
+                            .frame(width: 64, height: 64)
+                            .background(Color(tvHex: row.color))
+                            .clipShape(.circle)
+                    } else {
+                        TVImage(path: row.photo, contentMode: .fit)
+                            .frame(width: 64, height: 44)
+                    }
                     RoundedRectangle(cornerRadius: 3)
-                        .fill(Color(tvHex: row.3))
-                        .frame(width: 6, height: 34)
+                        .fill(Color(tvHex: row.color))
+                        .frame(width: 6, height: 40)
                     VStack(alignment: .leading, spacing: 0) {
-                        Text(row.1).font(.system(size: 26, weight: .medium)).foregroundStyle(TV.paper).lineLimit(1)
-                        if !row.2.isEmpty {
-                            Text(row.2).font(.system(size: 20)).foregroundStyle(TV.muted).lineLimit(1)
+                        Text(row.name).font(.system(size: 26, weight: .medium)).foregroundStyle(TV.paper).lineLimit(1)
+                        if let team = row.team, !team.isEmpty {
+                            Text(team).font(.system(size: 20)).foregroundStyle(TV.muted).lineLimit(1)
                         }
                     }
                     Spacer(minLength: 12)
-                    Text(row.4 == row.4.rounded() ? String(Int(row.4)) : String(format: "%.1f", row.4))
+                    Text(row.points == row.points.rounded() ? String(Int(row.points)) : String(format: "%.1f", row.points))
                         .font(.system(size: 26, weight: .semibold, design: .monospaced))
                         .foregroundStyle(TV.paper)
                 }
@@ -141,6 +162,11 @@ struct TVF1: View {
                     ForEach(board.races) { race in
                         Button {} label: {
                             VStack(alignment: .leading, spacing: 8) {
+                                if let track = race.track {
+                                    TVTrack(track: track, line: 3, color: race.round == board.next?.round ? TV.green : TV.paper.opacity(0.7))
+                                        .frame(width: 300, height: 150)
+                                        .padding(.bottom, 6)
+                                }
                                 Text("ROUND \(race.round)")
                                     .font(.system(size: 20, weight: .bold))
                                     .foregroundStyle(race.round == board.next?.round ? TV.green : TV.muted)
@@ -173,6 +199,52 @@ struct TVF1: View {
             .scrollClipDisabled()
         }
         .focusSection()
+    }
+}
+
+/// A circuit's outline, drawn as a lit line: a soft wide stroke under a crisp
+/// one, and a dot where the lap starts. The same shape the phone draws.
+struct TVTrack: View {
+    let track: F1Track
+    var line: CGFloat = 4
+    var color: Color = TV.green
+
+    var body: some View {
+        let shape = Outline(track: track)
+        ZStack {
+            shape.stroke(color.opacity(0.22), style: StrokeStyle(lineWidth: line * 3.2, lineCap: .round, lineJoin: .round))
+            shape.stroke(color, style: StrokeStyle(lineWidth: line, lineCap: .round, lineJoin: .round))
+            GeometryReader { geo in
+                if let first = track.points.first, first.count == 2 {
+                    let f = shape.fit(CGRect(origin: .zero, size: geo.size))
+                    Circle().fill(TV.paper)
+                        .frame(width: line * 2.6, height: line * 2.6)
+                        .position(x: f.x + first[0] * f.scale, y: f.y + first[1] * f.scale)
+                }
+            }
+        }
+        .padding(line * 2)
+    }
+
+    private nonisolated struct Outline: Shape {
+        let track: F1Track
+
+        func fit(_ rect: CGRect) -> (scale: CGFloat, x: CGFloat, y: CGFloat) {
+            let w = max(track.w, 1), h = max(track.h, 1)
+            let scale = min(rect.width / w, rect.height / h)
+            return (scale, rect.minX + (rect.width - w * scale) / 2, rect.minY + (rect.height - h * scale) / 2)
+        }
+
+        func path(in rect: CGRect) -> Path {
+            let f = fit(rect)
+            var path = Path()
+            for (i, p) in track.points.enumerated() where p.count == 2 {
+                let q = CGPoint(x: f.x + p[0] * f.scale, y: f.y + p[1] * f.scale)
+                if i == 0 { path.move(to: q) } else { path.addLine(to: q) }
+            }
+            path.closeSubpath()
+            return path
+        }
     }
 }
 
