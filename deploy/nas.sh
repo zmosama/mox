@@ -1,7 +1,9 @@
 #!/bin/bash
-# Ship mox to the TrueNAS, where it has run since 2026-11-18.
+# Ship mox to the TrueNAS, where it ran from 2026-11-18 to 2026-11-23.
 #
-#   ./deploy/nas.sh
+#   MOX_DEPLOY_STANDBY=yes ./deploy/nas.sh
+#
+# NOT the live site right now: see the guard below and deploy/vps.sh.
 #
 # Nothing is built or uploaded from here. A push to main makes GitHub build the
 # image (.github/workflows/image.yml) and keep it in its registry; this waits
@@ -15,6 +17,21 @@
 # image being replaced is remembered by its digest, and a new one that does
 # not answer is replaced by the old one again.
 set -euo pipefail
+
+# mox moved back to the VPS on 2026-11-23 (deploy/vps.sh) while the home
+# server is being relocated. The copy on the TrueNAS is a stopped standby: its
+# data is frozen at that evening and its nightly jobs are disabled. This
+# script would start it — beside the real one — and then report success,
+# because the check at the end asks the public address, which the VPS answers.
+#
+# To move back here for good, the data has to come first: stop the app on the
+# VPS, copy its database and data files over, then switch the `mox` record on
+# Cloudflare to the TrueNAS tunnel and move the two cron jobs.
+if [ "${MOX_DEPLOY_STANDBY:-}" != "yes" ]; then
+  echo "!! mox runs on the VPS now — use ./deploy/vps.sh" >&2
+  echo "   (to refresh the stopped standby on the TrueNAS on purpose: MOX_DEPLOY_STANDBY=yes $0)" >&2
+  exit 1
+fi
 
 # The LAN address: the TrueNAS is beside the desk. From elsewhere, the tunnel:
 #   MOX_NAS=truenas ./deploy/nas.sh

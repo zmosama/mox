@@ -1,119 +1,99 @@
 #!/bin/bash
-# Ship mox to the VPS.
+# Ship mox to the VPS, where it runs again since 2026-11-23.
 #
 #   ./deploy/vps.sh
 #
-# The image is built HERE and shipped. The VPS has one core and 1.9GB of RAM
-# behind a swapfile, with a live site running on it — building there works, but
-# it takes the box to the edge of its memory to do it, and this was settled
-# before: the Mac builds, the server receives.
+# Nothing is built or uploaded from here. A push to main makes GitHub build the
+# image (.github/workflows/image.yml) and keep it in its registry; this waits
+# for that build, then has the VPS pull it — only the layers that changed —
+# restart the app on it, and bring the database up to date.
 #
-# It still pushes to GitHub first and refuses a dirty tree, so whatever is
-# running can always be named by a commit.
+# Where mox has run:
+#   2026-09-29  the VPS, image built on this Mac and uploaded whole (1.1GB)
+#   2026-11-18  the TrueNAS at home, image built by GitHub (deploy/nas.sh)
+#   2026-11-23  the VPS again, same GitHub image: the home server is being
+#               moved and will be off. The copy on the TrueNAS is a stopped
+#               standby with its nightly jobs disabled.
 #
-# Two things make it safe to run on a live site. Everything slow happens while
-# the old container is still serving, so a failure before the swap changes
-# nothing. And the image being replaced is tagged first, so a new one that
-# starts but does not answer is put back within seconds.
-#
-# The old deploy/deploy.sh targeted a Mac on the home network and has not been
-# production since the site moved here.
+# Safe on a live site: everything slow happens while the old container is
+# still serving, the database is copied first, the image being replaced is
+# remembered by its id, and a new one that does not answer is replaced by the
+# old one again.
 set -euo pipefail
-
-# mox moved to the TrueNAS on 2026-11-18 (deploy/nas.sh). The copy on the VPS
-# is a stopped standby: this script would build here, upload 1.1GB and start
-# it — with its nightly jobs and notifications — beside the real one.
-if [ "${MOX_DEPLOY_STANDBY:-}" != "yes" ]; then
-  echo "!! mox runs on the TrueNAS now — use ./deploy/nas.sh" >&2
-  echo "   (to refresh the stopped standby on the VPS on purpose: MOX_DEPLOY_STANDBY=yes $0)" >&2
-  exit 1
-fi
 
 HOST=${MOX_VPS:-mox}
 APPS=${MOX_APPS_DIR:-/srv/apps}
 URL=${MOX_URL:-https://mox.mosama.me}
+CONTAINER=apps-mox-1
+IMAGE=ghcr.io/zmosama/mox
 
 say() { printf '\n==> %s\n' "$*"; }
 
 # Every ssh here notices a dead connection within two minutes and fails,
 # rather than waiting forever: on 2026-10-05 a link from the Mac that dropped
-# mid-upload left two deploys hanging until they were killed. Failing is safe
-# — nothing is swapped until the new image has fully arrived.
-ssh() { command ssh -o ConnectTimeout=20 -o ServerAliveInterval=15 -o ServerAliveCountMax=8 "$@"; }
+# mid-deploy left two deploys hanging until they were killed.
+ssh() { command ssh -o BatchMode=yes -o ConnectTimeout=20 -o ServerAliveInterval=15 -o ServerAliveCountMax=8 "$@"; }
 
 say "checking the working tree"
 if [ -n "$(git status --porcelain --untracked-files=no)" ]; then
-  echo "!! uncommitted changes — commit them first, the server builds from main" >&2
+  echo "!! uncommitted changes — commit them first, GitHub builds from main" >&2
   exit 1
 fi
 git push origin main
-echo "    main is $(git rev-parse --short HEAD)"
+SHA=$(git rev-parse HEAD)
+echo "    main is ${SHA:0:7}"
+
+say "waiting for GitHub to build ${SHA:0:7}"
+run=""
+for _ in $(seq 1 30); do
+  run=$(gh run list --workflow image.yml --commit "$SHA" --limit 1 --json databaseId --jq '.[0].databaseId // empty')
+  [ -n "$run" ] && break
+  sleep 4
+done
+if [ -z "$run" ]; then
+  echo "!! GitHub never started a build for this commit — the site is untouched" >&2
+  exit 1
+fi
+if ! gh run watch "$run" --exit-status >/dev/null; then
+  echo "!! GitHub's build failed — the site is untouched:  gh run view $run --log-failed" >&2
+  exit 1
+fi
+echo "    built"
 
 say "backing up the database"
 # VACUUM INTO, not a copy: SQLite runs in WAL mode and anything rated since the
 # last checkpoint lives in mox.db-wal, so copying the main file alone silently
 # takes a stale one.
-ssh "$HOST" "docker exec apps-mox-1 node -e \"
+ssh "$HOST" "docker exec $CONTAINER node -e \"
   const D=require('better-sqlite3');
   const db=new D('/data/mox.db',{readonly:true});
   require('fs').rmSync('/data/predeploy.db',{force:true});
   db.exec(\\\"vacuum into '/data/predeploy.db'\\\");
-\" && ls -lh /srv/apps/mox/data/predeploy.db | awk '{print \"    \" \$5}'"
+\" && ls -lh $APPS/mox/data/predeploy.db | awk '{print \"    \" \$5}'"
 
-say "building here"
-if ! docker info >/dev/null 2>&1; then
-  echo "!! Docker is not running — start Docker Desktop and try again" >&2
-  exit 1
-fi
-# This Mac is arm64 and the droplet is x86_64, so the platform is not optional:
-# without it the image builds happily and then will not start over there.
-# Not piped into anything. `set -o pipefail` covers a pipeline's exit status,
-# but Docker Desktop failing mid-build once printed its error, exited through a
-# `| tail`, and let the script carry on as if it had worked — which is how a
-# deploy ships nothing and says it succeeded.
-if ! docker build --platform linux/amd64 -t local/mox:latest . ; then
-  echo "!! the build failed — nothing was shipped, the site is untouched" >&2
-  exit 1
-fi
+say "remembering the running image as the way back"
+before=$(ssh "$HOST" "docker inspect $CONTAINER --format '{{.Image}}' 2>/dev/null || true")
+echo "    ${before:0:19}"
 
-say "keeping the current image as the way back"
-ssh "$HOST" "docker tag local/mox:latest local/mox:rollback && echo '    tagged local/mox:rollback'"
-
-# The old container keeps serving throughout the transfer.
-say "shipping it (about 200MB compressed, the site stays up)"
-# To a file first, then rsync with --partial: a link that drops mid-upload
-# resumes where it stopped instead of starting the 200MB again. Streaming it
-# straight into `docker load` over one ssh failed four times on 2026-10-05,
-# each time from zero. The old container serves throughout.
-IMAGE_TGZ="${TMPDIR:-/tmp}/mox-image.tar.gz"
-docker save local/mox:latest | gzip > "$IMAGE_TGZ"
-sent=0
-for attempt in 1 2 3 4 5 6 7 8 9 10; do
-  if rsync --partial --timeout=60 -e "ssh -o ConnectTimeout=20 -o ServerAliveInterval=15 -o ServerAliveCountMax=8" \
-       "$IMAGE_TGZ" "$HOST:/tmp/mox-image.tar.gz"; then sent=1; break; fi
-  echo "    the upload dropped (attempt $attempt) — resuming in 20s"
-  sleep 20
-done
-if [ "$sent" != "1" ]; then
-  echo "!! the image could not be sent — the site is untouched" >&2
-  exit 1
-fi
-ssh "$HOST" "gunzip -c /tmp/mox-image.tar.gz | docker load && rm -f /tmp/mox-image.tar.gz" | sed 's/^/    /'
-rm -f "$IMAGE_TGZ"
+# The commit's own tag, not `latest`: it is exactly what GitHub just built,
+# whatever else has been pushed since. Compose runs `latest`, so it is named
+# that here. The old container keeps serving until the swap.
+say "pulling the new image (the site stays up)"
+ssh "$HOST" "docker pull -q $IMAGE:$SHA | sed 's/^/    /' && docker tag $IMAGE:$SHA $IMAGE:latest"
 
 say "swapping the container"
+# The service is named: a bare `up -d` would look at every other app in the
+# compose file too.
 ssh "$HOST" "cd $APPS && docker compose up -d mox 2>&1 | sed 's/^/    /'"
 
 # After the swap, never before: the old container is still reading the old
 # schema while it serves, so a migration that drops a column it selects would
-# break the live site for the length of the transfer. Migrations are therefore
+# break the live site for the length of the pull. Migrations are therefore
 # written to be safe for the new code against the old schema, and run here.
-# A migration that fails must fail the deploy: the grep used to swallow its
-# exit code, so new code could go on serving against a schema it doesn't
-# match. Failing here takes the rollback below.
+# A migration that fails must fail the deploy and take the rollback below.
 say "migrating the database"
 migrated=1
-if ! ssh "$HOST" "set -o pipefail; docker exec apps-mox-1 npx drizzle-kit migrate 2>&1 | sed 's/^/    /'"; then
+if ! ssh "$HOST" "set -o pipefail; docker exec $CONTAINER npx drizzle-kit migrate 2>&1 | grep -v 'npm notice' | sed 's/^/    /'"; then
   echo "!! the migration failed" >&2
   migrated=0
 fi
@@ -132,17 +112,19 @@ for i in 1 2 3 4 5 6 7 8 9 10; do
 done
 
 if [ "$ok" != "1" ]; then
-  say "!! it never answered — rolling back"
-  ssh "$HOST" "docker tag local/mox:rollback local/mox:latest && cd $APPS && docker compose up -d mox"
-  sleep 5
-  echo "    rolled back; $URL -> $(curl -s -o /dev/null -w '%{http_code}' --max-time 15 "$URL/" || echo unreachable)"
+  say "!! it never answered — putting the old image back"
+  if [ -n "$before" ]; then
+    ssh "$HOST" "docker tag $before $IMAGE:latest && cd $APPS && docker compose up -d mox"
+    sleep 6
+  fi
+  echo "    $URL -> $(curl -s -o /dev/null -w '%{http_code}' --max-time 15 "$URL/" || echo unreachable)"
+  echo "    the database as it was is in $APPS/mox/data/predeploy.db" >&2
   exit 1
 fi
 
 say "done"
-ssh "$HOST" "rm -f /srv/apps/mox/data/predeploy.db"
-# Every deploy leaves the image it replaced behind, untagged — 4GB each. Only
-# latest and rollback are ever used, so the rest go. (On 2026-10-05 27 of them
-# had taken the disk from 34GB free to 14GB.)
-ssh "$HOST" "docker image prune -f | tail -1 | sed 's/^/    /'"
-echo "    running $(git rev-parse --short HEAD); previous image kept as local/mox:rollback"
+ssh "$HOST" "rm -f $APPS/mox/data/predeploy.db"
+# Every deploy leaves the image it replaced behind, 1.2GB each, and every
+# commit's tag keeps one alive. Only the running one is needed.
+ssh "$HOST" "docker images $IMAGE --format '{{.Repository}}:{{.Tag}}' | grep -v ':latest\$' | grep -v ':$SHA\$' | xargs -r docker rmi >/dev/null 2>&1 || true; docker image prune -f | tail -1 | sed 's/^/    /'"
+echo "    running ${SHA:0:7} on the VPS"
