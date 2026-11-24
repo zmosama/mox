@@ -12,7 +12,8 @@ import { and, eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/better-sqlite3";
 import * as s from "../../src/db/schema";
 import type { MediaKind } from "../../src/db/schema";
-import { includedOn, type WatchProviders } from "../../src/lib/providers";
+import { todayISO } from "../../src/lib/dates";
+import { includedOn, startedOn, type WatchProviders } from "../../src/lib/providers";
 import { posterPath, region, tmdb } from "../../src/lib/tmdb";
 
 export const HOME = region();
@@ -103,7 +104,7 @@ export type Detail = {
      landing-date shift, "just aired" can still be reaching us this morning. */
   last_episode_to_air?: { season_number: number; air_date?: string | null } | null;
   /** Who broadcasts it, which decides whether its air date needs shifting. */
-  networks?: { name?: string | null; origin_country?: string | null }[];
+  networks?: { id?: number | null; name?: string | null; origin_country?: string | null }[];
   /** Where it was made, which decides it for a streamer like Disney+. */
   origin_country?: string[];
   /** How a series is found in TVmaze, which knows what time it airs. */
@@ -139,7 +140,7 @@ export async function fetchTitle(
       tmdbId,
       kind,
       detail,
-      platforms: includedOn(detail["watch/providers"]?.results, services, HOME),
+      platforms: includedOn(detail["watch/providers"]?.results, services, HOME, startedOn(detail, todayISO())),
     };
   } catch (e) {
     console.warn(`  skipped ${kind}/${tmdbId}: ${(e as Error).message}`);

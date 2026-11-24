@@ -681,6 +681,18 @@ export const watchLinks = sqliteTable("watch_links", {
 }, (t) => [primaryKey({ columns: [t.tmdbId, t.kind] })]);
 
 /**
+ * A film's own page on Apple's store for this country, found before TMDB
+ * knows the film is there (apple-page.ts). `url` null means it was looked for
+ * and Apple has no page for it here; the nightly run asks again.
+ */
+export const applePages = sqliteTable("apple_pages", {
+  tmdbId: integer("tmdb_id").notNull(),
+  kind: text("kind", { enum: MEDIA_KINDS }).notNull(),
+  url: text("url"),
+  checkedAt: integer("checked_at").notNull(),
+}, (t) => [primaryKey({ columns: [t.tmdbId, t.kind] })]);
+
+/**
  * Speed as people actually felt it: one row per Core Web Vital a browser
  * reported (useReportWebVitals), so a slow page shows up on a real phone and
  * not only in a test. Kept a month.

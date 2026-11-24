@@ -4,7 +4,7 @@ import { NextResponse } from "next/server";
 import { and, eq } from "drizzle-orm";
 import { db, schema } from "@/db";
 import { currentUser } from "@/lib/auth";
-import { includedOn, soldOn, type WatchProviders } from "@/lib/providers";
+import { includedOn, soldOn, startedOn, type WatchProviders } from "@/lib/providers";
 import { APPLE_TV_STORE, serviceLookup, storeOffer } from "@/lib/queries";
 import { posterPath, region } from "@/lib/tmdb";
 import { profileUrl } from "@/lib/people";
@@ -22,6 +22,8 @@ import { pickTrailer } from "@/lib/trailer";
 import { MEDIA_KINDS, type MediaKind } from "@/db/schema";
 
 type TmdbTitle = {
+  /** A series' own networks; a streamer's says where it is before TMDB does. */
+  networks?: { id?: number }[];
   title?: string;
   name?: string;
   tagline?: string;
@@ -123,7 +125,7 @@ export async function GET(
     : configured;
   // Same rules the nightly feed builder applies, so a badge here and a badge on
   // /new can never disagree about what a title streams on.
-  const names = includedOn(d["watch/providers"]?.results, chosen, region());
+  const names = includedOn(d["watch/providers"]?.results, chosen, region(), startedOn(d, todayISO()));
 
   const lookup = serviceLookup();
   const links = db

@@ -109,7 +109,8 @@ async function ask(kind: MediaKind, tmdbId: number, title: string, opts: { throw
   return links;
 }
 
-async function askIn(country: string, kind: MediaKind, tmdbId: number, title: string, opts: { throwOn429?: boolean }): Promise<Map<number, string> | null> {
+/** One country's catalogue: each service's link to this title there, by provider id. */
+export async function askIn(country: string, kind: MediaKind, tmdbId: number, title: string, opts: { throwOn429?: boolean } = {}): Promise<Map<number, string> | null> {
   try {
     const res = await fetch(ENDPOINT, {
       method: "POST",

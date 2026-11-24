@@ -7,8 +7,9 @@
  * follows and taste.
  */
 import { playUrl } from "./play-links";
-import { and, desc, eq, gte, inArray, isNotNull, lte, sql } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, isNotNull, isNull, lte, or, sql } from "drizzle-orm";
 import { db, schema } from "@/db";
+import { applePage } from "./apple-page";
 import { TasteModel, type Feature, type RatedTitle, type Scorable } from "./taste";
 import type { Feed, MediaKind, Verdict } from "@/db/schema";
 import type { ReleaseItem } from "@/components/NewReleases";
@@ -304,6 +305,16 @@ export function datedFeed(name: Feed, userId: number | null, limit = 200): Relea
 }
 
 /**
+ * Past its hour, where the calendar knows one.
+ *
+ * The date alone calls an episode out from midnight. Blade Runner 2099 was due
+ * at 10am and the app had it as landed nine and a half hours earlier, which is
+ * the one thing a calendar must not do. No hour known, and the date stands.
+ */
+const landed = (nowS = Math.floor(Date.now() / 1000)) =>
+  or(isNull(schema.episodes.airsAt), lte(schema.episodes.airsAt, nowS));
+
+/**
  * Episodes that landed on the viewer's services recently, for the same timeline.
  *
  * /new was keyed on release dates alone, so the page answered "what came out"
@@ -330,6 +341,7 @@ export function datedEpisodes(
         isNotNull(schema.episodes.tmdbId),
         gte(schema.episodes.airs, from),
         lte(schema.episodes.airs, today),
+        landed(),
       ),
     )
     .orderBy(desc(schema.episodes.airs), schema.episodes.season, schema.episodes.episode)
@@ -505,6 +517,9 @@ function soonLabel(date: string, today: string): string {
   return d.toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "UTC" });
 }
 
+/** Said in place of a price for a film known only from Apple's own page. */
+const LISTED = "Listed on the store — price on Apple";
+
 /** Apple's store on TMDB and in `store_items`. */
 export const APPLE_TV_STORE = 2;
 
@@ -538,12 +553,18 @@ export function storeOffer(
       ),
     )
     .get();
-  if (!row && !forSale) return null;
+  /* Neither knows of it: Apple itself may, days before they do, and for a
+     pre-order they never will (apple-page.ts). The row then opens the film's
+     own page, and says only that it is listed — the price is Apple's to tell. */
+  const page = !row && !forSale ? applePage(tmdbId, kind) : null;
+  if (!row && !forSale && !page) return null;
 
   const store = services().find((s) => s.providerId === APPLE_TV_STORE);
   const name = store?.name ?? "Apple TV Store";
+  const service = toService(name, serviceLookup(), title, null);
+  if (page) return { ...service, url: page, price: LISTED };
   return {
-    ...toService(name, serviceLookup(), title, null),
+    ...service,
     price: row ? priceLabel(row.rentCent, row.buyCent, row.currency) ?? null : null,
   };
 }
@@ -686,6 +707,7 @@ export function forYou(userId: number, today = todayISO(), days = 7): FreshEpiso
         inArray(schema.episodes.tmdbId, [...follows]),
         gte(schema.episodes.airs, addDaysISO(today, -days)),
         lte(schema.episodes.airs, today),
+        landed(),
       ),
     )
     .orderBy(schema.episodes.airs, schema.episodes.season, schema.episodes.episode)

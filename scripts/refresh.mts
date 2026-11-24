@@ -24,6 +24,7 @@ import { refreshAirCheck } from "./refresh/air-check.mjs";
 import { refreshFeeds } from "./refresh/feeds.mjs";
 import { refreshServices } from "./refresh/services.mjs";
 import { refreshPrices } from "./refresh/prices.mjs";
+import { refreshApplePages } from "./refresh/apple.mjs";
 import { refreshStore } from "./refresh/store.mjs";
 import { refreshUniverses } from "./refresh/universes.mjs";
 import { refreshFeatures, refreshPicks } from "./refresh/taste.mjs";
@@ -99,6 +100,10 @@ await step("store", async () => ({ summary: await refreshStore(TODAY), value: nu
 // recent arrivals, so it has to know which those are.
 await step("prices", async () => ({ summary: await refreshPrices(TODAY), value: null }));
 
+// After the store and its prices: only films neither of them accounts for are
+// asked of Apple directly, which hears of a listing days before TMDB does.
+await step("apple pages", async () => ({ summary: await refreshApplePages(), value: null }));
+
 // MOX's own catalogue: take in what is already known, then open the titles
 // only ever seen in a list, so they gain their full record.
 await step("catalog", async () => {
@@ -165,7 +170,7 @@ await step("cache", async () => {
 });
 
 if (failed.length) {
-  console.error(`\n${failed.length} of 16 steps failed: ${failed.join(", ")}`);
+  console.error(`\n${failed.length} of 17 steps failed: ${failed.join(", ")}`);
   process.exit(1);
 }
 console.log("\nall steps current");

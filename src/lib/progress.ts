@@ -75,16 +75,23 @@ export function buildProgress(
   arrivals: Map<number, string>,
   watchedSet: Set<string>,
   today: string,
+  /** The instant an episode lands, where the calendar knows the hour. */
+  instants: Map<number, number> = new Map(),
+  nowS = Math.floor(Date.now() / 1000),
 ): Progress {
   const seasons = (show.seasons ?? []).filter((s) => s.season_number > 0);
   const rows: EpisodeRow[] = episodes.map((e) => {
     const airs = arrivals.get(e.episode_number) ?? e.air_date ?? null;
+    /* A known hour beats the date. Blade Runner 2099 was dated the 25th with a
+       10am arrival, and at half past midnight the page already said "All 8
+       out" — ten hours before MOX's own notification would have gone. */
+    const at = instants.get(e.episode_number);
     return {
       season,
       episode: e.episode_number,
       name: e.name?.trim() || null,
       airs,
-      out: airs !== null && airs <= today,
+      out: airs !== null && (at !== undefined ? at <= nowS : airs <= today),
       watched: watchedSet.has(`${season}:${e.episode_number}`),
     };
   });
@@ -142,13 +149,14 @@ export async function seriesProgress(
   }
   if (!episodes.length) return null;
 
-  const arrivals = new Map(
-    db
-      .select({ episode: schema.episodes.episode, airs: schema.episodes.airs })
-      .from(schema.episodes)
-      .where(and(eq(schema.episodes.tmdbId, tmdbId), eq(schema.episodes.season, season)))
-      .all()
-      .map((r) => [r.episode, r.airs]),
+  const dated = db
+    .select({ episode: schema.episodes.episode, airs: schema.episodes.airs, airsAt: schema.episodes.airsAt })
+    .from(schema.episodes)
+    .where(and(eq(schema.episodes.tmdbId, tmdbId), eq(schema.episodes.season, season)))
+    .all();
+  const arrivals = new Map(dated.map((r) => [r.episode, r.airs]));
+  const instants = new Map(
+    dated.filter((r) => r.airsAt != null).map((r) => [r.episode, r.airsAt as number]),
   );
 
   const watchedSet = new Set(
@@ -166,5 +174,5 @@ export async function seriesProgress(
           .map((w) => `${w.season}:${w.episode}`),
   );
 
-  return { ...buildProgress(show, season, episodes, arrivals, watchedSet, today), services };
+  return { ...buildProgress(show, season, episodes, arrivals, watchedSet, today, instants), services };
 }

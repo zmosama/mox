@@ -26,7 +26,7 @@ import { addDaysISO } from "../../src/lib/dates";
 import {
   catalogue, db, HOME, mapPool, s, saveTitle, fetchTitle, subscribed, type Fetched,
 } from "./shared.mjs";
-import { includedOn, type WatchProviders } from "../../src/lib/providers";
+import { includedOn, startedOn, type WatchProviders } from "../../src/lib/providers";
 import { fetchSchedule, fetchShowEpisodes } from "./tvmaze.mjs";
 import {
   EMPTY_SCHEDULE, episodeKey, type Schedule, type ShowSchedule,
@@ -68,6 +68,8 @@ async function upcomingEpisodes(
   known: ShowSchedule | null,
   catalogueServices: ReturnType<typeof catalogue>,
   history: () => Promise<ShowSchedule | null>,
+  /** The show's own, once started: see `startedOn`. */
+  networks: { id?: number | null }[] | null = null,
 ) {
   /* The season's own watch providers come in the same request: which service
      has *these* episodes, which is not always the show's. */
@@ -78,7 +80,7 @@ async function upcomingEpisodes(
   const regions = season["watch/providers"]?.results ?? {};
   // No region at all means TMDB has no answer for this season, which is not the
   // same as "on nothing": that season is left to the show's own listing.
-  const services = Object.keys(regions).length ? includedOn(regions, catalogueServices, HOME) : null;
+  const services = Object.keys(regions).length ? includedOn(regions, catalogueServices, HOME, networks) : null;
   const backTo = addDaysISO(from, -BACKFILL_DAYS);
   const scanFrom = addDaysISO(backTo, -MAX_PLATFORM_GAP);
   const scanTo = addDaysISO(to, MAX_PLATFORM_GAP);
@@ -234,7 +236,7 @@ export async function refreshCalendar(today: string, extraSeries: number[] = [])
     ));
     const scanned = await Promise.all(
       seasons.map((n) =>
-        upcomingEpisodes(tmdbId, n, today, horizon, shifted, american, known, services, history).catch(() => null),
+        upcomingEpisodes(tmdbId, n, today, horizon, shifted, american, known, services, history, startedOn(title.detail, today)).catch(() => null),
       ),
     );
     if (scanned.some((season) => season === null)) return null;

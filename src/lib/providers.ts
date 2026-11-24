@@ -69,13 +69,51 @@ export const FALLBACK_REGIONS: Record<number, string[]> = {
 };
 
 /**
+ * A streamer's own network on TMDB, and the service it is.
+ *
+ * TMDB's service listings arrive from JustWatch a day or more after a show
+ * does: Blade Runner 2099 was dated, followed and hours from landing while
+ * TMDB listed it in no country at all, so the page said "Not on your services"
+ * to someone paying for Prime Video. The network is on the show's record from
+ * the day it is announced, and for these it is the answer: what they make
+ * themselves they carry everywhere they are sold.
+ *
+ * Only streamers that are one service worldwide. HBO, FX or Hulu are networks
+ * too, and where their shows land here is a licensing deal TMDB has to tell us.
+ */
+export const NETWORK_SERVICE: Record<number, number> = {
+  213: 8,     // Netflix
+  1024: 119,  // Prime Video -> Amazon Prime Video
+  2552: 350,  // Apple TV
+  2739: 337,  // Disney+
+};
+
+/**
+ * The networks to hand {@link includedOn}: the show's own, once it has started.
+ *
+ * Not before. A row in `availability` is what announces "Now on Prime Video"
+ * to a watchlist, and a series announced a year ahead already names its
+ * network — so without this every one of them would be reported as arrived.
+ */
+export const startedOn = <N extends { id?: number | null }>(
+  show: { first_air_date?: string | null; networks?: N[] | null },
+  today: string,
+): N[] | null =>
+  show.first_air_date && show.first_air_date <= today ? (show.networks ?? null) : null;
+
+/**
  * The names to record or badge, in the order the services were given — so the
  * caller's ordering (TMDB priority, or the viewer's own picks) is what shows.
+ *
+ * `networks` is the show's own, and is only consulted when TMDB lists nothing
+ * included here at all — see {@link NETWORK_SERVICE}. A listing on a service
+ * the viewer does not have is still a listing, and is left to stand.
  */
 export function includedOn(
   providers: WatchProviders | undefined,
   services: ServiceEntry[],
   homeRegion: string,
+  networks?: { id?: number | null }[] | null,
 ): string[] {
   const regions = providers ?? {};
 
@@ -103,6 +141,11 @@ export function includedOn(
       ),
     );
     if (elsewhere) names.push(service.name);
+  }
+
+  if (!names.length && !here.size && networks?.length) {
+    const own = new Set(networks.map((n) => NETWORK_SERVICE[n.id ?? -1]).filter(Boolean));
+    for (const service of services) if (own.has(service.providerId)) names.push(service.name);
   }
   return names;
 }
